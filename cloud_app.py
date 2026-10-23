@@ -120,6 +120,11 @@ for diagnostic in [*(RUNTIME / 'app/backend/.private/live').glob('*.log'), *RUNT
 with st.spinner('Preparing the cloud research workspace. First startup may take several minutes…'):
     app, process, enabled = start_service()
 if process.poll() is not None:
+    print(f'MarketMind gateway exited: code={process.returncode}, pid={process.pid}',flush=True)
+    log_path=RUNTIME / 'backend.log'
+    if log_path.is_file():
+        for line in log_path.read_text(errors='replace').splitlines()[-25:]:
+            print('MarketMind gateway log: '+re.sub(r'(sk-[\w-]+|postgres(?:ql)?://\S+)','[REDACTED]',line)[:1000],flush=True)
     st.error('The cloud service stopped. Paid research is disabled in this validation build.')
     st.stop()
 if not enabled:
