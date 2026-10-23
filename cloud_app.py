@@ -45,6 +45,9 @@ def start_service():
     env.pop('OPENAI_API_KEY', None)
     env.pop('MARKETMIND_LEDGER_DATABASE_URL', None)
     env['OPENAI_TEST_BUDGET_USD'] = '0'
+    # This workflow uses only built-in nodes. Avoid unused community-package
+    # initialization in n8n's standalone CLI execution mode.
+    env['N8N_COMMUNITY_PACKAGES_ENABLED'] = 'false'
     try:
         configured = dict(st.secrets)
     except FileNotFoundError:
