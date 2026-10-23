@@ -93,7 +93,9 @@ for diagnostic in (RUNTIME / 'app/backend/.private/live').glob('*.log'):
         st.session_state['_diagnostic_' + diagnostic.name] = fingerprint
         lines=diagnostic.read_text(errors='replace').splitlines()
         failures=[line for line in lines if any(term in line.lower() for term in ('error','failed','cannot','eacces','enoent','killed','heap'))]
-        for line in failures[-12:]:
+        if diagnostic.stem != 'import':
+            failures = lines[-25:]
+        for line in failures[-25:]:
             safe=re.sub(r'(sk-[\w-]+|postgres(?:ql)?://\S+)', '[REDACTED]', line)
             print('MarketMind diagnostic: ' + safe[:1000], flush=True)
 
