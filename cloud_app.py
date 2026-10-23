@@ -13,6 +13,7 @@ import json
 import zipfile
 import tempfile
 import re
+import signal
 import streamlit as st
 
 ROOT = Path(__file__).resolve().parent
@@ -67,6 +68,18 @@ def start_service():
             subprocess.run([str(node_home / 'bin/npm'), 'install', '--omit=dev', '--no-audit', '--no-fund'], cwd=backend, env=install_env, stdout=log, stderr=log, timeout=1200, check=True)
         marker.write_text(manifest_hash)
     print('MarketMind: importing n8n research workflow', flush=True)
+    # Streamlit hot reload does not reap subprocesses from the previous script.
+    # Only stop our exact gateway executable in this deployment directory.
+    for proc_dir in Path('/proc').iterdir():
+        if not proc_dir.name.isdigit():
+            continue
+        try:
+            command=(proc_dir / 'cmdline').read_bytes().split(b'\0')
+            if len(command)>1 and command[1]==b'live-server.mjs' and (proc_dir / 'cwd').resolve()==backend.resolve():
+                os.kill(int(proc_dir.name),signal.SIGTERM)
+        except (OSError,PermissionError):
+            pass
+    time.sleep(1)
     token = secrets.token_hex(32)
     env.update(MARKETMIND_GATEWAY_TOKEN=token, MARKETMIND_N8N_CLI=str(cli), MARKETMIND_PYTHON=sys.executable)
     log = (RUNTIME / 'backend.log').open('a')
@@ -77,6 +90,11 @@ def start_service():
         try:
             with urllib.request.urlopen('http://127.0.0.1:5683/health', timeout=2) as response:
                 if json.load(response).get('ready'):
+                    request=urllib.request.Request('http://127.0.0.1:5683/status',headers={'X-MarketMind-Token':token})
+                    with urllib.request.urlopen(request,timeout=10) as status_response:
+                        status=json.load(status_response)
+                    if enabled and not status.get('configured'):
+                        raise RuntimeError('Cloud provider configuration is unavailable')
                     print('MarketMind: cloud backend and n8n import ready', flush=True)
                     os.environ['MARKETMIND_GATEWAY_TOKEN'] = token
                     return app, process, enabled
@@ -87,7 +105,7 @@ def start_service():
     raise RuntimeError('Cloud workflow startup timed out')
 
 # Owner-visible platform logs only; never render internal diagnostics in the UI.
-for diagnostic in (RUNTIME / 'app/backend/.private/live').glob('*.log'):
+for diagnostic in [*(RUNTIME / 'app/backend/.private/live').glob('*.log'), *RUNTIME.glob('backend.log')]:
     fingerprint = (diagnostic.name, diagnostic.stat().st_mtime_ns)
     if st.session_state.get('_diagnostic_' + diagnostic.name) != fingerprint:
         st.session_state['_diagnostic_' + diagnostic.name] = fingerprint
