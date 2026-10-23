@@ -12,6 +12,7 @@ import urllib.request
 import json
 import zipfile
 import tempfile
+import re
 import streamlit as st
 
 ROOT = Path(__file__).resolve().parent
@@ -84,6 +85,17 @@ def start_service():
         time.sleep(2)
     process.terminate()
     raise RuntimeError('Cloud workflow startup timed out')
+
+# Owner-visible platform logs only; never render internal diagnostics in the UI.
+for diagnostic in (RUNTIME / 'app/backend/.private/live').glob('*.log'):
+    fingerprint = (diagnostic.name, diagnostic.stat().st_mtime_ns)
+    if st.session_state.get('_diagnostic_' + diagnostic.name) != fingerprint:
+        st.session_state['_diagnostic_' + diagnostic.name] = fingerprint
+        lines=diagnostic.read_text(errors='replace').splitlines()
+        failures=[line for line in lines if any(term in line.lower() for term in ('error','failed','cannot','eacces','enoent','killed','heap'))]
+        for line in failures[-12:]:
+            safe=re.sub(r'(sk-[\w-]+|postgres(?:ql)?://\S+)', '[REDACTED]', line)
+            print('MarketMind diagnostic: ' + safe[:1000], flush=True)
 
 with st.spinner('Preparing the cloud research workspace. First startup may take several minutes…'):
     app, process, enabled = start_service()
