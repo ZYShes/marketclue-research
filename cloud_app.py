@@ -14,6 +14,7 @@ import zipfile
 import tempfile
 import re
 import signal
+from contextlib import contextmanager
 import streamlit as st
 
 ROOT = Path(__file__).resolve().parent
@@ -35,8 +36,57 @@ def redact_diagnostic(line):
                 line = line.replace(str(value), '[REDACTED]')
     return re.sub(r'(sk-[\w-]+|fc-[\w-]+|AIza[\w-]+|postgres(?:ql)?://\S+)', '[REDACTED]', line)
 
+
+def log_tail(path):
+    """Read a bounded tail so startup diagnostics cannot load a large log into RAM."""
+    try:
+        with path.open('rb') as handle:
+            handle.seek(0, os.SEEK_END)
+            handle.seek(max(0, handle.tell() - 32768))
+            return handle.read(32768).decode('utf-8', errors='replace').splitlines()[-30:]
+    except OSError:
+        return []
+
+
+def print_log_tail(path, label):
+    for line in log_tail(path):
+        print(f'MarketMind {label}: ' + redact_diagnostic(line)[:1000], flush=True)
+
+
+@contextmanager
+def startup_lock():
+    # Streamlit's cache lock is per Python process/function revision. Hot reload
+    # can create another startup, so protect the shared runtime with a Linux lock.
+    import fcntl
+    RUNTIME.mkdir(exist_ok=True)
+    with (RUNTIME / 'startup.lock').open('a') as handle:
+        deadline = time.monotonic() + 1200
+        announced = False
+        while True:
+            try:
+                fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                if not announced:
+                    print('MarketMind: waiting for the existing cloud startup to finish', flush=True)
+                    announced = True
+                if time.monotonic() >= deadline:
+                    raise RuntimeError('An existing cloud startup still holds the runtime lock')
+                time.sleep(1)
+        try:
+            yield handle.fileno()
+        finally:
+            fcntl.flock(handle, fcntl.LOCK_UN)
+
+
 @st.cache_resource(show_spinner=False)
-def start_service():
+def start_service(release_id):
+    # release_id invalidates this cache after either the launcher or archive changes.
+    with startup_lock() as lock_fd:
+        return start_service_locked(lock_fd)
+
+
+def start_service_locked(lock_fd):
     print('MarketMind: preparing isolated cloud runtime', flush=True)
     RUNTIME.mkdir(exist_ok=True)
     app = RUNTIME / 'app'
@@ -90,9 +140,23 @@ def start_service():
     marker=backend / '.installed-manifest'
     if not cli.is_file() or not marker.exists() or marker.read_text()!=manifest_hash:
         print('MarketMind: installing n8n 2.41.4 (paid API disabled)', flush=True)
-        with (RUNTIME / 'install.log').open('w') as log:
-            install_env={k:v for k,v in env.items() if k not in PRIVATE_ENV_KEYS}
-            subprocess.run([str(node_home / 'bin/npm'), 'install', '--omit=dev', '--no-audit', '--no-fund'], cwd=backend, env=install_env, stdout=log, stderr=log, timeout=1200, check=True)
+        try:
+            with (RUNTIME / 'install.log').open('w') as log:
+                install_env={k:v for k,v in env.items() if k not in PRIVATE_ENV_KEYS}
+                # These limits apply only to npm, not the research backend.
+                # V8's old-space limit is not a total-process memory guarantee.
+                previous_options=re.sub(r'--max[-_]old[-_]space[-_]size(?:=|\s+)\d+', '', install_env.get('NODE_OPTIONS', ''))
+                install_env['NODE_OPTIONS']=(previous_options + ' --max-old-space-size=512').strip()
+                install_env['npm_config_maxsockets']='3'
+                install_env['UV_THREADPOOL_SIZE']='2'
+                # Keep the lock alive in npm if Streamlit is restarted mid-install.
+                subprocess.run([str(node_home / 'bin/npm'), 'install', '--omit=dev', '--no-audit', '--no-fund'], cwd=backend, env=install_env, stdout=log, stderr=log, timeout=1200, check=True, pass_fds=(lock_fd,))
+            if not cli.is_file():
+                raise RuntimeError('Dependency installation returned without the n8n executable')
+        except (subprocess.SubprocessError, OSError, RuntimeError) as error:
+            print(f'MarketMind: dependency installation failed ({type(error).__name__}, exit={getattr(error, "returncode", "unavailable")})', flush=True)
+            print_log_tail(RUNTIME / 'install.log', 'install failure')
+            raise RuntimeError('Cloud dependency installation failed; inspect administrator logs') from None
         marker.write_text(manifest_hash)
     print('MarketMind: importing n8n research workflow', flush=True)
     # Streamlit hot reload does not reap subprocesses from the previous script.
@@ -111,8 +175,11 @@ def start_service():
     env.update(MARKETMIND_GATEWAY_TOKEN=token, MARKETMIND_N8N_CLI=str(cli), MARKETMIND_PYTHON=sys.executable)
     log = (RUNTIME / 'backend.log').open('a')
     process = subprocess.Popen([str(node_home / 'bin/node'), 'live-server.mjs'], cwd=backend, env=env, stdout=log, stderr=log)
-    for _ in range(300):
+    startup_deadline = time.monotonic() + 600
+    while time.monotonic() < startup_deadline:
         if process.poll() is not None:
+            print_log_tail(RUNTIME / 'backend.log', 'backend startup failure')
+            print_log_tail(backend / '.private/live/import.log', 'workflow import failure')
             raise RuntimeError('Cloud backend exited; inspect startup logs')
         try:
             with urllib.request.urlopen('http://127.0.0.1:5683/health', timeout=2) as response:
@@ -129,14 +196,16 @@ def start_service():
             pass
         time.sleep(2)
     process.terminate()
+    print_log_tail(RUNTIME / 'backend.log', 'backend startup timeout')
+    print_log_tail(backend / '.private/live/import.log', 'workflow import timeout')
     raise RuntimeError('Cloud workflow startup timed out')
 
 # Owner-visible platform logs only; never render internal diagnostics in the UI.
-for diagnostic in [*(RUNTIME / 'app/backend/.private/live').glob('*.log'), *RUNTIME.glob('backend.log')]:
+for diagnostic in [*(RUNTIME / 'app/backend/.private/live').glob('*.log'), *RUNTIME.glob('backend.log'), *RUNTIME.glob('install.log')]:
     fingerprint = (diagnostic.name, diagnostic.stat().st_mtime_ns)
     if st.session_state.get('_diagnostic_' + diagnostic.name) != fingerprint:
         st.session_state['_diagnostic_' + diagnostic.name] = fingerprint
-        lines=diagnostic.read_text(errors='replace').splitlines()
+        lines=log_tail(diagnostic)
         failures=[line for line in lines if any(term in line.lower() for term in ('error','failed','cannot','eacces','enoent','killed','heap'))]
         if diagnostic.stem != 'import':
             failures = lines[-25:]
@@ -145,12 +214,18 @@ for diagnostic in [*(RUNTIME / 'app/backend/.private/live').glob('*.log'), *RUNT
             print('MarketMind diagnostic: ' + safe[:1000], flush=True)
 
 with st.spinner('Preparing the cloud research workspace. First startup may take several minutes…'):
-    app, process, enabled = start_service()
+    try:
+        release_id=hashlib.sha256((ROOT / 'MarketMind-A6-deploy.zip').read_bytes()).hexdigest() + ':' + hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
+        app, process, enabled = start_service(release_id)
+    except Exception as error:
+        print(f'MarketMind: cloud startup failed ({type(error).__name__}): ' + redact_diagnostic(str(error))[:1000], flush=True)
+        st.error('The research service could not start. Administrator startup logs contain the diagnosis.')
+        st.stop()
 if process.poll() is not None:
     print(f'MarketMind gateway exited: code={process.returncode}, pid={process.pid}',flush=True)
     log_path=RUNTIME / 'backend.log'
     if log_path.is_file():
-        for line in log_path.read_text(errors='replace').splitlines()[-25:]:
+        for line in log_tail(log_path)[-25:]:
             print('MarketMind gateway log: '+redact_diagnostic(line)[:1000],flush=True)
     st.error('The cloud service stopped. Paid research is disabled in this validation build.')
     st.stop()
