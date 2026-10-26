@@ -20,6 +20,20 @@ ROOT = Path(__file__).resolve().parent
 RUNTIME = Path(tempfile.gettempdir()) / 'marketmind-cloud-runtime'
 NODE_VERSION = '24.13.0'
 NODE_SHA256 = 'e798599612f4bb71333a3397ab0d095fd62214e115aea45aa858a145fc72d67e'
+PRIVATE_ENV_KEYS = ('OPENAI_API_KEY', 'MARKETMIND_LEDGER_DATABASE_URL', 'YOUTUBE_API_KEY', 'FIRECRAWL_API_KEY')
+
+
+def redact_diagnostic(line):
+    """Keep provider credentials out of owner-visible diagnostics as well as the UI."""
+    try:
+        configured = dict(st.secrets)
+    except FileNotFoundError:
+        configured = {}
+    for name in PRIVATE_ENV_KEYS:
+        for value in (os.environ.get(name), configured.get(name)):
+            if value:
+                line = line.replace(str(value), '[REDACTED]')
+    return re.sub(r'(sk-[\w-]+|fc-[\w-]+|AIza[\w-]+|postgres(?:ql)?://\S+)', '[REDACTED]', line)
 
 @st.cache_resource(show_spinner=False)
 def start_service():
@@ -42,8 +56,11 @@ def start_service():
         with tarfile.open(archive) as bundle:
             bundle.extractall(RUNTIME, filter='data')
     env = dict(os.environ)
-    env.pop('OPENAI_API_KEY', None)
-    env.pop('MARKETMIND_LEDGER_DATABASE_URL', None)
+    for name in PRIVATE_ENV_KEYS:
+        env.pop(name, None)
+        os.environ.pop(name, None)
+    env.pop('FIRECRAWL_ALLOW_ANONYMOUS', None)
+    env.pop('FIRECRAWL_MAX_FALLBACK_PAGES', None)
     env['OPENAI_TEST_BUDGET_USD'] = '0'
     # This workflow uses only built-in nodes. Avoid unused community-package
     # initialization in n8n's standalone CLI execution mode.
@@ -52,6 +69,13 @@ def start_service():
         configured = dict(st.secrets)
     except FileNotFoundError:
         configured = {}
+    for name in ('YOUTUBE_API_KEY', 'FIRECRAWL_API_KEY'):
+        if configured.get(name):
+            env[name] = str(configured[name])
+    # Anonymous extraction requires an explicit cloud-secret opt-in.
+    env['FIRECRAWL_ALLOW_ANONYMOUS'] = 'true' if str(configured.get('FIRECRAWL_ALLOW_ANONYMOUS', 'false')).lower() == 'true' else 'false'
+    if 'FIRECRAWL_MAX_FALLBACK_PAGES' in configured:
+        env['FIRECRAWL_MAX_FALLBACK_PAGES'] = str(configured['FIRECRAWL_MAX_FALLBACK_PAGES'])
     enabled = bool(configured.get('OPENAI_API_KEY') and configured.get('MARKETMIND_LEDGER_DATABASE_URL'))
     if enabled:
         env.update(OPENAI_API_KEY=str(configured['OPENAI_API_KEY']),
@@ -67,7 +91,7 @@ def start_service():
     if not cli.is_file() or not marker.exists() or marker.read_text()!=manifest_hash:
         print('MarketMind: installing n8n 2.41.4 (paid API disabled)', flush=True)
         with (RUNTIME / 'install.log').open('w') as log:
-            install_env={k:v for k,v in env.items() if k not in ('OPENAI_API_KEY','MARKETMIND_LEDGER_DATABASE_URL')}
+            install_env={k:v for k,v in env.items() if k not in PRIVATE_ENV_KEYS}
             subprocess.run([str(node_home / 'bin/npm'), 'install', '--omit=dev', '--no-audit', '--no-fund'], cwd=backend, env=install_env, stdout=log, stderr=log, timeout=1200, check=True)
         marker.write_text(manifest_hash)
     print('MarketMind: importing n8n research workflow', flush=True)
@@ -117,7 +141,7 @@ for diagnostic in [*(RUNTIME / 'app/backend/.private/live').glob('*.log'), *RUNT
         if diagnostic.stem != 'import':
             failures = lines[-25:]
         for line in failures[-25:]:
-            safe=re.sub(r'(sk-[\w-]+|postgres(?:ql)?://\S+)', '[REDACTED]', line)
+            safe=redact_diagnostic(line)
             print('MarketMind diagnostic: ' + safe[:1000], flush=True)
 
 with st.spinner('Preparing the cloud research workspace. First startup may take several minutes…'):
@@ -127,7 +151,7 @@ if process.poll() is not None:
     log_path=RUNTIME / 'backend.log'
     if log_path.is_file():
         for line in log_path.read_text(errors='replace').splitlines()[-25:]:
-            print('MarketMind gateway log: '+re.sub(r'(sk-[\w-]+|postgres(?:ql)?://\S+)','[REDACTED]',line)[:1000],flush=True)
+            print('MarketMind gateway log: '+redact_diagnostic(line)[:1000],flush=True)
     st.error('The cloud service stopped. Paid research is disabled in this validation build.')
     st.stop()
 if not enabled:
