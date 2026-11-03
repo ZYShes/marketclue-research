@@ -335,11 +335,14 @@ onUnauthorized(() => {
 function viewLanding() {
   setTitle("");
   const signin = h("div", { class: "signin" });
+  // A real card from a test report (captured by web_fetch on Oct 17, 2026).
   const sample = {
-    claim: "A Seattle pottery studio sells a 6-inch planter with saucer for $54.",
-    quote: "6\" Speckled Stoneware Planter with Saucer. $54.00. Made to order in our Georgetown studio.",
-    source: "Rainier Clay Studio · Planters",
-    domain: "example.com",
+    claim: "Etsy charges $0.20 to publish a listing, and a listing lasts four months or until it sells.",
+    quote: "It costs $0.20 to publish a listing to the marketplace. A listing lasts for four months or until the item is sold.",
+    source: "How to sell on Etsy United States",
+    domain: "etsy.com",
+    tag: "Sales channels & fees",
+    captured: "2026-10-17T04:21:58Z",
   };
 
   main.replaceChildren(
@@ -357,12 +360,12 @@ function viewLanding() {
           h("p", { class: "fine" }, "Your first report is free.")),
         h("figure", { class: "specimen", "aria-label": "Example of a fact card" },
           h("div", { class: "fact fact-specimen" },
-            h("div", { class: "badge-row" }, typeBadge("sourced"), h("span", { class: "tag" }, "Competitors & prices")),
+            h("div", { class: "badge-row" }, typeBadge("sourced"), h("span", { class: "tag" }, sample.tag)),
             h("p", { class: "fact-claim" }, sample.claim),
             h("blockquote", { class: "quote" }, h("p", {}, `“${sample.quote}”`)),
             h("p", { class: "fact-source" }, h("span", { class: "fact-source-title" }, sample.source),
-              h("span", { class: "muted" }, ` · ${sample.domain} · captured ${fmtDate(new Date(Date.now() - 3 * 86400000).toISOString())}`))),
-          h("figcaption", {}, sourcedNote()))),
+              h("span", { class: "muted" }, ` · ${sample.domain} · captured ${fmtDate(sample.captured)}`))),
+          h("figcaption", {}, "A real fact card from a sample report. ", sourcedNote()))),
       h("section", { class: "kinds", "aria-labelledby": "kinds-title" },
         h("h2", { id: "kinds-title" }, "Every line in a report is one of three things"),
         h("ul", { class: "kind-list" },

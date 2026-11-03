@@ -211,6 +211,48 @@ def make_cards(direction, findings, pages):
     return cards
 
 
+CLAIMS_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "cards": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {"id": {"type": "integer"}, "claim": {"type": "string"}},
+                "required": ["id", "claim"],
+                "additionalProperties": False,
+            },
+        }
+    },
+    "required": ["cards"],
+    "additionalProperties": False,
+}
+
+
+def tighten_claims(usage, cards):
+    """Rewrites any card claim that says more than its quote, so a card never overstates its source."""
+    items = [{"id": i, "claim": c["claim"], "quote": c["quote"], "source": c["source_title"]} for i, c in enumerate(cards)]
+    if not items:
+        return 0
+    out = claude.json_call(
+        usage,
+        system="You are MarketClue's checker. A fact card's claim may only say what its quote says.",
+        prompt=(
+            "For each card whose claim adds anything the quote does not state (numbers, names, extra facts), "
+            "return a corrected one-sentence claim that restates only the quote, in plain English. "
+            "Return only the cards you changed.\n\n" + json.dumps(items, ensure_ascii=False)
+        ),
+        schema=CLAIMS_SCHEMA,
+        effort="low",
+    )
+    changed = 0
+    for fix in out["cards"]:
+        if 0 <= fix["id"] < len(cards) and fix["claim"].strip():
+            cards[fix["id"]]["claim"] = fix["claim"].strip()
+            changed += 1
+    return changed
+
+
 # ---------- 4. Marketing plan and budget ----------
 
 def _item_schema(with_amount=False):
@@ -400,9 +442,12 @@ def run(run_id):
         raw_cards = []
         for direction, findings, pages in results:
             raw_cards += make_cards(direction, findings, pages)
+        tightened = tighten_claims(usage, raw_cards)
         cards = store.put_cards(sub, raw_cards, run_id) if raw_cards else []
         sourced = sum(1 for c in cards if c["type"] == "sourced")
-        set_agent("Quote checker", "done", f"{sourced} of {len(cards)} quotes found on the page", time.time() - t0)
+        set_agent("Quote checker", "done",
+                  f"{sourced} of {len(cards)} quotes found on the page; {tightened} claims narrowed to their quote",
+                  time.time() - t0)
         if not sourced:
             raise RuntimeError("No finding could be checked against its source page. Try a more specific question.")
 
