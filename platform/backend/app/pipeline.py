@@ -305,6 +305,7 @@ marketing plan and budget for a solo founder. Every statement has a kind:
 - estimate: a number you computed; method explains how (e.g. "3 posts a week x 4 weeks x $15 boost").
 Mark an item sourced only when one cited quote states it directly (the same number, price or fact);
 a reasonable conclusion drawn from a quote is an assumption, and a computed number is an estimate.
+Never write card ids in text or method; card_ids is the only place for them.
 Budget amounts are in US dollars for the
 first 4 weeks; budget lines that use a price from a card are sourced, otherwise estimate or assumption.
 If the founder gave a budget, stay within it. Keep it short: 3 summary bullets, 2-4 items per section,
