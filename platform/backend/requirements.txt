@@ -1,0 +1,4 @@
+anthropic
+pyjwt[crypto]
+requests
+beautifulsoup4

@@ -1,0 +1,4 @@
+-r requirements.txt
+pytest
+moto[dynamodb,s3,ssm,lambda]
+boto3
