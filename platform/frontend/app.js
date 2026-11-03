@@ -391,6 +391,7 @@ function viewNew(isCurrent, featureId) {
   let conv = { conv_id: storage.get(convKey), feature: featureId, messages: [], brief: null, ready: false };
   let sending = false;
   let starting = false;
+  let restoring = !!conv.conv_id;
   let pendingText = null;
 
   const log = h("ol", { class: "messages", "aria-label": "Conversation with the research agent" });
@@ -409,6 +410,7 @@ function viewNew(isCurrent, featureId) {
       sendBtn),
     chatError);
   const briefCol = h("div", { class: "brief-col" });
+  const resetBtn = h("button", { type: "button", class: "btn btn-quiet", onclick: startOver }, "Start over");
 
   main.replaceChildren(
     h("div", { class: "wrap page" },
@@ -417,7 +419,7 @@ function viewNew(isCurrent, featureId) {
           h("p", { class: "eyebrow" }, "New research"),
           h("h1", {}, feature.name),
           h("p", { class: "lede-sm" }, feature.question)),
-        h("button", { type: "button", class: "btn btn-quiet", onclick: startOver }, "Start over")),
+        resetBtn),
       h("div", { class: "chat-layout" },
         h("section", { class: "chat-col", "aria-label": "Chat" }, logBox, form),
         briefCol))
@@ -450,13 +452,16 @@ function viewNew(isCurrent, featureId) {
   }
 
   function renderBrief() {
+    resetBtn.disabled = sending || starting || restoring;
+    sendBtn.disabled = sending || starting || restoring;
+    input.disabled = starting || restoring;
     const b = conv.brief;
     const ready = !!conv.ready;
     const user = state.user || {};
     const noRunsLeft = user.free_runs_left != null && Number(user.free_runs_left) <= 0;
     const startBtn = h("button", {
       type: "button", class: "btn btn-primary btn-block",
-      disabled: !ready || starting || sending, "aria-describedby": "start-help",
+      disabled: !ready || starting || sending || restoring, "aria-describedby": "start-help",
     }, starting ? "Starting…" : "Start research");
     startBtn.addEventListener("click", startResearch);
     const startError = h("p", { class: "form-error", role: "alert", id: "start-error" });
@@ -503,7 +508,7 @@ function viewNew(isCurrent, featureId) {
   }
 
   async function send(text) {
-    if (sending) return;
+    if (sending || starting || restoring) return;
     sending = true;
     pendingText = text;
     chatError.textContent = "";
@@ -607,6 +612,10 @@ function viewNew(isCurrent, featureId) {
       } else if (err.status !== 401) {
         chatError.textContent = friendlyError(err);
       }
+    }).finally(() => {
+      if (!isCurrent()) return;
+      restoring = false;
+      renderAll();
     });
   }
 }
@@ -624,9 +633,11 @@ const STAGES = [
 ];
 
 function stepper(run) {
-  const idx = run.status === "done" ? STAGES.length - 1 : STAGES.findIndex(([key]) => key === run.stage);
+  const feature = featureById(run.brief?.feature || run.feature);
+  const stages = feature.id === "marketing_plan" ? STAGES : STAGES.filter(([key]) => key !== "planning_marketing");
+  const idx = run.status === "done" ? stages.length - 1 : stages.findIndex(([key]) => key === run.stage);
   const failed = run.status === "failed";
-  const items = STAGES.map(([key, label], i) => {
+  const items = stages.map(([key, label], i) => {
     let st = "upcoming";
     if (i < idx || (key === "done" && run.status === "done")) st = "complete";
     else if (i === idx) st = failed ? "failed" : "current";
@@ -638,7 +649,7 @@ function stepper(run) {
   });
   let caption;
   if (run.status === "queued" || idx < 0) caption = "Waiting to start";
-  else caption = `Step ${idx + 1} of ${STAGES.length}: ${STAGES[idx][1]}${failed ? " (stopped)" : ""}`;
+  else caption = `Step ${idx + 1} of ${stages.length}: ${stages[idx][1]}${failed ? " (stopped)" : ""}`;
   return h("div", { class: "stepper-wrap" },
     h("ol", { class: "stepper", "aria-label": "Research stages" }, items),
     h("p", { class: "stepper-caption", "aria-hidden": "true" }, caption));
@@ -678,7 +689,7 @@ function viewRun(runId, isCurrent) {
     main.replaceChildren(
       h("div", { class: "wrap page run-page" },
         h("div", { class: "page-head" },
-          h("p", { class: "eyebrow" }, "Research run"),
+          h("p", { class: "eyebrow" }, featureById(run.brief?.feature || run.feature).name),
           h("h1", {}, run.title || "Your report"),
           h("p", { class: "muted", role: "status" }, statusLine)),
         warning ? h("p", { class: "banner banner-warn", role: "status" }, warning) : null,
