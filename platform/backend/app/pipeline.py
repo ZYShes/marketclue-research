@@ -15,12 +15,21 @@ from datetime import datetime, timezone
 import requests
 from bs4 import BeautifulSoup
 
-from . import claude, store
+from . import claude, intake, store
 
 MAX_DIRECTIONS = 4
 USER_AGENT = "MarketClueBot/0.1 (+https://github.com/ZYShes/marketclue-research)"
 
 PLAN_SECTIONS = ["Customers", "Positioning", "Pricing", "Channels", "Content (4 weeks)", "Measurement", "Brand & compliance"]
+
+# Domains whose pages count as official for the launch checklist.
+OFFICIAL_SUFFIXES = (".gov", ".us")
+OFFICIAL_HOSTS = {"help.etsy.com", "www.etsy.com", "etsy.com", "sellercentral.amazon.com", "help.shopify.com", "www.sba.gov"}
+
+
+def feature_of(brief):
+    feature = (brief or {}).get("feature") or "marketing_plan"
+    return feature if feature in intake.FEATURES else "marketing_plan"
 
 
 def now():
@@ -67,14 +76,14 @@ DIRECTIONS_SCHEMA = {
 
 
 def plan_directions(usage, brief):
+    spec = intake.FEATURES[feature_of(brief)]
     out = claude.json_call(
         usage,
         system="You are the research lead at MarketClue. You split a solo founder's research into independent directions that separate research agents can run in parallel.",
         prompt=(
-            f"{brief_text(brief)}\n\n"
+            f"{brief_text(brief)}\n\nTool: {spec['name']} ({spec['question']})\n\n"
             f"Split this into 2 to {MAX_DIRECTIONS} research directions that public web pages can answer, "
-            "for example competitors and their prices, what customers praise or complain about, channels "
-            "similar sellers use, suppliers and costs. Give each a short name (2-4 words), one research "
+            f"covering {spec['research']}. Give each a short name (2-4 words), one research "
             "question, and 2-3 search hints. Also give the report a short title (max 8 words)."
         ),
         schema=DIRECTIONS_SCHEMA,
@@ -122,7 +131,11 @@ def research(usage, brief, direction):
         f"{brief_text(brief)}\n\nYour research direction: {direction['name']}\n"
         f"Question: {direction['question']}\nSearch hints: {', '.join(direction.get('search_hints') or [])}"
     )
-    blocks = claude.research_call(usage, system=RESEARCH_SYSTEM, prompt=prompt)
+    if feature_of(brief) == "launch_checklist":
+        prompt += ("\n\nPrefer official pages: government sites (.gov) for the founder's city and state, "
+                   "the U.S. Small Business Administration, and the selling platform's own help pages.")
+    fetches = 4 if feature_of(brief) == "competitor_scan" else 3
+    blocks = claude.research_call(usage, system=RESEARCH_SYSTEM, prompt=prompt, max_fetches=fetches)
     pages = claude.fetched_pages(blocks)
     report = "\n".join(b.text for b in blocks if b.type == "text")
     rows = [line for line in report.splitlines() if line.strip().startswith("FINDING")]
@@ -253,81 +266,115 @@ def tighten_claims(usage, cards):
     return changed
 
 
-# ---------- 4. Marketing plan and budget ----------
+# ---------- 4. The writer: one report per tool ----------
 
-def _item_schema(with_amount=False):
+def _item(extra=None):
     props = {
         "text": {"type": "string"},
         "kind": {"type": "string", "enum": ["sourced", "assumption", "estimate"]},
         "card_ids": {"type": "array", "items": {"type": "string"}},
         "method": {"type": "string"},
     }
-    required = ["text", "kind", "card_ids", "method"]
-    if with_amount:
-        props = {"item": {"type": "string"}, "amount": {"type": "number"}, **{k: v for k, v in props.items() if k != "text"}}
-        required = ["item", "amount", "kind", "card_ids", "method"]
-    return {"type": "object", "properties": props, "required": required, "additionalProperties": False}
+    props.update(extra or {})
+    return {"type": "object", "properties": props, "required": list(props), "additionalProperties": False}
 
 
-PLAN_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "summary": {"type": "array", "items": _item_schema()},
-        "findings": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "properties": {"direction": {"type": "string"}, "items": {"type": "array", "items": _item_schema()}},
-                "required": ["direction", "items"],
-                "additionalProperties": False,
+def _array(items):
+    return {"type": "array", "items": items}
+
+
+def report_schema(feature):
+    props = {
+        "takeaway": _item(),
+        "findings": _array(_item({"title": {"type": "string"}})),
+        "next_steps": _array({
+            "type": "object",
+            "properties": {"text": {"type": "string"}, "how": {"type": "string"}},
+            "required": ["text", "how"],
+            "additionalProperties": False,
+        }),
+        "missing_evidence": _array({"type": "string"}),
+    }
+    if feature == "competitor_scan":
+        props["table"] = {
+            "type": "object",
+            "properties": {
+                "title": {"type": "string"},
+                "columns": _array({"type": "string"}),
+                "rows": _array({
+                    "type": "object",
+                    "properties": {
+                        "cells": _array({"type": "string"}),
+                        "kind": {"type": "string", "enum": ["sourced", "assumption", "estimate"]},
+                        "card_ids": _array({"type": "string"}),
+                    },
+                    "required": ["cells", "kind", "card_ids"],
+                    "additionalProperties": False,
+                }),
             },
-        },
-        "plan": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "properties": {"section": {"type": "string", "enum": PLAN_SECTIONS}, "items": {"type": "array", "items": _item_schema()}},
-                "required": ["section", "items"],
-                "additionalProperties": False,
-            },
-        },
-        "budget": {"type": "array", "items": _item_schema(with_amount=True)},
-        "next_checks": {"type": "array", "items": {"type": "string"}},
-    },
-    "required": ["summary", "findings", "plan", "budget", "next_checks"],
-    "additionalProperties": False,
+            "required": ["title", "columns", "rows"],
+            "additionalProperties": False,
+        }
+    if feature == "marketing_plan":
+        props["plan"] = _array({
+            "type": "object",
+            "properties": {"section": {"type": "string", "enum": PLAN_SECTIONS}, "items": _array(_item())},
+            "required": ["section", "items"],
+            "additionalProperties": False,
+        })
+        budget_line = _item({"item": {"type": "string"}, "amount": {"type": "number"}})
+        budget_line["properties"].pop("text")
+        budget_line["required"] = list(budget_line["properties"])
+        props["budget"] = _array(budget_line)
+    if feature == "launch_checklist":
+        props["checklist"] = _array(_item({"step": {"type": "string"}}))
+    return {"type": "object", "properties": props, "required": list(props), "additionalProperties": False}
+
+
+WRITER_SYSTEM = """You are MarketClue's report writer for solo founders. You turn checked research into a short,
+practical report. Every statement has a kind:
+- sourced: one cited fact card's quote states it directly (the same number, price or fact); cite its id in card_ids;
+- assumption: a judgement or common practice, or a conclusion drawn from a quote (card_ids empty);
+- estimate: a number you computed; method explains how.
+Never write card ids in text, titles or method; card_ids is the only place for them. Plain English, short
+sentences; many readers are not native speakers.
+
+Write: a takeaway (the main point in 2-3 sentences); 3-6 findings, each with a short title and 1-3
+sentences; 3-5 next steps, each saying exactly what to do and how to check it; and 1-4 items of missing
+evidence (what the sources did not show)."""
+
+TOOL_INSTRUCTIONS = {
+    "market_check": "Focus on who buys, what they praise, what they complain about and where they talk. Do not estimate market size.",
+    "competitor_scan": ("Also write a price comparison table: columns Seller, Product, Price, Notes; one row per "
+                        "competitor product that a card supports, with that card's id. Only put a price in a row when "
+                        "a quote states it."),
+    "marketing_plan": ("Also write the marketing plan (sections: " + ", ".join(PLAN_SECTIONS) + ", 2-4 items each) and a "
+                       "4-week budget in US dollars with 3-6 lines. If the founder gave a budget, stay within it. Budget "
+                       "lines that use a price from a card are sourced, otherwise estimate or assumption."),
+    "launch_checklist": ("Also write a launch checklist of 5-9 steps in the order a founder should do them (register, "
+                         "licences, tax, platform rules, product rules). Each step cites the page that requires it. Do not "
+                         "give legal advice; say to confirm with the office when a rule depends on details."),
 }
 
-PLAN_SYSTEM = """You are MarketClue's planning agent. You turn checked research into a short, practical
-marketing plan and budget for a solo founder. Every statement has a kind:
-- sourced: directly supported by the cited fact cards (cite their ids in card_ids);
-- assumption: your judgement or a common practice, not backed by a card (card_ids empty);
-- estimate: a number you computed; method explains how (e.g. "3 posts a week x 4 weeks x $15 boost").
-Mark an item sourced only when one cited quote states it directly (the same number, price or fact);
-a reasonable conclusion drawn from a quote is an assumption, and a computed number is an estimate.
-Never write card ids in text or method; card_ids is the only place for them.
-Budget amounts are in US dollars for the
-first 4 weeks; budget lines that use a price from a card are sourced, otherwise estimate or assumption.
-If the founder gave a budget, stay within it. Keep it short: 3 summary bullets, 2-4 items per section,
-3-6 budget lines, 3-5 next checks that say exactly what to verify and how. Plain English."""
 
-
-def plan_and_budget(usage, brief, cards, directions):
+def write_report(usage, brief, cards, directions):
+    feature = feature_of(brief)
     card_lines = [
-        {"id": c["card_id"], "direction": c["direction"], "claim": c["claim"], "quote": c["quote"], "source": c["source_title"]}
+        {"id": c["card_id"], "direction": c["direction"], "claim": c["claim"], "quote": c["quote"], "source": c["source_title"], "url": c["url"]}
         for c in cards
         if c["type"] == "sourced"
     ]
+    spec = intake.FEATURES[feature]
     prompt = (
-        f"{brief_text(brief)}\n\nResearch directions: {', '.join(d['name'] for d in directions)}\n\n"
+        f"{brief_text(brief)}\n\nTool: {spec['name']} ({spec['question']})\n"
+        f"Research directions: {', '.join(d['name'] for d in directions)}\n\n"
         f"Checked fact cards (JSON):\n{json.dumps(card_lines, ensure_ascii=False)}\n\n"
-        "Write the summary, findings grouped by direction (only from the cards), the marketing plan "
-        "(sections: " + ", ".join(PLAN_SECTIONS) + ") and a 4-week budget."
+        f"{TOOL_INSTRUCTIONS[feature]}"
     )
-    return claude.json_call(usage, system=PLAN_SYSTEM, prompt=prompt, schema=PLAN_SCHEMA, effort="medium", max_tokens=32000)
+    return claude.json_call(usage, system=WRITER_SYSTEM, prompt=prompt, schema=report_schema(feature), effort="medium", max_tokens=32000)
 
 
-# ---------- 5. The checker ----------
+# ---------- 5. The reviewer ----------
 
 CHECK_SCHEMA = {
     "type": "object",
@@ -347,48 +394,69 @@ CHECK_SCHEMA = {
 }
 
 
-def _sourced_items(doc):
-    """Yields (id, item) for every item that claims to be sourced."""
-    groups = [("s", doc["summary"])]
-    groups += [(f"f{i}-", g["items"]) for i, g in enumerate(doc["findings"])]
-    groups += [(f"p{i}-", g["items"]) for i, g in enumerate(doc["plan"])]
-    groups += [("b", doc["budget"])]
-    for prefix, items in groups:
-        for j, item in enumerate(items):
-            if item.get("kind") == "sourced":
-                yield f"{prefix}{j}", item
+def _items(doc):
+    """Yields (id, item, statement) for every item that can cite cards."""
+    yield "t", doc["takeaway"], doc["takeaway"].get("text", "")
+    for j, item in enumerate(doc.get("findings") or []):
+        yield f"f{j}", item, f"{item.get('title', '')}: {item.get('text', '')}"
+    for j, row in enumerate((doc.get("table") or {}).get("rows") or []):
+        yield f"r{j}", row, " | ".join(row.get("cells") or [])
+    for i, group in enumerate(doc.get("plan") or []):
+        for j, item in enumerate(group["items"]):
+            yield f"p{i}-{j}", item, item.get("text", "")
+    for j, line in enumerate(doc.get("budget") or []):
+        yield f"b{j}", line, f"{line.get('item')}: ${line.get('amount')}"
+    for j, step in enumerate(doc.get("checklist") or []):
+        yield f"c{j}", step, f"{step.get('step', '')}: {step.get('text', '')}"
 
 
 def check(usage, doc, cards):
     by_id = {c["card_id"]: c for c in cards if c["type"] == "sourced"}
-    items = dict(_sourced_items(doc))
-    for item in items.values():
+    items = {}
+    for item_id, item, statement in _items(doc):
         item["card_ids"] = [cid for cid in item.get("card_ids") or [] if cid in by_id]
-    review = []
-    for item_id, item in items.items():
-        if not item["card_ids"]:
-            continue
-        review.append({
-            "id": item_id,
-            "statement": item.get("text") or f"{item.get('item')}: ${item.get('amount')}",
-            "quotes": [by_id[cid]["quote"] for cid in item["card_ids"]],
-        })
+        if item.get("kind") == "sourced":
+            items[item_id] = (item, statement)
+    review = [
+        {"id": item_id, "statement": statement, "quotes": [by_id[cid]["quote"] for cid in item["card_ids"]]}
+        for item_id, (item, statement) in items.items()
+        if item["card_ids"]
+    ]
     unsupported = set()
     if review:
         out = claude.json_call(
             usage,
-            system="You are MarketClue's checker. You judge whether quoted evidence supports each statement. Be strict: the quotes must state it, not just relate to it.",
+            system="You are MarketClue's reviewer. You judge whether quoted evidence supports each statement. Be strict: the quotes must state it, not just relate to it.",
             prompt="List the ids of statements that the quotes do NOT support.\n\n" + json.dumps(review, ensure_ascii=False),
             schema=CHECK_SCHEMA,
             effort="low",
         )
         unsupported = {u["id"] for u in out["unsupported"]}
-    for item_id, item in items.items():
+    relabelled = 0
+    for item_id, (item, _) in items.items():
         if item_id in unsupported or not item["card_ids"]:
             item["kind"] = "assumption"
             item["card_ids"] = []
-            item["method"] = item.get("method") or "Not supported by a checked quote; treat as an assumption."
-    return len(unsupported)
+            if "method" in item and not item.get("method"):
+                item["method"] = "Not backed by a checked quote."
+            relabelled += 1
+    return relabelled
+
+
+def mark_official(doc, cards):
+    by_id = {c["card_id"]: c for c in cards}
+    for step in doc.get("checklist") or []:
+        step["step"] = re.sub(r"^\s*(step\s*)?\d+\s*[.):-]\s*", "", step.get("step") or "", flags=re.I)
+        hosts = [urllib.parse.urlsplit(by_id[cid]["url"]).netloc.lower() for cid in step.get("card_ids") or [] if cid in by_id]
+        step["official"] = any(h.endswith(OFFICIAL_SUFFIXES) or h in OFFICIAL_HOSTS for h in hosts)
+
+
+WRITER_NAMES = {
+    "market_check": "Report writer",
+    "competitor_scan": "Price analyst",
+    "marketing_plan": "Marketing planner",
+    "launch_checklist": "Checklist writer",
+}
 
 
 # ---------- The run ----------
@@ -412,6 +480,7 @@ def run(run_id):
 
     try:
         brief = meta["brief"]
+        feature = feature_of(brief)
         sub = meta["user_sub"]
         store.update_run(run_id, status="running", stage="planning")
         t0 = time.time()
@@ -452,30 +521,46 @@ def run(run_id):
         if not sourced:
             raise RuntimeError("No finding could be checked against its source page. Try a more specific question.")
 
+        writer = WRITER_NAMES[feature]
         store.update_run(run_id, stage="planning_marketing")
         t0 = time.time()
-        set_agent("Marketing planner", "running", "Writing the plan and budget")
-        doc = plan_and_budget(usage, brief, cards, directions)
-        set_agent("Marketing planner", "done", "Plan and budget ready", time.time() - t0)
+        set_agent(writer, "running", "Writing the report")
+        doc = write_report(usage, brief, cards, directions)
+        set_agent(writer, "done", "Report written", time.time() - t0)
 
         store.update_run(run_id, stage="checking")
         t0 = time.time()
         set_agent("Reviewer", "running", "Checking every sourced statement")
         relabelled = check(usage, doc, cards)
+        mark_official(doc, cards)
         set_agent("Reviewer", "done", f"{relabelled} statements relabelled as assumptions", time.time() - t0)
 
         store.update_run(run_id, stage="writing")
-        budget_lines = doc["budget"]
+        budget_lines = doc.get("budget") or []
         result = {
+            "version": 2,
+            "feature": feature,
             "title": title,
             "generated_at": now(),
             "brief": brief,
-            "summary": doc["summary"],
+            "takeaway": doc["takeaway"],
             "findings": doc["findings"],
+            "table": doc.get("table"),
+            "plan": doc.get("plan") or [],
+            "budget": ({"currency": "USD", "total": round(sum(float(b["amount"]) for b in budget_lines), 2), "lines": budget_lines}
+                       if feature == "marketing_plan" else None),
+            "checklist": doc.get("checklist") or [],
+            "next_steps": doc["next_steps"],
+            "missing_evidence": doc["missing_evidence"],
+            "coverage": {
+                "directions": len(directions),
+                "pages_read": sum(len(pages) for _, _, pages in results),
+                "quotes_found": sourced,
+                "quotes_total": len(cards),
+                "claims_narrowed": tightened,
+                "relabelled": relabelled,
+            },
             "cards": cards,
-            "plan": doc["plan"],
-            "budget": {"currency": "USD", "total": round(sum(float(b["amount"]) for b in budget_lines), 2), "lines": budget_lines},
-            "next_checks": doc["next_checks"],
             "cost": usage.as_dict(),
             "agents": timings,
             "seconds": round(time.time() - started),

@@ -100,7 +100,10 @@ def _chat(user: dict, data: dict) -> dict:
     conv_id = data.get("conv_id")
     is_new = conv_id is None
     if is_new:
-        conv = {"conv_id": uuid4().hex[:12], "messages": [], "brief": None, "ready": False}
+        feature = data.get("feature") or "marketing_plan"
+        if feature not in intake.FEATURES:
+            raise HTTPError(400, "invalid_feature", "Choose one of the four research tools")
+        conv = {"conv_id": uuid4().hex[:12], "messages": [], "brief": None, "ready": False, "feature": feature}
     else:
         conv = _conversation(user["sub"], _text(data, "conv_id"))
     quota.check_chat_limits(user["sub"], conv, is_new)
@@ -122,6 +125,7 @@ def _chat(user: dict, data: dict) -> dict:
     store.save_conversation(user["sub"], conv)
     return {
         "conv_id": conv["conv_id"],
+        "feature": conv.get("feature") or "marketing_plan",
         "reply": result["reply"],
         "ready": result["ready"],
         "brief": result.get("brief"),

@@ -119,12 +119,13 @@ def save_conversation(sub, conv: dict) -> None:
     _table().update_item(
         Key={"PK": f"USER#{sub}", "SK": f"CONV#{conv['conv_id']}"},
         UpdateExpression=(
-            "SET conv_id = :id, messages = :messages, brief = :brief, ready = :ready, "
+            "SET conv_id = :id, messages = :messages, brief = :brief, ready = :ready, feature = :feature, "
             "created_at = if_not_exists(created_at, :created), updated_at = :now"
         ),
         ExpressionAttributeValues=_to_dynamo({
             ":id": conv["conv_id"], ":messages": conv["messages"], ":brief": conv.get("brief"),
-            ":ready": conv.get("ready", False), ":created": conv.get("created_at", now), ":now": now,
+            ":ready": conv.get("ready", False), ":feature": conv.get("feature") or "marketing_plan",
+            ":created": conv.get("created_at", now), ":now": now,
         }),
     )
 
