@@ -21,7 +21,7 @@
 .axis-y { transform: rotate(90deg); }
 .coordinate { position: absolute; font: .625rem/1.4 monospace; letter-spacing: .1em; color: #353C30; transform: rotate(16deg); }
 .coordinate-a { left: 80px; top: 64px; }
-.coordinate-b { right: 20px; top: 270px; }
+.coordinate-b { right: 80px; top: 300px; }
 .coordinate-c { left: 25px; bottom: 38px; }
 .hero-trace .lens-scene { transform: rotate(12deg); }
 .hero-trace .lens-front { transform: translate(-65px,10px); }

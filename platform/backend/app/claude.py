@@ -104,6 +104,8 @@ def create(usage, model=None, **kwargs):
     response = client().beta.messages.create(model=model, **kwargs)
     if usage is not None:
         usage.add(response, model)
+    print(json.dumps({"claude_call": model, "served_by": getattr(response, "model", None), "stop": response.stop_reason,
+                      "in": response.usage.input_tokens, "out": response.usage.output_tokens}))
     if response.stop_reason == "refusal":
         details = response.stop_details
         category = getattr(details, "category", None) if details else None

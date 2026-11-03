@@ -357,6 +357,27 @@ TOOL_INSTRUCTIONS = {
 }
 
 
+def report_problems(feature, doc):
+    """Returns what is missing from a writer answer; an empty list means the report is complete."""
+    problems = []
+    findings = doc.get("findings") or []
+    if len(findings) < 3 or any(len((f.get("title") or "").strip()) < 4 for f in findings):
+        problems.append("3-6 findings, each with a real title of a few words")
+    if len(doc.get("next_steps") or []) < 2:
+        problems.append("3-5 next steps")
+    if not doc.get("missing_evidence"):
+        problems.append("1-4 items of missing evidence")
+    if len((doc.get("takeaway") or {}).get("text") or "") < 40:
+        problems.append("a 2-3 sentence takeaway")
+    if feature == "competitor_scan" and not (doc.get("table") or {}).get("rows"):
+        problems.append("the price comparison table with at least one row")
+    if feature == "marketing_plan" and (len(doc.get("plan") or []) < 3 or len(doc.get("budget") or []) < 2):
+        problems.append("the marketing plan sections and a budget with 3-6 lines")
+    if feature == "launch_checklist" and len(doc.get("checklist") or []) < 4:
+        problems.append("a launch checklist of 5-9 steps")
+    return problems
+
+
 def write_report(usage, brief, cards, directions):
     feature = feature_of(brief)
     card_lines = [
@@ -371,7 +392,18 @@ def write_report(usage, brief, cards, directions):
         f"Checked fact cards (JSON):\n{json.dumps(card_lines, ensure_ascii=False)}\n\n"
         f"{TOOL_INSTRUCTIONS[feature]}"
     )
-    return claude.json_call(usage, system=WRITER_SYSTEM, prompt=prompt, schema=report_schema(feature), effort="medium", max_tokens=32000)
+    doc = claude.json_call(usage, system=WRITER_SYSTEM, prompt=prompt, schema=report_schema(feature), effort="medium", max_tokens=32000)
+    problems = report_problems(feature, doc)
+    if problems:
+        print(json.dumps({"writer_retry": problems}))
+        doc = claude.json_call(
+            usage, system=WRITER_SYSTEM, schema=report_schema(feature), effort="medium", max_tokens=32000,
+            prompt=prompt + "\n\nA previous draft was incomplete. Make sure the report includes: " + "; ".join(problems) + ".",
+        )
+        problems = report_problems(feature, doc)
+        if problems:
+            raise RuntimeError("The report came back incomplete (" + "; ".join(problems) + "). Please run it again.")
+    return doc
 
 
 # ---------- 5. The reviewer ----------
