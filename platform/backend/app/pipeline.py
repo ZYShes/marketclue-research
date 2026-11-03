@@ -3,6 +3,7 @@
 import html
 import json
 import re
+import threading
 import time
 import traceback
 import unicodedata
@@ -349,18 +350,20 @@ def check(usage, doc, cards):
 
 def run(run_id):
     meta = store.get_run(run_id)
-    if not meta or meta.get("status") not in ("queued", "running"):
+    if not meta or not store.claim_run(run_id):
         return
     usage = claude.Usage()
     started = time.time()
     agents = {}
     timings = []
+    lock = threading.Lock()
 
     def set_agent(name, status, note="", seconds=None):
-        agents[name] = {"status": status, "note": note}
-        store.update_run(run_id, agents=agents, cost_usd=usage.cost_usd())
-        if seconds is not None:
-            timings.append({"name": name, "status": status, "seconds": round(seconds)})
+        with lock:
+            agents[name] = {"status": status, "note": note}
+            if seconds is not None:
+                timings.append({"name": name, "status": status, "seconds": round(seconds)})
+            store.update_run(run_id, agents=dict(agents), cost_usd=usage.cost_usd())
 
     try:
         brief = meta["brief"]
@@ -372,9 +375,10 @@ def run(run_id):
         set_agent("Research lead", "done", f"{len(directions)} research directions", time.time() - t0)
         store.update_run(run_id, title=title, stage="researching")
 
-        for d in directions:
-            agents[d["name"]] = {"status": "running", "note": d["question"]}
-        store.update_run(run_id, agents=agents)
+        with lock:
+            for d in directions:
+                agents[d["name"]] = {"status": "running", "note": d["question"]}
+            store.update_run(run_id, agents=dict(agents))
 
         def work(direction):
             t = time.time()
