@@ -8,6 +8,8 @@ import {
 } from "./ui.js";
 import { api, ApiError, MOCK, onUnauthorized, friendlyError } from "./api.js";
 import { renderReport, closeCardPanel } from "./report.js";
+import { FEATURES, featureById } from "./features.js";
+import { landingPage, toolJourney } from "./landing.js";
 
 const cfg = window.MC_CONFIG || {};
 const main = document.getElementById("main");
@@ -77,7 +79,8 @@ async function router() {
   let result;
   if (!head) result = viewLanding(isCurrent);
   else if (head === "home") result = viewHome(isCurrent);
-  else if (head === "new") result = viewNew(isCurrent);
+  else if (head === "new" && arg && FEATURES.some((feature) => feature.id === arg)) result = viewNew(isCurrent, arg);
+  else if (head === "new" && !arg) result = viewToolPicker();
   else if (head === "runs" && arg) result = viewRun(arg, isCurrent);
   else if (head === "runs") result = viewRuns(isCurrent);
   else if (head === "library") result = viewLibrary(isCurrent);
@@ -316,6 +319,7 @@ async function signOut() {
   try { window.google && window.google.accounts && window.google.accounts.id.disableAutoSelect(); } catch { /* ignore */ }
   state.user = null;
   storage.remove(KEY_CONV);
+  FEATURES.forEach(({ id }) => storage.remove(`${KEY_CONV}_${id}`));
   go("#/", true);
   toast("You are signed out.");
 }
@@ -331,85 +335,48 @@ onUnauthorized(() => {
 
 // ---- Landing ---------------------------------------------------------------
 
-const FEATURE_ICONS = {
-  research: '<path d="M10.5 18a7.5 7.5 0 1 0 0-15 7.5 7.5 0 0 0 0 15Zm5.5-2 5 5M7 10.5h7m-3.5-3.5v7"/>',
-  plan: '<path d="M5 3h14v18H5zM8 8h8M8 12h3m-3 4h3m3-3v4m3-7v7"/>',
-  library: '<path d="M4 3h12v16H4zM8 7h5m-5 4h5m-5 4h3m8-9h2v16H9v-2"/>',
-};
-
-function featureIcon(name) {
-  return svg(`<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${FEATURE_ICONS[name]}</svg>`);
-}
-
 function viewLanding() {
   setTitle("");
   const signin = h("div", { class: "signin" });
-  // A real card from a test report, captured on Oct 17, 2026.
-  const sample = {
-    claim: "Etsy charges $0.20 to publish a listing.",
-    quote: "It costs $0.20 to publish a listing to the marketplace. A listing lasts for four months or until the item is sold.",
-    captured: "2026-10-17T04:21:58Z",
-  };
-  const features = [
-    ["research", "Research", "Ask one question. Get a short report from public web pages."],
-    ["plan", "Plan & budget", "A marketing plan and a 4-week budget. Every line is labelled."],
-    ["library", "Fact library", "Every quote is saved with its link and date, to reuse or share."],
-  ];
-
-  main.replaceChildren(
-    h("div", { class: "wrap page landing" },
-      state.bootError ? h("p", { class: "banner banner-error", role: "alert" }, state.bootError) : null,
-      h("section", { class: "hero", "aria-labelledby": "hero-title" },
-        h("div", { class: "hero-copy" },
-          h("p", { class: "eyebrow" }, "MarketClue"),
-          h("h1", { id: "hero-title" }, "See the market differently."),
-          h("p", { class: "lede" }, "Sourced market research, a marketing plan and a budget for solo founders."),
-          signin,
-          h("p", { class: "fine" }, "Your first report is free."))),
-      h("figure", { class: "specimen", "aria-label": "Example of a fact card" },
-          h("div", { class: "specimen-label" }, h("span", { class: "eyebrow" }, "A clue you can check"), h("span", { class: "sample-number" }, "01")),
-          h("div", { class: "fact fact-specimen" },
-            h("div", { class: "badge-row" }, typeBadge("sourced"), h("span", { class: "tag" }, "Sales channels & fees")),
-            h("p", { class: "fact-claim" }, sample.claim),
-            h("blockquote", { class: "quote" }, h("p", {}, `“${sample.quote}”`)),
-            h("p", { class: "fact-source" }, externalLink("https://www.etsy.com/sell", "How to sell on Etsy"),
-              h("span", { class: "sample-date" }, `Captured ${fmtDate(sample.captured)}`))),
-          h("figcaption", {}, "A real quote from a sample report.")),
-      h("section", { class: "feature-grid", "aria-label": "What you can do" },
-        features.map(([name, title, description]) => h("article", { class: "feature-tile" },
-          h("span", { class: `feature-icon feature-icon-${name}` }, featureIcon(name)),
-          h("h2", {}, title), h("p", {}, description)))))
-  );
+  main.replaceChildren(landingPage(signin, state.bootError));
   mountSignIn(signin);
+}
+
+function beginFeature(feature) {
+  // Selecting a tool always starts fresh; a reload can resume that tool's draft.
+  storage.remove(`${KEY_CONV}_${feature}`);
+}
+
+function viewToolPicker() {
+  setTitle("Choose a tool");
+  main.replaceChildren(h("div", { class: "wrap page" },
+    h("div", { class: "page-head" }, h("p", { class: "eyebrow" }, "New research"),
+      h("h1", {}, "What do you want to find out?"),
+      h("p", { class: "lede-sm" }, "Choose a tool to start your brief.")),
+    toolJourney({ interactive: true, onChoose: beginFeature })));
 }
 
 function viewHome(isCurrent) {
   setTitle("Home");
   const name = (state.user.name || "").trim().split(/\s+/)[0];
-  const countSlots = new Map();
-  function tile(href, name, title, description) {
-    const count = h("span", { class: "entry-count", role: "status" }, "Loading…");
-    countSlots.set(name, count);
-    return h("a", { class: `entry-tile entry-${name}`, href },
-      h("span", { class: `feature-icon feature-icon-${name}` }, featureIcon(name)),
-      h("h2", {}, title), h("p", {}, description),
-      h("span", { class: "entry-bottom" }, count, h("span", { class: "entry-arrow", "aria-hidden": "true" }, "↗")));
-  }
+  const reportCount = h("span", { class: "entry-count", role: "status" }, "Loading…");
+  const cardCount = h("span", { class: "entry-count", role: "status" }, "Loading…");
+  const quota = h("p", { class: "home-quota" }, state.user.is_owner ? "" : runsLeftText(state.user));
+  const savedTile = (href, label, count) => h("a", { class: "saved-tile", href },
+    h("h2", {}, label), count, h("span", { class: "entry-arrow", "aria-hidden": "true" }, "↗"));
   main.replaceChildren(h("div", { class: "wrap page home-page" },
     h("div", { class: "page-head" }, h("p", { class: "eyebrow" }, "Your workspace"),
-      h("h1", {}, name ? `Welcome back, ${name}.` : "Welcome back.")),
-    h("section", { class: "entry-grid", "aria-label": "Start here" },
-      tile("#/new", "research", "New research", "Start a new report"),
-      tile("#/runs", "plan", "My reports", "Read your saved research."),
-      tile("#/library", "library", "Fact library", "Find and reuse your sources."))));
-  countSlots.get("research").textContent = runsLeftText(state.user);
+      h("h1", {}, name ? `Welcome back, ${name}.` : "Welcome back."), quota),
+    toolJourney({ interactive: true, onChoose: beginFeature }),
+    h("section", { class: "saved-grid", "aria-label": "Your saved research" },
+      savedTile("#/runs", "My reports", reportCount), savedTile("#/library", "Fact library", cardCount))));
   Promise.allSettled([api("/runs"), api("/cards"), api("/me")]).then(([runs, cards, me]) => {
     if (!isCurrent()) return;
-    countSlots.get("plan").textContent = runs.status === "fulfilled" ? plural((runs.value.runs || []).length, "report") : "Count unavailable";
-    countSlots.get("library").textContent = cards.status === "fulfilled" ? plural((cards.value.cards || []).length, "fact card") : "Count unavailable";
+    reportCount.textContent = runs.status === "fulfilled" ? plural((runs.value.runs || []).length, "report") : "Count unavailable";
+    cardCount.textContent = cards.status === "fulfilled" ? plural((cards.value.cards || []).length, "fact card") : "Count unavailable";
     if (me.status === "fulfilled" && me.value.user) {
       state.user = me.value.user;
-      countSlots.get("research").textContent = runsLeftText(state.user);
+      quota.textContent = state.user.is_owner ? "" : runsLeftText(state.user);
       renderHeader("home");
     }
   });
@@ -417,12 +384,11 @@ function viewHome(isCurrent) {
 
 // ---- New research (super-agent chat) --------------------------------------
 
-const GREETING =
-  "Tell me what you are building and who it is for.";
-
-function viewNew(isCurrent) {
-  setTitle("New research");
-  let conv = { conv_id: storage.get(KEY_CONV), messages: [], brief: null, ready: false };
+function viewNew(isCurrent, featureId) {
+  const feature = featureById(featureId);
+  const convKey = `${KEY_CONV}_${featureId}`;
+  setTitle(feature.name);
+  let conv = { conv_id: storage.get(convKey), feature: featureId, messages: [], brief: null, ready: false };
   let sending = false;
   let starting = false;
   let pendingText = null;
@@ -449,7 +415,8 @@ function viewNew(isCurrent) {
       h("div", { class: "page-head page-head-row" },
         h("div", {},
           h("p", { class: "eyebrow" }, "New research"),
-          h("h1", {}, "What are you building?")),
+          h("h1", {}, feature.name),
+          h("p", { class: "lede-sm" }, feature.question)),
         h("button", { type: "button", class: "btn btn-quiet", onclick: startOver }, "Start over")),
       h("div", { class: "chat-layout" },
         h("section", { class: "chat-col", "aria-label": "Chat" }, logBox, form),
@@ -464,7 +431,7 @@ function viewNew(isCurrent) {
   }
 
   function renderLog() {
-    const items = [message("assistant", GREETING)];
+    const items = [message("assistant", feature.greeting)];
     for (const m of conv.messages || []) items.push(message(m.role, m.text));
     if (pendingText != null) {
       items.push(message("user", pendingText));
@@ -546,13 +513,14 @@ function viewNew(isCurrent) {
     try {
       const body = { message: text };
       if (conv.conv_id) body.conv_id = conv.conv_id;
+      else body.feature = featureId;
       const data = await api("/chat", { method: "POST", body });
       if (!isCurrent()) return;
       const messages = Array.isArray(data.messages)
         ? data.messages
         : [...(conv.messages || []), { role: "user", text }, { role: "assistant", text: data.reply }];
-      conv = { conv_id: data.conv_id || conv.conv_id, messages, brief: data.brief || null, ready: !!data.ready };
-      if (conv.conv_id) storage.set(KEY_CONV, conv.conv_id);
+      conv = { conv_id: data.conv_id || conv.conv_id, feature: data.feature || featureId, messages, brief: data.brief || null, ready: !!data.ready };
+      if (conv.conv_id) storage.set(convKey, conv.conv_id);
       pendingText = null;
       announce(data.reply ? `Research agent: ${data.reply}` : "");
     } catch (err) {
@@ -576,7 +544,7 @@ function viewNew(isCurrent) {
     renderBrief();
     try {
       const { run } = await api("/runs", { method: "POST", body: { conv_id: conv.conv_id } });
-      storage.remove(KEY_CONV);
+      storage.remove(convKey);
       refreshMe();
       if (isCurrent()) go(`#/runs/${encodeURIComponent(run.run_id)}`);
     } catch (err) {
@@ -591,8 +559,8 @@ function viewNew(isCurrent) {
   }
 
   function startOver() {
-    storage.remove(KEY_CONV);
-    conv = { conv_id: null, messages: [], brief: null, ready: false };
+    storage.remove(convKey);
+    conv = { conv_id: null, feature: featureId, messages: [], brief: null, ready: false };
     chatError.textContent = "";
     renderAll();
     input.focus();
@@ -621,7 +589,9 @@ function viewNew(isCurrent) {
     api(`/conversations/${encodeURIComponent(conv.conv_id)}`).then((data) => {
       if (!isCurrent()) return;
       const c = data.conversation || data;
+      if (c.feature && c.feature !== featureId) return startOver();
       conv = {
+        feature: c.feature || featureId,
         conv_id: c.conv_id || conv.conv_id,
         messages: Array.isArray(c.messages) ? c.messages : [],
         brief: c.brief || null,
@@ -631,8 +601,8 @@ function viewNew(isCurrent) {
     }).catch((err) => {
       if (!isCurrent()) return;
       if (err.status === 404) {
-        storage.remove(KEY_CONV);
-        conv = { conv_id: null, messages: [], brief: null, ready: false };
+        storage.remove(convKey);
+        conv = { conv_id: null, feature: featureId, messages: [], brief: null, ready: false };
         renderAll();
       } else if (err.status !== 401) {
         chatError.textContent = friendlyError(err);
@@ -840,7 +810,7 @@ async function viewRuns(isCurrent) {
             h("a", { class: "run-row", href: `#/runs/${encodeURIComponent(run.run_id)}` },
               h("span", { class: "run-title" }, run.title || "Untitled research"),
               h("span", { class: "run-meta" },
-                [fmtDateTime(run.created_at), run.status === "done" && run.cost_usd != null ? `cost about ${fmtCost(run.cost_usd)}` : null]
+                [featureById(run.feature || run.brief?.feature).name, fmtDateTime(run.created_at), run.status === "done" && run.cost_usd != null ? `cost about ${fmtCost(run.cost_usd)}` : null]
                   .filter(Boolean).join(" · ")),
               h("span", { class: "run-status" }, statusPill(run.status))))))
     : h("div", { class: "empty" },
@@ -864,6 +834,14 @@ async function viewLibrary(isCurrent) {
   const runInfo = new Map(
     (runsRes.status === "fulfilled" ? runsRes.value.runs || [] : []).map((r) => [r.run_id, r]));
   const directions = [...new Set(allCards.map((c) => c.direction).filter(Boolean))].sort();
+  const cardFeatures = (card) => new Set([
+    card.feature,
+    ...(card.run_ids || []).map((id) => {
+      const run = runInfo.get(id);
+      return run?.feature || run?.brief?.feature;
+    }),
+  ].filter(Boolean));
+  const availableFeatures = FEATURES.filter(({ id }) => allCards.some((card) => cardFeatures(card).has(id)));
 
   const search = h("input", { type: "search", id: "lib-q", placeholder: "Claims, quotes or sources", autocomplete: "off" });
   const typeSel = h("select", { id: "lib-type" },
@@ -873,13 +851,17 @@ async function viewLibrary(isCurrent) {
   const dirSel = h("select", { id: "lib-dir" },
     h("option", { value: "" }, "All directions"),
     directions.map((d) => h("option", { value: d }, d)));
+  const featureSel = h("select", { id: "lib-feature" },
+    h("option", { value: "" }, "All tools"),
+    availableFeatures.map(({ id, name }) => h("option", { value: id }, name)));
   const count = h("p", { class: "result-count", role: "status" });
   const grid = h("div", { class: "library-results" });
 
   const toolbar = h("form", { class: "toolbar", role: "search", onsubmit: (ev) => ev.preventDefault() },
     h("div", { class: "control control-grow" }, h("label", { for: "lib-q" }, "Search"), search),
     h("div", { class: "control" }, h("label", { for: "lib-type" }, "Type"), typeSel),
-    h("div", { class: "control" }, h("label", { for: "lib-dir" }, "Direction"), dirSel));
+    h("div", { class: "control" }, h("label", { for: "lib-dir" }, "Direction"), dirSel),
+    availableFeatures.length ? h("div", { class: "control" }, h("label", { for: "lib-feature" }, "Tool"), featureSel) : null);
 
   main.replaceChildren(
     h("div", { class: "wrap page" },
@@ -944,16 +926,17 @@ async function viewLibrary(isCurrent) {
   let reqSeq = 0;
   let debounce = null;
   async function load() {
+    const mine = ++reqSeq;
     const q = search.value.trim();
     const type = typeSel.value;
     const direction = dirSel.value;
-    const filtered = !!(q || type || direction);
+    const feature = featureSel.value;
+    const filtered = !!(q || type || direction || feature);
     if (!filtered) return render(allCards, false);
-    const mine = ++reqSeq;
     try {
       const { cards = [] } = await api("/cards", { query: { q, type, direction } });
       if (mine !== reqSeq || !isCurrent()) return;
-      render(cards, true);
+      render(feature ? cards.filter((card) => cardFeatures(card).has(feature)) : cards, true);
     } catch (err) {
       if (mine !== reqSeq || !isCurrent()) return;
       count.textContent = friendlyError(err);
@@ -963,6 +946,7 @@ async function viewLibrary(isCurrent) {
     search.value = "";
     typeSel.value = "";
     dirSel.value = "";
+    featureSel.value = "";
     load();
     search.focus();
   }
@@ -972,6 +956,7 @@ async function viewLibrary(isCurrent) {
   });
   typeSel.addEventListener("change", load);
   dirSel.addEventListener("change", load);
+  featureSel.addEventListener("change", load);
 
   render(allCards, false);
   return () => clearTimeout(debounce);
