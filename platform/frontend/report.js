@@ -1,16 +1,14 @@
-// Renders the result document (used by the run view and the public shared view)
-// and the fact-card side panel.
-
+// Classic research brief, shared by private and public report routes.
 import {
   h, icon, externalLink, domainOf, fmtDate, fmtMoney, fmtCost, fmtSeconds, isStale,
   kindBadge, typeBadge, staleBadge, statusPill, plural, STALE_DAYS,
 } from "./ui.js";
+import { featureById } from "./features.js";
 
 const SOURCED_NOTE =
   "Sourced means the exact quote matched the captured page. The page may still be wrong.";
-
-// Inline card references inside text, e.g. "[3f9a1c0b7d21]" or "[card:3f9a1c0b7d21]".
 const INLINE_REF = /\s*\[(?:card[:#\s]*)?([A-Za-z0-9_-]{4,40})\]/g;
+const list = (value) => Array.isArray(value) ? value : [];
 
 function isGenericAssumption(item) {
   return item.kind === "assumption" &&
@@ -19,209 +17,190 @@ function isGenericAssumption(item) {
 
 function asItem(raw) {
   if (raw == null) return null;
-  if (typeof raw === "string") return { text: raw, kind: null, card_ids: [], method: "" };
   if (typeof raw !== "object") return { text: String(raw), kind: null, card_ids: [], method: "" };
-  return {
-    text: String(raw.text || ""),
-    kind: raw.kind || null,
-    card_ids: Array.isArray(raw.card_ids) ? raw.card_ids : [],
-    method: raw.method || "",
-  };
+  return { ...raw, text: String(raw.text || ""), card_ids: list(raw.card_ids) };
 }
 
-export function renderReport(result, { run = null, shared = false, actions = null } = {}) {
-  const cards = Array.isArray(result.cards) ? result.cards : [];
+// Older reports have summary statements and findings grouped by research direction.
+function reportFindings(result) {
+  const findings = list(result.findings).flatMap((entry) => {
+    if (!entry) return [];
+    if (Array.isArray(entry.items)) {
+      return entry.items.filter(Boolean).map((item) => ({ ...asItem(item), title: item.title || entry.direction || "Finding" }));
+    }
+    return [{ ...asItem(entry), title: entry.title || entry.direction || "Finding" }];
+  });
+  if (!result.takeaway) {
+    findings.unshift(...list(result.summary).slice(1).filter(Boolean).map((item) => ({ ...asItem(item), title: item.title || "From the overview" })));
+  }
+  return findings;
+}
+
+function methodNote(item) {
+  if (!item?.method || !["assumption", "estimate"].includes(item.kind)) return null;
+  return h("p", { class: "method" },
+    h("span", { class: "method-label" }, item.kind === "estimate" ? "Method: " : "Basis: "),
+    isGenericAssumption(item) ? "Not backed by a quote — test it." : String(item.method));
+}
+
+export function renderReport(result = {}, { run = null, shared = false, actions = null } = {}) {
+  const cards = list(result.cards).filter(Boolean);
   const index = new Map(cards.map((card, i) => [card.card_id, { card, n: i + 1 }]));
-  const sourcedCount = cards.filter((c) => c.type === "sourced").length;
+  const feature = featureById(result.feature || result.brief?.feature || run?.brief?.feature || run?.feature);
+  const sourcedCount = cards.filter((card) => card.type === "sourced").length;
 
   function chip(id) {
     const entry = index.get(id);
     if (!entry) return null;
     const { card, n } = entry;
-    return h(
-      "button",
-      {
-        type: "button",
-        class: `chip ${card.type === "sourced" ? "chip-sourced" : "chip-unverified"}`,
-        title: card.claim,
-        "aria-label": `Fact card ${n}${card.type === "sourced" ? "" : " (unverified)"}: ${card.claim}`,
-        "aria-haspopup": "dialog",
-        onclick: () => openCardPanel(card, n),
-      },
-      String(n)
-    );
+    return h("button", {
+      type: "button", class: `chip ${card.type === "sourced" ? "chip-sourced" : "chip-unverified"}`,
+      title: card.claim, "aria-label": `Fact card ${n}: ${card.claim || "Read source"}`,
+      "aria-haspopup": "dialog", onclick: () => openCardPanel(card, n),
+    }, String(n));
   }
 
-  // Text with inline references turned into chips, then any remaining card_ids as chips.
   function richText(text, ids = []) {
+    const source = String(text || "");
     const out = [];
     const used = new Set();
     let last = 0;
-    for (const m of String(text || "").matchAll(INLINE_REF)) {
-      if (!index.has(m[1])) continue;
-      out.push(text.slice(last, m.index), " ", chip(m[1]));
-      used.add(m[1]);
-      last = m.index + m[0].length;
+    for (const match of source.matchAll(INLINE_REF)) {
+      if (!index.has(match[1])) continue;
+      out.push(source.slice(last, match.index), " ", chip(match[1]));
+      used.add(match[1]);
+      last = match.index + match[0].length;
     }
-    out.push(String(text || "").slice(last));
-    const extra = (ids || []).filter((id) => index.has(id) && !used.has(id));
-    if (extra.length) {
-      const group = h("span", { class: "chips" });
-      for (const id of extra) group.append(chip(id));
-      out.push(" ", group);
-    }
+    out.push(source.slice(last));
+    const extra = [...new Set(list(ids))].filter((id) => index.has(id) && !used.has(id));
+    if (extra.length) out.push(" ", h("span", { class: "chips" }, extra.map(chip)));
     return out;
   }
 
   function statement(raw) {
     const item = asItem(raw);
     if (!item) return null;
-    const genericAssumption = isGenericAssumption(item);
-    const method =
-      item.method && (item.kind === "estimate" || item.kind === "assumption")
-        ? h("p", { class: "method" },
-            genericAssumption ? null : h("span", { class: "method-label" }, item.kind === "estimate" ? "Estimate: " : "Basis: "),
-            genericAssumption ? "Not backed by a quote — test it." : item.method)
-        : null;
-    return h(
-      "li",
-      { class: `statement${item.kind ? "" : " statement-plain"}` },
-      item.kind ? h("span", { class: "statement-kind" }, kindBadge(item.kind)) : null,
-      h("div", { class: "statement-body" }, h("p", { class: "statement-text" }, richText(item.text, item.card_ids)), method)
-    );
+    return h("li", { class: "brief-statement" },
+      item.kind ? kindBadge(item.kind) : null,
+      h("p", {}, richText(item.text, item.card_ids)), methodNote(item));
   }
 
-  function statements(list, extraClass = "") {
-    const items = (Array.isArray(list) ? list : []).map(statement).filter(Boolean);
-    if (!items.length) return h("p", { class: "muted" }, "Nothing here for this report.");
-    return h("ul", { class: `statements ${extraClass}`.trim() }, items);
-  }
-
-  const sections = [];
-  const toc = [];
-  const openSections = new Set(["r-summary", "r-plan", "r-budget", "r-next"]);
   function section(id, title, ...content) {
-    toc.push([id, title]);
-    sections.push(
-      h("details", { class: "report-section", id, open: openSections.has(id) },
-        h("summary", { id: `${id}-h` }, h("h2", {}, title)),
-        h("div", { class: "report-section-content" }, content))
-    );
+    return h("section", { class: "brief-section", id, "aria-labelledby": `${id}-h` },
+      h("h2", { id: `${id}-h` }, title), content);
   }
 
-  // Brief
-  const brief = result.brief || (run && run.brief);
-  const briefBlock = brief ? renderBriefDetails(brief) : null;
+  const takeaway = asItem(result.takeaway || list(result.summary)[0]);
+  const findings = reportFindings(result);
+  const content = [section("r-summary", "The brief at a glance",
+    takeaway ? h("div", { class: "brief-takeaway" },
+      takeaway.kind ? kindBadge(takeaway.kind) : null,
+      h("p", { class: "takeaway-text" }, richText(takeaway.text, takeaway.card_ids)), methodNote(takeaway))
+      : h("p", { class: "muted" }, "No takeaway was recorded for this report.")),
+    section("r-findings", "Findings", findings.length
+      ? h("ol", { class: "brief-findings" }, findings.map((finding, i) => {
+          const refs = [...new Set([...finding.card_ids, ...[...finding.text.matchAll(INLINE_REF)].map((m) => m[1])])];
+          const sources = refs.map((id) => index.get(id)).filter(Boolean);
+          return h("li", { class: "brief-finding" },
+            h("div", { class: "finding-heading" },
+              h("span", { class: "finding-number", "aria-hidden": "true" }, String(i + 1).padStart(2, "0")),
+              h("h3", {}, finding.title)),
+            finding.kind ? kindBadge(finding.kind) : null,
+            h("p", { class: "finding-text" }, richText(finding.text)), methodNote(finding),
+            h("details", { class: "finding-sources" },
+              h("summary", {}, `Sources for finding ${i + 1}`),
+              sources.length ? h("div", { class: "inline-sources" }, sources.map(({ card, n }) => cardTile(card, n)))
+                : h("p", { class: "muted" }, "No fact cards linked to this finding.")));
+        })) : h("p", { class: "muted" }, "No findings were recorded."))];
 
-  // Summary
-  section("r-summary", "Summary", statements(result.summary, "statements-summary"));
+  if (feature?.id === "competitor_scan" && result.table) {
+    content.push(section("r-prices", result.table.title || "Price comparison",
+      h("p", { class: "table-hint", "aria-hidden": "true" }, "Scroll sideways for details."),
+      renderPriceTable(result.table, richText)));
+  }
+  if (feature?.id === "marketing_plan" || (!result.version && (list(result.plan).length || result.budget))) {
+    if (list(result.plan).length) content.push(section("r-plan", "Marketing plan",
+      list(result.plan).filter(Boolean).map((group) => h("div", { class: "brief-plan-group" },
+        h("h3", {}, group.section || "Plan"), h("ul", { class: "brief-statements" }, list(group.items).map(statement))))));
+    if (result.budget) content.push(section("r-budget", "4-week budget", renderBudget({ ...result.budget, lines: list(result.budget.lines) }, richText)));
+  }
+  if (feature?.id === "launch_checklist" && list(result.checklist).length) {
+    content.push(section("r-checklist", "Launch checklist", h("ol", { class: "launch-checklist" },
+      list(result.checklist).filter(Boolean).map((entry) => h("li", {},
+        h("span", { class: "checklist-box", "aria-hidden": "true" }),
+        h("div", {}, h("h3", {}, entry.step || "Launch step"),
+          h("div", { class: "badge-row" }, entry.kind ? kindBadge(entry.kind) : null,
+            entry.official ? h("span", { class: "badge official-badge" }, "Official source") : null),
+          h("p", {}, richText(entry.text, entry.card_ids)), methodNote(entry)))))));
+  }
 
-  // Findings
-  const findings = Array.isArray(result.findings) ? result.findings : [];
-  section(
-    "r-findings",
-    "Findings",
-    findings.length
-      ? findings.map((group) =>
-          h("div", { class: "direction" },
-            h("h3", {}, group.direction || "Findings"),
-            statements(group.items)))
-      : h("p", { class: "muted" }, "No findings in this report.")
-  );
+  const steps = list(result.next_steps).length ? list(result.next_steps) : list(result.next_checks).map((entry) => ({ text: asItem(entry)?.text }));
+  const missing = list(result.missing_evidence);
+  content.push(section("r-next", "Next steps & missing evidence",
+    steps.length ? h("ol", { class: "brief-next-steps" }, steps.filter(Boolean).map((step) => h("li", {},
+      h("p", { class: "next-step-text" }, typeof step === "string" ? step : step.text || ""),
+      h("p", { class: "next-step-how" }, h("strong", {}, "How to check: "),
+        step.how || "No check method was recorded."))))
+      : h("p", { class: "muted" }, "No next steps were recorded."),
+    missing.length ? [h("h3", {}, "Missing evidence"), h("ul", { class: "missing-evidence" }, missing.map((item) => h("li", {}, String(item))))] : null));
+  content.push(section("r-coverage", "Evidence coverage", renderCoverage(result.coverage), renderCostLine(result)));
+  content.push(h("details", { class: "brief-appendix", id: "r-cards" },
+    h("summary", {}, `All fact cards (${cards.length})`),
+    h("p", { class: "section-note" }, SOURCED_NOTE),
+    cards.length ? h("div", { class: "all-fact-cards" }, cards.map((card, i) => cardTile(card, i + 1)))
+      : h("p", { class: "muted" }, "No fact cards were recorded.")));
+  const brief = result.brief || run?.brief;
+  content.push(h("details", { class: "brief-appendix", id: "r-about" }, h("summary", {}, "About this report"),
+    h("p", { class: "section-note" }, SOURCED_NOTE), brief ? renderBriefDetails(brief) : null, renderAbout(result)));
 
-  // Marketing plan
-  const plan = Array.isArray(result.plan) ? result.plan : [];
-  section(
-    "r-plan",
-    "Marketing plan",
-    plan.length
-      ? plan.map((group) => h("div", { class: "plan-section" }, h("h3", {}, group.section || "Plan"), statements(group.items)))
-      : h("p", { class: "muted" }, "No plan in this report.")
-  );
-
-  // Budget
-  section("r-budget", "Budget",
-    result.budget && Array.isArray(result.budget.lines) && result.budget.lines.length
-      ? renderBudget(result.budget, richText)
-      : h("p", { class: "muted" }, "No budget in this report."));
-
-  // Next checks
-  const checks = Array.isArray(result.next_checks) ? result.next_checks : [];
-  section("r-next", "Next checks",
-    checks.length
-      ? h("ol", { class: "next-checks" }, checks.map((c) => h("li", {}, richText(typeof c === "string" ? c : asItem(c).text))))
-      : h("p", { class: "muted" }, "No next checks in this report."));
-
-  // Fact cards
-  section("r-cards", "Fact cards",
-      h("p", { class: "section-note" }, cards.length
-        ? `${plural(cards.length, "card")}. Select one to read the quote.`
-        : "No fact cards in this report."),
-      h("ol", { class: "source-list" },
-        cards.map((card, i) =>
-          h("li", {},
-            h("button", {
-              type: "button",
-              class: "source-row",
-              "aria-haspopup": "dialog",
-              onclick: () => openCardPanel(card, i + 1),
-            },
-            h("span", { class: `source-n ${card.type === "sourced" ? "chip-sourced" : "chip-unverified"}`, "aria-hidden": "true" }, String(i + 1)),
-            h("span", { class: "source-main" },
-              h("span", { class: "source-claim" }, card.claim),
-              h("span", { class: "source-meta" },
-                [card.source_title || domainOf(card.url), domainOf(card.url)].filter(Boolean).join(" · "))),
-            h("span", { class: "source-badges" }, typeBadge(card.type), isStale(card) ? staleBadge() : null))))));
-
-  // Keep the brief and technical details available without crowding the report.
-  section("r-about", "About this report", briefBlock, renderAbout(result));
-
-  const metaBits = [];
-  if (result.generated_at) metaBits.push(`Generated ${fmtDate(result.generated_at)}`);
-  if (cards.length) metaBits.push(`${plural(cards.length, "fact card")}, ${sourcedCount} sourced`);
-  if (Number(result.seconds) > 0) metaBits.push(`Research took ${fmtSeconds(result.seconds)}`);
-
-  const tocNav = h("nav", { class: "report-toc", "aria-label": "Report sections" },
-    h("p", { class: "toc-title" }, "In this report"),
-    h("ol", {}, toc.map(([id, title]) =>
-      h("li", {}, h("a", {
-        href: `#${id}`,
-        onclick: (ev) => {
-          ev.preventDefault();
-          const target = document.getElementById(`${id}-h`);
-          if (target) {
-            target.parentElement.open = true;
-            target.scrollIntoView({ behavior: prefersReducedMotion() ? "auto" : "smooth", block: "start" });
-            target.focus({ preventScroll: true });
-          }
-        },
-      }, title)))));
-
-  return h("article", { class: "report" },
+  const meta = [];
+  if (result.generated_at || run?.created_at) meta.push(fmtDate(result.generated_at || run.created_at));
+  meta.push(`${plural(cards.length, "fact card")}, ${sourcedCount} sourced`);
+  if (result.seconds != null) meta.push(`Research took ${fmtSeconds(result.seconds)}`);
+  return h("article", { class: "report report-v2" },
     h("header", { class: "report-head" },
-      h("p", { class: "eyebrow" }, shared ? "Shared report · read only" : "MarketClue report"),
-      h("h1", { class: "report-title" }, result.title || (run && run.title) || "Your report"),
-      metaBits.length ? h("p", { class: "report-meta" }, metaBits.join(" · ")) : null,
+      h("p", { class: "eyebrow" }, shared ? "Shared report · read only" : "Your research brief"),
+      h("h1", { class: "report-title" }, result.title || run?.title || "Your report"),
+      feature ? h("p", { class: "report-feature" }, feature.name) : null,
+      h("p", { class: "report-meta" }, meta.filter(Boolean).join(" · ")),
       actions ? h("div", { class: "report-actions" }, actions) : null),
-    h("div", { class: "report-grid" },
-      h("div", { class: "report-body" }, renderLegend(), sections, renderCostLine(result)),
-      tocNav));
+    h("div", { class: "classic-report-body" }, content));
 }
 
-function prefersReducedMotion() {
-  return document.documentElement.classList.contains("reading-reduced-motion") ||
-    (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+export function cardTile(card, n) {
+  return h("article", { class: "inline-fact-card" },
+    h("div", { class: "inline-fact-head" },
+      n ? h("span", { class: "inline-card-number" }, `Fact card ${n}`) : null,
+      typeBadge(card.type), isStale(card) ? staleBadge() : null),
+    card.claim ? h("p", { class: "inline-fact-claim" }, card.claim) : null,
+    card.quote ? h("blockquote", { class: "quote" }, h("p", {}, `“${card.quote}”`)) : null,
+    externalLink(card.url, card.source_title || domainOf(card.url) || "Open source", "inline-source-link"),
+    h("p", { class: "inline-captured" }, `Captured ${fmtDate(card.captured_at) || "date unknown"}`));
 }
 
-function renderLegend() {
-  const kinds = [
-    ["sourced", "Backed by a quote. Select a number to read it."],
-    ["assumption", "Not backed by a quote — test it."],
-    ["estimate", "A calculated number. The method is shown."],
-  ];
-  return h("div", { class: "kind-legend", role: "note", "aria-label": "Report labels" },
-    kinds.map(([kind, description]) => h("span", { title: description },
-      kindBadge(kind), h("span", { class: "visually-hidden" }, `: ${description}`))));
+function renderPriceTable(table, richText) {
+  const columns = list(table.columns);
+  return h("div", { class: "table-scroll", role: "region", "aria-label": table.title || "Price comparison", tabindex: "0" },
+    h("table", { class: "price-comparison-table" },
+      h("caption", { class: "visually-hidden" }, table.title || "Price comparison"),
+      h("thead", {}, h("tr", {}, columns.map((column) => h("th", { scope: "col" }, column)), h("th", { scope: "col" }, "Sources"))),
+      h("tbody", {}, list(table.rows).filter(Boolean).map((row) => h("tr", {},
+        list(row.cells).map((cell, i) => h(i === 0 ? "th" : "td", i === 0 ? { scope: "row" } : {}, String(cell ?? ""))),
+        h("td", { class: "price-row-sources" }, richText("", row.card_ids)))))));
+}
+
+function renderCoverage(coverage) {
+  if (!coverage || typeof coverage !== "object") return h("p", { class: "muted" }, "Coverage counts were not recorded for this report.");
+  const metrics = [
+    ["Research directions", "directions"], ["Pages read", "pages_read"],
+    ["Quotes found", "quotes_found"], ["Quotes checked", "quotes_total"],
+    ["Claims narrowed", "claims_narrowed"], ["Claims relabelled", "relabelled"],
+  ].filter(([, key]) => coverage[key] != null);
+  if (!metrics.length) return h("p", { class: "muted" }, "Coverage counts were not recorded for this report.");
+  return h("div", { class: "table-scroll coverage-scroll" }, h("table", { class: "coverage-table" },
+    h("caption", { class: "visually-hidden" }, "Evidence coverage counts"),
+    h("tbody", {}, metrics.map(([label, key]) => h("tr", {},
+      h("th", { scope: "row" }, label), h("td", { class: "num" }, String(coverage[key])))))));
 }
 
 export function renderBriefDetails(brief) {
@@ -244,8 +223,8 @@ export function renderBriefDetails(brief) {
 
 function renderBudget(budget, richText) {
   const currency = budget.currency || "USD";
-  const lines = budget.lines;
-  const total = Number.isFinite(Number(budget.total)) && Number(budget.total) > 0
+  const lines = list(budget.lines).filter(Boolean);
+  const total = budget.total != null && Number.isFinite(Number(budget.total)) && Number(budget.total) >= 0
     ? Number(budget.total)
     : lines.reduce((sum, l) => sum + (Number(l.amount) || 0), 0);
 
@@ -274,8 +253,9 @@ function renderBudget(budget, richText) {
 }
 
 function renderCostLine(result) {
-  const usd = Number((result.cost || {}).usd);
-  return Number.isFinite(usd)
+  const raw = result.cost?.usd;
+  const usd = Number(raw);
+  return raw != null && Number.isFinite(usd)
     ? h("p", { class: "cost-line" }, `This report cost about ${fmtCost(usd)} in AI and search.`)
     : null;
 }
@@ -290,7 +270,7 @@ function renderAbout(result) {
     parts.push(`${fmt(cost.input_tokens)} input and ${fmt(cost.output_tokens)} output tokens`);
   }
 
-  const agents = Array.isArray(result.agents) ? result.agents : [];
+  const agents = list(result.agents).filter(Boolean);
   const agentTable = agents.length
     ? h("div", { class: "table-scroll", role: "region", "aria-label": "Agent timings", tabindex: "0" },
         h("table", { class: "agents-table" },
