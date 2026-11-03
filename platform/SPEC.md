@@ -142,8 +142,8 @@ named after their direction (e.g. "Competitors & prices").
 ```json
 {
   "title": "...", "generated_at": "...", "brief": {...},
-  "summary": ["3 short bullets, each may cite card ids"],
-  "findings": [{"direction": "...", "items": [{"text": "...", "card_ids": ["..."]}]}],
+  "summary": [{"text": "...", "kind": "sourced|assumption|estimate", "card_ids": [], "method": ""}],
+  "findings": [{"direction": "...", "items": [{"text": "...", "kind": "...", "card_ids": ["..."], "method": ""}]}],
   "cards": [{card}],
   "plan": [{"section": "Customers|Positioning|Pricing|Channels|Content (4 weeks)|Measurement|Brand & compliance",
             "items": [{"text": "...", "kind": "sourced|assumption|estimate", "card_ids": [], "method": "for estimates: how it was computed"}]}],
@@ -151,7 +151,8 @@ named after their direction (e.g. "Competitors & prices").
              "lines": [{"item": "...", "amount": 0, "kind": "sourced|assumption|estimate", "card_ids": [], "method": "..."}]},
   "next_checks": ["what to verify next, specific"],
   "cost": {"usd": 0.0, "input_tokens": 0, "output_tokens": 0, "web_searches": 0, "web_fetches": 0},
-  "agents": [{"name": "...", "status": "...", "seconds": 0}]
+  "agents": [{"name": "...", "status": "...", "seconds": 0}],
+  "seconds": 0
 }
 ```
 
