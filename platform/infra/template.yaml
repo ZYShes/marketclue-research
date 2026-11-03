@@ -19,6 +19,12 @@ Parameters:
   MaxRunsPerDay:
     Type: Number
     Default: 30
+  PlanModel:
+    Type: String
+    Default: claude-opus-5-5
+  ResearchModel:
+    Type: String
+    Default: claude-opus-5-5
 
 Resources:
   Table:
@@ -77,6 +83,8 @@ Resources:
           SELF_FUNCTION_NAME: marketclue-api
           STALE_DAYS: "90"
           SITE_ORIGIN: !Ref SiteOrigin
+          PLAN_MODEL: !Ref PlanModel
+          RESEARCH_MODEL: !Ref ResearchModel
       Policies:
         - DynamoDBCrudPolicy: { TableName: !Ref Table }
         - S3CrudPolicy: { BucketName: !Ref DataBucket }

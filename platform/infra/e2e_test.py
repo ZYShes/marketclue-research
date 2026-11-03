@@ -21,7 +21,20 @@ TEST_SUB = "e2e-test-user"
 TEST_EMAIL = "e2e-test@marketclue.invalid"
 
 
+def ensure_test_user():
+    table = boto3.Session(profile_name="marketclue", region_name="us-west-2").resource("dynamodb").Table("marketclue")
+    table.update_item(
+        Key={"PK": f"USER#{TEST_SUB}", "SK": "PROFILE"},
+        UpdateExpression=("SET #sub = :sub, email = :email, #name = :name, picture = :picture, is_owner = :owner, "
+                          "created_at = if_not_exists(created_at, :now), runs_started = if_not_exists(runs_started, :zero)"),
+        ExpressionAttributeNames={"#sub": "sub", "#name": "name"},
+        ExpressionAttributeValues={":sub": TEST_SUB, ":email": TEST_EMAIL, ":name": "E2E test", ":picture": "",
+                                   ":owner": True, ":now": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), ":zero": 0},
+    )
+
+
 def session_cookie():
+    ensure_test_user()
     ssm = boto3.Session(profile_name="marketclue", region_name="us-west-2").client("ssm")
     secret = ssm.get_parameter(Name="/marketclue/session_secret", WithDecryption=True)["Parameter"]["Value"]
     token = jwt.encode({"sub": TEST_SUB, "email": TEST_EMAIL, "exp": int(time.time()) + 3600}, secret, algorithm="HS256")

@@ -13,6 +13,7 @@ AWS="aws --profile $PROFILE --region $REGION"
 ACCOUNT=$($AWS sts get-caller-identity --query Account --output text)
 GOOGLE_CLIENT_ID=$(cat "$CONF/google_client_id")
 OWNER_EMAILS=$(cat "$CONF/owner_emails" 2>/dev/null || true)
+RESEARCH_MODEL=$(cat "$CONF/research_model" 2>/dev/null || echo claude-opus-5-5)
 BUDGET_EMAIL=$(cat "$CONF/budget_email")
 
 put_secret() { # name file-or-generator
@@ -47,7 +48,7 @@ if [[ "${1:-}" != "--frontend-only" ]]; then
   $AWS cloudformation deploy --template-file "$BUILD/packaged.yaml" --stack-name $STACK \
     --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND --no-fail-on-empty-changeset \
     --parameter-overrides GoogleClientId="$GOOGLE_CLIENT_ID" OwnerEmails="$OWNER_EMAILS" \
-      BudgetEmail="$BUDGET_EMAIL" SiteOrigin="$SITE_ORIGIN"
+      BudgetEmail="$BUDGET_EMAIL" SiteOrigin="$SITE_ORIGIN" ResearchModel="$RESEARCH_MODEL"
 
   NEW_ORIGIN=$($AWS cloudformation describe-stacks --stack-name $STACK \
     --query "Stacks[0].Outputs[?OutputKey=='SiteUrl'].OutputValue" --output text)
@@ -55,7 +56,7 @@ if [[ "${1:-}" != "--frontend-only" ]]; then
     $AWS cloudformation deploy --template-file "$BUILD/packaged.yaml" --stack-name $STACK \
       --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND --no-fail-on-empty-changeset \
       --parameter-overrides GoogleClientId="$GOOGLE_CLIENT_ID" OwnerEmails="$OWNER_EMAILS" \
-        BudgetEmail="$BUDGET_EMAIL" SiteOrigin="$NEW_ORIGIN"
+        BudgetEmail="$BUDGET_EMAIL" SiteOrigin="$NEW_ORIGIN" ResearchModel="$RESEARCH_MODEL"
   fi
 fi
 
@@ -63,6 +64,7 @@ out() { $AWS cloudformation describe-stacks --stack-name $STACK --query "Stacks[
 SITE_BUCKET=$(out SiteBucketName)
 DIST=$(out DistributionId)
 
+if [[ ! -d frontend ]]; then echo "No frontend yet; skipped upload."; echo "Site: $(out SiteUrl)"; exit 0; fi
 STAGE=$(mktemp -d)
 cp -r frontend/. "$STAGE/"
 printf 'window.MC_CONFIG = {googleClientId: "%s", apiBase: "/api", mock: false};\n' "$GOOGLE_CLIENT_ID" > "$STAGE/config.js"
