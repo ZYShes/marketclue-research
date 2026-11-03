@@ -196,3 +196,68 @@ AWS Budget with alerts at $10/$20/$30.
   web search $10 per 1,000).
 - Robots: we only fetch pages ourselves as a fallback, with a normal user agent, 10 s timeout, 2 MB cap,
   honouring robots.txt.
+
+---
+
+# v2 (2026-11-03): four features and the classic report
+
+Supersedes the parts above where they differ. Architecture is unchanged (Lambda + Claude, no n8n).
+
+## Features
+
+`feature` ∈ `market_check`, `competitor_scan`, `marketing_plan`, `launch_checklist`.
+
+| feature | Name in the UI | Question it answers | Extra report section |
+|---|---|---|---|
+| `market_check` | Market check | Who buys, and what do they say? | — |
+| `competitor_scan` | Competitor & price scan | Who sells this, and for how much? | `table` (price comparison) |
+| `marketing_plan` | Marketing plan & budget | How do I get my first customers? | `plan`, `budget` |
+| `launch_checklist` | Launch checklist | What do I need before I sell? | `checklist` (official sources first) |
+
+Journey order on the home page: Validate (Market check) → Price (Competitor & price scan) →
+Launch (Launch checklist) → Grow (Marketing plan & budget).
+
+## API changes
+
+- `POST /api/chat` body `{conv_id?, message, feature?}`: `feature` is read only when `conv_id` is absent
+  (new conversation; default `marketing_plan`). Responses include `"feature"`. `GET /api/conversations/{id}`
+  includes `feature`.
+- The brief gains `"feature"`. Runs carry it in `run.brief.feature`; `GET /api/runs` rows may include `feature`.
+
+## Result document v2
+
+```json
+{
+  "version": 2,
+  "feature": "competitor_scan",
+  "title": "...", "generated_at": "...", "brief": {...},
+  "takeaway": {"text": "The main point in 2-3 sentences", "kind": "sourced|assumption|estimate", "card_ids": [], "method": ""},
+  "findings": [{"title": "short headline", "text": "1-3 sentences", "kind": "...", "card_ids": [], "method": ""}],
+  "table": {"title": "...", "columns": ["Seller", "Product", "Price", "Notes"],
+            "rows": [{"cells": ["...", "...", "$54", "..."], "card_ids": ["..."]}]} ,
+  "plan": [{"section": "...", "items": [{"text", "kind", "card_ids", "method"}]}],
+  "budget": {"currency": "USD", "total": 0, "lines": [{"item", "amount", "kind", "card_ids", "method"}]},
+  "checklist": [{"step": "Register your business name", "text": "...", "kind": "...", "card_ids": [], "official": true}],
+  "next_steps": [{"text": "what to do", "how": "how to check it"}],
+  "missing_evidence": ["what the sources did not show"],
+  "coverage": {"directions": 4, "pages_read": 10, "quotes_found": 20, "quotes_total": 20, "claims_narrowed": 3, "relabelled": 2},
+  "cards": [{card}], "cost": {...}, "agents": [...], "seconds": 0
+}
+```
+
+`table` is null except for `competitor_scan`; `plan`/`budget` only for `marketing_plan` (else `[]`/null);
+`checklist` only for `launch_checklist` (else `[]`). Findings are shown numbered (1, 2, 3...).
+
+## Report page (like the original MarketClue brief)
+
+1. Title, feature name, date, "N fact cards, M sourced", time taken, Share.
+2. **The brief at a glance**: the takeaway with its kind badge and source chips.
+3. **Findings**: numbered list; each finding = title, text, kind badge, and a collapsible
+   "Sources for finding N" that lists its cards inline (quote in serif italic, source title as link,
+   captured date, Sourced/Unverified badge).
+4. Feature section: price table (each row's source chips) / marketing plan + 4-week budget table /
+   launch checklist (checkbox-style list; "Official source" tag when `official`).
+5. **Next steps & missing evidence**: next steps as a numbered list with "How to check" under each;
+   missing evidence as a short list.
+6. **Evidence coverage**: a small table from `coverage` plus the cost line.
+7. All fact cards (collapsed) and About this report (collapsed).
