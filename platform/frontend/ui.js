@@ -173,6 +173,182 @@ export const storage = {
   },
 };
 
+// Reading preferences stay usable in memory when browser storage is blocked.
+const READING_KEY = "mc_reading_preferences_v1";
+const READING_DEFAULTS = { largerText: false, extraSpacing: false, reduceMotion: false, zoom: 100 };
+let readingPreferences = { ...READING_DEFAULTS };
+let readingEntered = false;
+let readingInitialized = false;
+let welcomeForm = null;
+let welcomeEnter = null;
+
+function normalizeReading(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  return {
+    largerText: value.largerText === true,
+    extraSpacing: value.extraSpacing === true,
+    reduceMotion: value.reduceMotion === true,
+    zoom: [100, 150, 200].includes(value.zoom) ? value.zoom : 100,
+  };
+}
+
+function applyReading(value) {
+  const root = document.documentElement;
+  root.classList.toggle("reading-large", value.largerText);
+  root.classList.toggle("reading-spaced", value.extraSpacing);
+  root.classList.toggle("reading-reduced-motion", value.reduceMotion);
+  root.style.zoom = String(value.zoom / 100);
+}
+
+export function initializeReadingPreferences() {
+  if (readingInitialized) return;
+  readingInitialized = true;
+  try {
+    const saved = normalizeReading(JSON.parse(storage.get(READING_KEY)));
+    if (saved) {
+      readingPreferences = saved;
+      readingEntered = true;
+    }
+  } catch { /* Invalid saved data uses the welcome defaults. */ }
+  applyReading(readingPreferences);
+}
+
+export function hasReadingPreferences() {
+  initializeReadingPreferences();
+  return readingEntered;
+}
+
+function saveReading(value) {
+  readingPreferences = { ...value };
+  readingEntered = true;
+  storage.set(READING_KEY, JSON.stringify(readingPreferences));
+  applyReading(readingPreferences);
+}
+
+function readingForm({ prefix, welcome = false, onSave, onCancel, initial = readingPreferences }) {
+  const draft = { ...initial };
+  const preview = h("p", { class: "reading-preview", id: `${prefix}-preview` },
+    "Your next idea deserves a clear view.");
+  const status = h("span", { class: "visually-hidden", role: "status", "aria-live": "polite" });
+  function update() {
+    applyReading(draft);
+    status.textContent = `Preview: ${draft.largerText ? "larger" : "standard"} text, ${draft.extraSpacing ? "extra" : "standard"} spacing, ${draft.reduceMotion ? "reduced" : "system"} motion, ${draft.zoom}% zoom.`;
+  }
+  const check = (key, label) => h("label", { class: "reading-option", for: `${prefix}-${key}` },
+    h("input", {
+      type: "checkbox", id: `${prefix}-${key}`, name: key, checked: draft[key],
+      onchange: (event) => { draft[key] = event.target.checked; update(); },
+    }),
+    h("span", {}, label));
+  const zoom = h("fieldset", { class: "reading-zoom" },
+    h("legend", {}, "Page zoom"),
+    h("div", { class: "reading-zoom-options" }, [100, 150, 200].map((value) =>
+      h("label", { class: "reading-option", for: `${prefix}-zoom-${value}` },
+        h("input", {
+          type: "radio", id: `${prefix}-zoom-${value}`, name: `${prefix}-zoom`,
+          value, checked: draft.zoom === value,
+          onchange: () => { draft.zoom = value; update(); },
+        }),
+        h("span", {}, `${value}%`)))));
+  return h("form", {
+    class: "reading-form", "aria-describedby": `${prefix}-description`,
+    onsubmit: (event) => { event.preventDefault(); saveReading(draft); onSave(); },
+  },
+  h("div", { class: "reading-options" },
+    check("largerText", "Larger text"),
+    check("extraSpacing", "Extra spacing"),
+    check("reduceMotion", "Reduce motion")),
+  zoom,
+  h("div", { class: "reading-preview-wrap", "aria-label": "Live preview" }, preview, status),
+  h("div", { class: "reading-actions" },
+    h("button", { type: "submit", class: "btn btn-primary" }, welcome ? "Save & enter" : "Save changes"),
+    h("button", {
+      type: "button", class: "btn btn-secondary",
+      onclick: () => {
+        if (welcome) { saveReading(READING_DEFAULTS); onSave(); }
+        else onCancel();
+      },
+    }, welcome ? "Skip — use defaults" : "Cancel")));
+}
+
+export function renderWelcome(onEnter) {
+  initializeReadingPreferences();
+  setTitle("Welcome");
+  welcomeEnter = () => { welcomeForm = null; welcomeEnter = null; onEnter(); };
+  welcomeForm = readingForm({ prefix: "welcome", welcome: true, onSave: welcomeEnter });
+  return h("div", { class: "wrap page welcome-page" },
+    h("section", { class: "welcome-card", "aria-labelledby": "welcome-title" },
+      h("div", { class: "welcome-intro" },
+        h("p", { class: "eyebrow" }, "Reading & motion"),
+        h("h1", { id: "welcome-title" }, "A little more your way."),
+        h("p", { id: "welcome-description", class: "lede-sm" }, "Choose how you like to read. You can change this any time.")),
+      welcomeForm));
+}
+
+export function openReadingDialog() {
+  initializeReadingPreferences();
+  const dialog = document.getElementById("reading-dialog");
+  if (!dialog || dialog.open) return;
+  const opener = document.activeElement;
+  const root = document.documentElement;
+  const beforeOpen = {
+    largerText: root.classList.contains("reading-large"),
+    extraSpacing: root.classList.contains("reading-spaced"),
+    reduceMotion: root.classList.contains("reading-reduced-motion"),
+    zoom: Number(root.style.zoom || 1) * 100,
+  };
+  let finished = false;
+  function finish(saved = false) {
+    if (finished) return;
+    finished = true;
+    if (!saved) applyReading(beforeOpen);
+    dialog.removeEventListener("keydown", onKey);
+    dialog.removeEventListener("cancel", onCancel);
+    dialog.removeEventListener("close", onClose);
+    if (dialog.open) dialog.close();
+    if (opener?.isConnected) opener.focus({ preventScroll: true });
+  }
+  const close = () => finish(false);
+  const onCancel = (event) => { event.preventDefault(); close(); };
+  const onClose = () => close();
+  dialog.replaceChildren(
+    h("div", { class: "reading-dialog-head" },
+      h("h2", { id: "reading-dialog-title" }, "Reading & motion"),
+      h("button", {
+        type: "button", class: "icon-btn", "aria-label": "Close reading preferences", onclick: close,
+      }, icon("close"))),
+    h("p", { id: "settings-description", class: "muted" }, "Choose how you like to read. You can change this any time."),
+    readingForm({
+      prefix: "settings", initial: beforeOpen,
+      onSave: () => {
+        if (welcomeForm?.isConnected) {
+          const nextForm = readingForm({ prefix: "welcome", welcome: true, onSave: welcomeEnter });
+          welcomeForm.replaceWith(nextForm);
+          welcomeForm = nextForm;
+        }
+        finish(true);
+        toast("Reading preferences saved.");
+      },
+      onCancel: close,
+    }));
+  const onKey = (event) => {
+    if (event.key !== "Tab") return;
+    const controls = [...dialog.querySelectorAll("button, input, [tabindex='0']")]
+      .filter((element) => !element.disabled && element.getClientRects().length);
+    const first = controls[0];
+    const last = controls[controls.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault(); last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault(); first.focus();
+    }
+  };
+  dialog.addEventListener("keydown", onKey);
+  dialog.addEventListener("cancel", onCancel);
+  dialog.addEventListener("close", onClose);
+  dialog.showModal();
+}
+
 export function setTitle(page) {
   document.title = page ? `${page} · MarketClue` : "MarketClue · Market research you can check";
 }

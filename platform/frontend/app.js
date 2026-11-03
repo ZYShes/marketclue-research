@@ -2,11 +2,12 @@
 
 import {
   h, icon, svg, ICONS, storage, setTitle, toast, copyText, externalLink, domainOf,
-  fmtDate, fmtDateTime, fmtAgo, fmtMoney, fmtCost, isStale, plural, initials,
-  typeBadge, staleBadge, statusPill, kindBadge, hideToast,
+  fmtDate, fmtDateTime, fmtMoney, fmtCost, isStale, plural, initials,
+  typeBadge, staleBadge, statusPill, hideToast,
+  initializeReadingPreferences, hasReadingPreferences, renderWelcome, openReadingDialog,
 } from "./ui.js";
 import { api, ApiError, MOCK, onUnauthorized, friendlyError } from "./api.js";
-import { renderReport, closeCardPanel, sourcedNote } from "./report.js";
+import { renderReport, closeCardPanel } from "./report.js";
 
 const cfg = window.MC_CONFIG || {};
 const main = document.getElementById("main");
@@ -15,7 +16,7 @@ const liveEl = document.getElementById("live");
 
 const KEY_CONV = "mc_conv_id";
 const KEY_AFTER_LOGIN = "mc_after_login";
-const PROTECTED = new Set(["new", "runs", "library"]);
+const PROTECTED = new Set(["home", "new", "runs", "library"]);
 
 const state = { user: null, bootError: null };
 let cleanup = null;
@@ -60,7 +61,7 @@ async function router() {
   const isCurrent = () => seq === renderSeq;
   const [head = "", arg] = parts;
 
-  if (!head && state.user) return go("#/new", true);
+  if (!head && state.user) return go("#/home", true);
   if (PROTECTED.has(head) && !state.user) {
     storage.set(KEY_AFTER_LOGIN, location.hash);
     return go("#/", true);
@@ -75,6 +76,7 @@ async function router() {
 
   let result;
   if (!head) result = viewLanding(isCurrent);
+  else if (head === "home") result = viewHome(isCurrent);
   else if (head === "new") result = viewNew(isCurrent);
   else if (head === "runs" && arg) result = viewRun(arg, isCurrent);
   else if (head === "runs") result = viewRuns(isCurrent);
@@ -113,16 +115,16 @@ function loadingBlock(text = "Loading…") {
 // ---- Header ----------------------------------------------------------------
 
 function wordmark() {
-  return h("a", { class: "wordmark", href: state.user ? "#/new" : "#/" },
+  return h("a", { class: "wordmark", href: state.user ? "#/home" : "#/" },
     svg(ICONS.mark),
     h("span", { class: "wordmark-text" }, "MarketClue"));
 }
 
 function runsLeftText(user) {
   if (!user) return "";
-  if (user.free_runs_left == null) return "Unlimited runs";
+  if (user.free_runs_left == null) return "Unlimited reports";
   const n = Number(user.free_runs_left) || 0;
-  return n > 0 ? `${plural(n, "free run")} left` : "Free run used";
+  return n > 0 ? `${plural(n, "free report")} left` : "Free report used";
 }
 
 function avatar(user, size = "") {
@@ -182,25 +184,22 @@ function renderHeader(route = "") {
   const navLink = (href, label, key) =>
     h("a", { href, class: "nav-link", "aria-current": route === key ? "page" : null }, label);
 
-  const right = [];
-  if (user) {
-    const left = runsLeftText(user);
-    if (user.free_runs_left != null) {
-      right.push(h("span", { class: `runs-left${Number(user.free_runs_left) > 0 ? "" : " runs-left-none"}` }, left));
-    }
-    right.push(userMenu(user));
-  } else if (route) {
-    right.push(h("a", { class: "btn btn-small btn-secondary", href: "#/" }, "Sign in"));
-  }
+  const right = [h("button", {
+    type: "button", class: "btn btn-reading", "aria-haspopup": "dialog",
+    "aria-controls": "reading-dialog", onclick: openReadingDialog,
+  }, "Reading & motion")];
+  if (user) right.push(userMenu(user));
+  else if (route) right.push(h("a", { class: "btn btn-secondary", href: "#/" }, "Sign in"));
 
   headerEl.replaceChildren(
     h("div", { class: "wrap header-inner" },
       wordmark(),
       user
         ? h("nav", { class: "main-nav", "aria-label": "Main" },
+            navLink("#/home", "Home", "home"),
             navLink("#/new", "New research", "new"),
-            navLink("#/library", "Library", "library"),
-            navLink("#/runs", "My runs", "runs"))
+            navLink("#/runs", "My reports", "runs"),
+            navLink("#/library", "Fact library", "library"))
         : null,
       h("div", { class: "header-right" }, right))
   );
@@ -258,7 +257,7 @@ function afterLogin(user) {
   state.user = user;
   const next = storage.get(KEY_AFTER_LOGIN);
   storage.remove(KEY_AFTER_LOGIN);
-  go(next && next.startsWith("#/") && next !== "#/" ? next : "#/new", true);
+  go(next && next.startsWith("#/") && next !== "#/" ? next : "#/home", true);
 }
 
 function mountSignIn(container) {
@@ -277,7 +276,7 @@ function mountSignIn(container) {
         btn.disabled = false;
       }
     });
-    container.replaceChildren(btn, h("p", { class: "fine" }, "Mock mode: sample data, no Google account needed."), status);
+    container.replaceChildren(btn, h("p", { class: "fine" }, "Sample account. No Google sign-in needed."), status);
     return;
   }
 
@@ -332,64 +331,94 @@ onUnauthorized(() => {
 
 // ---- Landing ---------------------------------------------------------------
 
+const FEATURE_ICONS = {
+  research: '<path d="M10.5 18a7.5 7.5 0 1 0 0-15 7.5 7.5 0 0 0 0 15Zm5.5-2 5 5M7 10.5h7m-3.5-3.5v7"/>',
+  plan: '<path d="M5 3h14v18H5zM8 8h8M8 12h3m-3 4h3m3-3v4m3-7v7"/>',
+  library: '<path d="M4 3h12v16H4zM8 7h5m-5 4h5m-5 4h3m8-9h2v16H9v-2"/>',
+};
+
+function featureIcon(name) {
+  return svg(`<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${FEATURE_ICONS[name]}</svg>`);
+}
+
 function viewLanding() {
   setTitle("");
   const signin = h("div", { class: "signin" });
-  // A real card from a test report (captured by web_fetch on Oct 17, 2026).
+  // A real card from a test report, captured on Oct 17, 2026.
   const sample = {
-    claim: "Etsy charges $0.20 to publish a listing, and a listing lasts four months or until it sells.",
+    claim: "Etsy charges $0.20 to publish a listing.",
     quote: "It costs $0.20 to publish a listing to the marketplace. A listing lasts for four months or until the item is sold.",
-    source: "How to sell on Etsy United States",
-    domain: "etsy.com",
-    tag: "Sales channels & fees",
     captured: "2026-10-17T04:21:58Z",
   };
+  const features = [
+    ["research", "Research", "Ask one question. Get a short report from public web pages."],
+    ["plan", "Plan & budget", "A marketing plan and a 4-week budget. Every line is labelled."],
+    ["library", "Fact library", "Every quote is saved with its link and date, to reuse or share."],
+  ];
 
   main.replaceChildren(
     h("div", { class: "wrap page landing" },
       state.bootError ? h("p", { class: "banner banner-error", role: "alert" }, state.bootError) : null,
       h("section", { class: "hero", "aria-labelledby": "hero-title" },
         h("div", { class: "hero-copy" },
-          h("p", { class: "eyebrow" }, "Market research for solo founders"),
-          h("h1", { id: "hero-title" }, "Market research you can check, line by line."),
-          h("p", { class: "lede" },
-            "Tell MarketClue what you are building and answer two or three questions. You get one short report: findings from the web, a marketing plan and a budget."),
-          h("p", { class: "lede lede-2" },
-            "Every statement links to a fact card with the exact quote, the page it came from and the date we read it, or it says plainly that it is an assumption or an estimate."),
+          h("p", { class: "eyebrow" }, "MarketClue"),
+          h("h1", { id: "hero-title" }, "See the market differently."),
+          h("p", { class: "lede" }, "Sourced market research, a marketing plan and a budget for solo founders."),
           signin,
-          h("p", { class: "fine" }, "Your first report is free.")),
-        h("figure", { class: "specimen", "aria-label": "Example of a fact card" },
+          h("p", { class: "fine" }, "Your first report is free."))),
+      h("figure", { class: "specimen", "aria-label": "Example of a fact card" },
+          h("div", { class: "specimen-label" }, h("span", { class: "eyebrow" }, "A clue you can check"), h("span", { class: "sample-number" }, "01")),
           h("div", { class: "fact fact-specimen" },
-            h("div", { class: "badge-row" }, typeBadge("sourced"), h("span", { class: "tag" }, sample.tag)),
+            h("div", { class: "badge-row" }, typeBadge("sourced"), h("span", { class: "tag" }, "Sales channels & fees")),
             h("p", { class: "fact-claim" }, sample.claim),
             h("blockquote", { class: "quote" }, h("p", {}, `“${sample.quote}”`)),
-            h("p", { class: "fact-source" }, h("span", { class: "fact-source-title" }, sample.source),
-              h("span", { class: "muted" }, ` · ${sample.domain} · captured ${fmtDate(sample.captured)}`))),
-          h("figcaption", {}, "A real fact card from a sample report. ", sourcedNote()))),
-      h("section", { class: "kinds", "aria-labelledby": "kinds-title" },
-        h("h2", { id: "kinds-title" }, "Every line in a report is one of three things"),
-        h("ul", { class: "kind-list" },
-          h("li", {}, kindBadge("sourced"), h("p", {}, "Backed by a fact card. Open it to see the quote and the page.")),
-          h("li", {}, kindBadge("assumption"), h("p", {}, "A working guess, labelled so you know to test it.")),
-          h("li", {}, kindBadge("estimate"), h("p", {}, "A number we worked out, with the method written next to it.")))),
-      h("section", { class: "how", "aria-labelledby": "how-title" },
-        h("h2", { id: "how-title" }, "How it works"),
-        h("ol", { class: "steps" },
-          h("li", {}, h("h3", {}, "Describe your business"),
-            h("p", {}, "Chat with the research agent. It asks a few questions and writes a brief you can check before anything starts.")),
-          h("li", {}, h("h3", {}, "Agents research in parallel"),
-            h("p", {}, "Up to four research agents search the web and keep the quotes they rely on. A verifier then checks each quote against the page we captured.")),
-          h("li", {}, h("h3", {}, "Read one short report"),
-            h("p", {}, "Findings, a marketing plan and a budget, with a fact card library you can search later."))))
-    )
+            h("p", { class: "fact-source" }, externalLink("https://www.etsy.com/sell", "How to sell on Etsy"),
+              h("span", { class: "sample-date" }, `Captured ${fmtDate(sample.captured)}`))),
+          h("figcaption", {}, "A real quote from a sample report.")),
+      h("section", { class: "feature-grid", "aria-label": "What you can do" },
+        features.map(([name, title, description]) => h("article", { class: "feature-tile" },
+          h("span", { class: `feature-icon feature-icon-${name}` }, featureIcon(name)),
+          h("h2", {}, title), h("p", {}, description)))))
   );
   mountSignIn(signin);
+}
+
+function viewHome(isCurrent) {
+  setTitle("Home");
+  const name = (state.user.name || "").trim().split(/\s+/)[0];
+  const countSlots = new Map();
+  function tile(href, name, title, description) {
+    const count = h("span", { class: "entry-count", role: "status" }, "Loading…");
+    countSlots.set(name, count);
+    return h("a", { class: `entry-tile entry-${name}`, href },
+      h("span", { class: `feature-icon feature-icon-${name}` }, featureIcon(name)),
+      h("h2", {}, title), h("p", {}, description),
+      h("span", { class: "entry-bottom" }, count, h("span", { class: "entry-arrow", "aria-hidden": "true" }, "↗")));
+  }
+  main.replaceChildren(h("div", { class: "wrap page home-page" },
+    h("div", { class: "page-head" }, h("p", { class: "eyebrow" }, "Your workspace"),
+      h("h1", {}, name ? `Welcome back, ${name}.` : "Welcome back.")),
+    h("section", { class: "entry-grid", "aria-label": "Start here" },
+      tile("#/new", "research", "New research", "Start a new report"),
+      tile("#/runs", "plan", "My reports", "Read your saved research."),
+      tile("#/library", "library", "Fact library", "Find and reuse your sources."))));
+  countSlots.get("research").textContent = runsLeftText(state.user);
+  Promise.allSettled([api("/runs"), api("/cards"), api("/me")]).then(([runs, cards, me]) => {
+    if (!isCurrent()) return;
+    countSlots.get("plan").textContent = runs.status === "fulfilled" ? plural((runs.value.runs || []).length, "report") : "Count unavailable";
+    countSlots.get("library").textContent = cards.status === "fulfilled" ? plural((cards.value.cards || []).length, "fact card") : "Count unavailable";
+    if (me.status === "fulfilled" && me.value.user) {
+      state.user = me.value.user;
+      countSlots.get("research").textContent = runsLeftText(state.user);
+      renderHeader("home");
+    }
+  });
 }
 
 // ---- New research (super-agent chat) --------------------------------------
 
 const GREETING =
-  "Hi. Tell me what you are building and who it is for. I will ask two or three questions, then write a research brief for you to check before we start.";
+  "Tell me what you are building and who it is for.";
 
 function viewNew(isCurrent) {
   setTitle("New research");
@@ -402,7 +431,7 @@ function viewNew(isCurrent) {
   const logBox = h("div", { class: "chat-log", tabindex: "0", role: "region", "aria-label": "Conversation" }, log);
   const input = h("textarea", {
     id: "chat-input", rows: "3", maxlength: "2000", autocomplete: "off",
-    placeholder: "For example: I make handmade ceramic planters in Seattle and want to start selling online.",
+    placeholder: "For example: Handmade planters for Seattle plant lovers.",
   });
   const sendBtn = h("button", { type: "submit", class: "btn btn-primary" }, "Send");
   const chatError = h("p", { class: "form-error", role: "alert" });
@@ -466,13 +495,13 @@ function viewNew(isCurrent) {
     const startError = h("p", { class: "form-error", role: "alert", id: "start-error" });
 
     let help;
-    if (!ready) help = "Start research unlocks when the brief is complete.";
-    else if (noRunsLeft) help = "You have used your free report. More runs are coming soon.";
+    if (!ready) help = "Complete the brief to start.";
+    else if (noRunsLeft) help = "Your free report has been used.";
     else if (user.free_runs_left != null) {
       const n = Number(user.free_runs_left);
-      help = n === 1 ? "This uses your free run." : `This uses 1 of your ${n} free runs.`;
+      help = n === 1 ? "This uses your free report." : `This uses 1 of your ${n} free reports.`;
     }
-    else help = "Research takes a few minutes. You can leave the page while it runs.";
+    else help = "Research takes a few minutes.";
 
     const questions = b && Array.isArray(b.questions) ? b.questions.filter(Boolean) : [];
     briefCol.replaceChildren(
@@ -488,13 +517,13 @@ function viewNew(isCurrent) {
               briefField("Stage", b.stage),
               briefField("Marketing budget", b.budget_usd != null && b.budget_usd !== "" ? fmtMoney(b.budget_usd, "USD") : ""),
               briefField("Goal", b.goal))
-          : h("p", { class: "brief-empty" }, "The agent fills this in as you talk. You will see the whole brief here before anything starts."),
+          : h("p", { class: "brief-empty" }, "Your brief will appear here."),
         questions.length
           ? h("div", { class: "brief-questions" },
               h("h3", {}, "Questions to research"),
               h("ol", {}, questions.map((q) => h("li", {}, q))))
           : null,
-        b ? h("p", { class: "fine" }, "To change anything, tell the agent in the chat.") : null,
+        b ? h("p", { class: "fine" }, "Ask in chat to change the brief.") : null,
         startBtn,
         h("p", { class: "fine start-help", id: "start-help" }, help),
         startError)
@@ -674,14 +703,14 @@ function viewRun(runId, isCurrent) {
     if (failed) statusLine = "This run stopped before it finished.";
     else if (run.status === "queued") statusLine = "Waiting for a research worker…";
     else if (run.status === "done") statusLine = "Finished. Loading the report…";
-    else statusLine = `Started ${fmtAgo(run.created_at)}. This usually takes a few minutes.`;
+    else statusLine = "Research in progress. This may take a few minutes.";
 
     main.replaceChildren(
       h("div", { class: "wrap page run-page" },
         h("div", { class: "page-head" },
           h("p", { class: "eyebrow" }, "Research run"),
           h("h1", {}, run.title || "Your report"),
-          h("p", { class: "muted" }, statusLine)),
+          h("p", { class: "muted", role: "status" }, statusLine)),
         warning ? h("p", { class: "banner banner-warn", role: "status" }, warning) : null,
         failed
           ? h("div", { class: "banner banner-error", role: "alert" },
@@ -694,8 +723,7 @@ function viewRun(runId, isCurrent) {
           agentRows(run.agents)),
         !failed
           ? h("p", { class: "fine" },
-              "This page checks for updates every 3 seconds. You can leave it: the research keeps going and the report will be in ",
-              h("a", { href: "#/runs" }, "My runs"), ".")
+              "Your report will be saved in ", h("a", { href: "#/runs" }, "My reports"), ".")
           : null)
     );
   }
@@ -705,7 +733,7 @@ function viewRun(runId, isCurrent) {
     const shareSlot = h("div", { class: "share-slot" });
     const shareBtn = h("button", { type: "button", class: "btn btn-secondary" }, "Share");
     shareBtn.addEventListener("click", () => shareRun(run.run_id, shareBtn, shareSlot));
-    const actions = [shareBtn, h("a", { class: "btn btn-quiet", href: "#/runs" }, "All my runs"), shareSlot];
+    const actions = [shareBtn, h("a", { class: "btn btn-quiet", href: "#/runs" }, "My reports"), shareSlot];
     main.replaceChildren(h("div", { class: "wrap page" }, renderReport(result, { run, actions })));
   }
 
@@ -741,7 +769,7 @@ function viewRun(runId, isCurrent) {
             h("div", { class: "empty" },
               h("h1", {}, "Run not found"),
               h("p", {}, "This run does not exist or belongs to another account."),
-              h("a", { class: "btn btn-secondary", href: "#/runs" }, "Go to My runs"))));
+              h("a", { class: "btn btn-secondary", href: "#/runs" }, "Go to My reports"))));
         return;
       }
       warning = `${friendlyError(err)} We will keep trying.`;
@@ -782,7 +810,7 @@ async function shareRun(runId, btn, slot) {
     field.addEventListener("focus", () => field.select());
     slot.replaceChildren(
       h("p", { class: "share-note" },
-        copied ? "Link copied. Anyone with this link can read the report, but cannot change it." : "Copy this link to share a read-only copy of the report."),
+        copied ? "Link copied. Anyone with it can read this report." : "Copy this link to share the report."),
       field);
     toast(copied ? "Share link copied." : "Share link ready. Copy it from the box.");
     if (!copied) field.focus();
@@ -797,12 +825,12 @@ async function shareRun(runId, btn, slot) {
 // ---- My runs ---------------------------------------------------------------
 
 async function viewRuns(isCurrent) {
-  setTitle("My runs");
-  main.replaceChildren(loadingBlock("Loading your runs…"));
+  setTitle("My reports");
+  main.replaceChildren(loadingBlock("Loading your reports…"));
   const { runs = [] } = await api("/runs");
   if (!isCurrent()) return;
   const head = h("div", { class: "page-head page-head-row" },
-    h("div", {}, h("p", { class: "eyebrow" }, "Your reports"), h("h1", {}, "My runs")),
+    h("div", {}, h("p", { class: "eyebrow" }, "Your reports"), h("h1", {}, "My reports")),
     h("a", { class: "btn btn-primary", href: "#/new" }, "New research"));
 
   const body = runs.length
@@ -826,7 +854,7 @@ async function viewRuns(isCurrent) {
 // ---- Library ---------------------------------------------------------------
 
 async function viewLibrary(isCurrent) {
-  setTitle("Library");
+  setTitle("Fact library");
   main.replaceChildren(loadingBlock("Loading your fact cards…"));
 
   const [cardsRes, runsRes] = await Promise.allSettled([api("/cards"), api("/runs")]);
@@ -857,9 +885,9 @@ async function viewLibrary(isCurrent) {
     h("div", { class: "wrap page" },
       h("div", { class: "page-head" },
         h("p", { class: "eyebrow" }, "Your fact cards"),
-        h("h1", {}, "Library"),
+        h("h1", {}, "Fact library"),
         h("p", { class: "lede-sm" },
-          "Every fact card from your reports. When a later report finds the same quote on the same page, the card is reused, so one card can be used in several reports.")),
+          "Quotes and sources from all your reports.")),
       allCards.length ? toolbar : null,
       allCards.length ? count : null,
       grid)
@@ -987,7 +1015,7 @@ async function viewShared(token, isCurrent) {
         ? null
         : h("aside", { class: "cta", "aria-label": "About MarketClue" },
             h("h2", {}, "Research your own market"),
-            h("p", {}, "MarketClue writes a short, sourced report like this one for your business. Your first report is free."),
+            h("p", {}, "Get a sourced report for your business. Your first is free."),
             h("a", { class: "btn btn-primary", href: "#/" }, "Try MarketClue"))));
 }
 
@@ -1000,12 +1028,13 @@ function viewNotFound() {
       h("div", { class: "empty" },
         h("h1", {}, "Page not found"),
         h("p", {}, "That page does not exist."),
-        h("a", { class: "btn btn-secondary", href: state.user ? "#/new" : "#/" }, "Go home"))));
+        h("a", { class: "btn btn-secondary", href: state.user ? "#/home" : "#/" }, "Go home"))));
 }
 
 // ---- Boot ------------------------------------------------------------------
 
 async function boot() {
+  initializeReadingPreferences();
   if (MOCK) document.documentElement.classList.add("is-mock");
   const footerNote = document.getElementById("mock-note");
   if (MOCK && footerNote) footerNote.hidden = false;
@@ -1016,7 +1045,11 @@ async function boot() {
     main.scrollIntoView();
   });
 
-  renderHeader(parseRoute()?.[0] || "");
+  renderHeader("");
+  if (!hasReadingPreferences()) {
+    setTitle("Welcome");
+    await new Promise((resolve) => main.replaceChildren(renderWelcome(resolve)));
+  }
   main.replaceChildren(loadingBlock());
   try {
     const { user } = await api("/me", { quiet401: true });
