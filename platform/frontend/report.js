@@ -114,7 +114,9 @@ export function renderReport(result = {}, { run = null, shared = false, actions 
         })) : h("p", { class: "muted" }, "No findings were recorded."))];
 
   if (feature?.id === "competitor_scan" && result.table) {
-    content.push(section("r-prices", result.table.title || "Price comparison", renderPriceTable(result.table, richText)));
+    content.push(section("r-prices", result.table.title || "Price comparison",
+      h("p", { class: "table-hint", "aria-hidden": "true" }, "Scroll sideways for details."),
+      renderPriceTable(result.table, richText)));
   }
   if (feature?.id === "marketing_plan" || (!result.version && (list(result.plan).length || result.budget))) {
     if (list(result.plan).length) content.push(section("r-plan", "Marketing plan",

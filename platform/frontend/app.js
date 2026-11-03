@@ -651,7 +651,7 @@ function stepper(run) {
   if (run.status === "queued" || idx < 0) caption = "Waiting to start";
   else caption = `Step ${idx + 1} of ${stages.length}: ${stages[idx][1]}${failed ? " (stopped)" : ""}`;
   return h("div", { class: "stepper-wrap" },
-    h("ol", { class: "stepper", "aria-label": "Research stages" }, items),
+    h("ol", { class: "stepper", "aria-label": "Research stages", style: `--stage-count: ${stages.length}` }, items),
     h("p", { class: "stepper-caption", "aria-hidden": "true" }, caption));
 }
 

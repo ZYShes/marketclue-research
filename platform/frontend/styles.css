@@ -128,7 +128,7 @@ h2:focus-visible { outline: 2px solid var(--rust); }
 }
 
 .muted { color: var(--muted); }
-.fine { font-size: 0.85rem; color: var(--muted); line-height: 1.5; }
+.fine { font-size: 1rem; color: var(--muted); line-height: 1.5; }
 .lede-sm { color: var(--muted); max-width: 62ch; }
 
 /* ---- Buttons --------------------------------------------------------------- */
@@ -497,7 +497,7 @@ h2:focus-visible { outline: 2px solid var(--rust); }
   flex-direction: column;
 }
 .fact-claim { font-weight: 700; line-height: 1.45; margin-bottom: 12px; }
-.fact-source { font-size: 0.875rem; margin: auto 0 0; overflow-wrap: anywhere; }
+.fact-source { font-size: 1rem; margin: auto 0 0; overflow-wrap: anywhere; }
 .fact-source-title { font-weight: 700; }
 .fact-used {
   font-size: 0.85rem;
@@ -664,7 +664,7 @@ h2:focus-visible { outline: 2px solid var(--rust); }
   margin-bottom: 14px;
 }
 .brief-head h2 { font-size: 1.1rem; margin: 0; }
-.brief-empty { color: var(--muted); font-size: 0.95rem; }
+.brief-empty { color: var(--muted); font-size: 1rem; }
 .brief-fields { margin: 0 0 16px; display: grid; gap: 10px; }
 .field dt {
   font-size: 0.72rem;
@@ -680,7 +680,7 @@ h2:focus-visible { outline: 2px solid var(--rust); }
   border: 1px solid var(--rule);
   border-radius: var(--radius-sm);
   padding: 7px 10px;
-  font-size: 0.93rem;
+  font-size: 1rem;
   line-height: 1.45;
 }
 .field dd.is-empty { color: var(--muted); font-style: italic; }
@@ -692,7 +692,7 @@ h2:focus-visible { outline: 2px solid var(--rust); }
   color: var(--muted);
   margin: 0 0 6px;
 }
-.brief-questions ol { margin: 0 0 14px; padding-left: 1.3em; font-size: 0.93rem; }
+.brief-questions ol { margin: 0 0 14px; padding-left: 1.3em; font-size: 1rem; }
 .brief-questions li + li { margin-top: 4px; }
 .brief-card .btn-block { margin-top: 6px; }
 .start-help { margin-top: 10px; }
@@ -704,7 +704,7 @@ h2:focus-visible { outline: 2px solid var(--rust); }
   list-style: none;
   margin: 0; padding: 0;
   display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-template-columns: repeat(var(--stage-count, 7), minmax(0, 1fr));
 }
 .step {
   position: relative;
@@ -786,7 +786,7 @@ h2:focus-visible { outline: 2px solid var(--rust); }
 .agent-done .agent-dot { background: var(--sage); }
 .agent-failed .agent-dot { background: var(--rust); }
 .agent-name { font-weight: 700; margin: 0; line-height: 1.35; }
-.agent-note { margin: 2px 0 0; font-size: 0.875rem; color: var(--muted); line-height: 1.4; }
+.agent-note { margin: 2px 0 0; font-size: 1rem; color: var(--muted); line-height: 1.4; }
 .agent-queued .agent-name { color: var(--muted); }
 
 /* ---- Report ---------------------------------------------------------------- */
@@ -1067,14 +1067,14 @@ dialog.panel::backdrop { background: rgba(28, 32, 40, 0.38); }
   padding: 14px 0;
   border-top: 1px solid var(--rule);
   border-bottom: 1px solid var(--rule);
-  font-size: 0.93rem;
+  font-size: 1rem;
 }
 .panel-meta dt { color: var(--muted); }
 .panel-meta dd { min-width: 0; margin: 0; overflow-wrap: anywhere; }
-.source-domain { display: block; font-size: 0.82rem; color: var(--muted); margin-top: 2px; }
+.source-domain { display: block; font-size: 1rem; color: var(--muted); margin-top: 2px; }
 
 .note {
-  font-size: 0.875rem;
+  font-size: 1rem;
   line-height: 1.5;
   padding: 10px 12px;
   border-radius: var(--radius-sm);
@@ -1114,6 +1114,9 @@ dialog.panel::backdrop { background: rgba(28, 32, 40, 0.38); }
 }
 @container (min-width: 720px) {
   .toolbar { grid-template-columns: minmax(0, 1fr) 180px 220px; align-items: end; }
+}
+@container (min-width: 960px) {
+  .toolbar:has(#lib-feature) { grid-template-columns: minmax(0, 1fr) 130px 190px 250px; }
 }
 .control label {
   display: block;
