@@ -7,10 +7,15 @@ import {
 } from "./ui.js";
 
 const SOURCED_NOTE =
-  "Sourced means this exact quote appears on the page we captured. It does not prove the page is right.";
+  "Sourced means the exact quote matched the captured page. The page may still be wrong.";
 
 // Inline card references inside text, e.g. "[3f9a1c0b7d21]" or "[card:3f9a1c0b7d21]".
 const INLINE_REF = /\s*\[(?:card[:#\s]*)?([A-Za-z0-9_-]{4,40})\]/g;
+
+function isGenericAssumption(item) {
+  return item.kind === "assumption" &&
+    /^not supported by (?:a )?checked quote/i.test(String(item.method || "").trim());
+}
 
 function asItem(raw) {
   if (raw == null) return null;
@@ -71,11 +76,12 @@ export function renderReport(result, { run = null, shared = false, actions = nul
   function statement(raw) {
     const item = asItem(raw);
     if (!item) return null;
+    const genericAssumption = isGenericAssumption(item);
     const method =
       item.method && (item.kind === "estimate" || item.kind === "assumption")
         ? h("p", { class: "method" },
-            h("span", { class: "method-label" }, item.kind === "estimate" ? "How we estimated: " : "Basis: "),
-            item.method)
+            genericAssumption ? null : h("span", { class: "method-label" }, item.kind === "estimate" ? "Estimate: " : "Basis: "),
+            genericAssumption ? "Not backed by a quote — test it." : item.method)
         : null;
     return h(
       "li",
@@ -93,12 +99,13 @@ export function renderReport(result, { run = null, shared = false, actions = nul
 
   const sections = [];
   const toc = [];
+  const openSections = new Set(["r-summary", "r-plan", "r-budget", "r-next"]);
   function section(id, title, ...content) {
     toc.push([id, title]);
     sections.push(
-      h("section", { class: "report-section", id, "aria-labelledby": `${id}-h` },
-        h("h2", { id: `${id}-h`, tabindex: "-1" }, title),
-        content)
+      h("details", { class: "report-section", id, open: openSections.has(id) },
+        h("summary", { id: `${id}-h` }, h("h2", {}, title)),
+        h("div", { class: "report-section-content" }, content))
     );
   }
 
@@ -133,23 +140,23 @@ export function renderReport(result, { run = null, shared = false, actions = nul
   );
 
   // Budget
-  if (result.budget && Array.isArray(result.budget.lines) && result.budget.lines.length) {
-    section("r-budget", "Budget", renderBudget(result.budget, richText));
-  }
+  section("r-budget", "Budget",
+    result.budget && Array.isArray(result.budget.lines) && result.budget.lines.length
+      ? renderBudget(result.budget, richText)
+      : h("p", { class: "muted" }, "No budget in this report."));
 
   // Next checks
   const checks = Array.isArray(result.next_checks) ? result.next_checks : [];
-  if (checks.length) {
-    section("r-next", "Next checks",
-      h("p", { class: "section-note" }, "What to confirm before you spend money on the plan."),
-      h("ol", { class: "next-checks" }, checks.map((c) => h("li", {}, richText(typeof c === "string" ? c : asItem(c).text)))));
-  }
+  section("r-next", "Next checks",
+    checks.length
+      ? h("ol", { class: "next-checks" }, checks.map((c) => h("li", {}, richText(typeof c === "string" ? c : asItem(c).text))))
+      : h("p", { class: "muted" }, "No next checks in this report."));
 
   // Fact cards
-  if (cards.length) {
-    section("r-cards", "Fact cards",
-      h("p", { class: "section-note" },
-        `${plural(cards.length, "card")} in this report, ${sourcedCount} sourced. Select a card to see the exact quote.`),
+  section("r-cards", "Fact cards",
+      h("p", { class: "section-note" }, cards.length
+        ? `${plural(cards.length, "card")}. Select one to read the quote.`
+        : "No fact cards in this report."),
       h("ol", { class: "source-list" },
         cards.map((card, i) =>
           h("li", {},
@@ -165,10 +172,9 @@ export function renderReport(result, { run = null, shared = false, actions = nul
               h("span", { class: "source-meta" },
                 [card.source_title || domainOf(card.url), domainOf(card.url)].filter(Boolean).join(" · "))),
             h("span", { class: "source-badges" }, typeBadge(card.type), isStale(card) ? staleBadge() : null))))));
-  }
 
-  // About this report: cost line and agent timings
-  section("r-about", "About this report", renderAbout(result));
+  // Keep the brief and technical details available without crowding the report.
+  section("r-about", "About this report", briefBlock, renderAbout(result));
 
   const metaBits = [];
   if (result.generated_at) metaBits.push(`Generated ${fmtDate(result.generated_at)}`);
@@ -184,6 +190,7 @@ export function renderReport(result, { run = null, shared = false, actions = nul
           ev.preventDefault();
           const target = document.getElementById(`${id}-h`);
           if (target) {
+            target.parentElement.open = true;
             target.scrollIntoView({ behavior: prefersReducedMotion() ? "auto" : "smooth", block: "start" });
             target.focus({ preventScroll: true });
           }
@@ -197,21 +204,24 @@ export function renderReport(result, { run = null, shared = false, actions = nul
       metaBits.length ? h("p", { class: "report-meta" }, metaBits.join(" · ")) : null,
       actions ? h("div", { class: "report-actions" }, actions) : null),
     h("div", { class: "report-grid" },
-      h("div", { class: "report-body" }, renderLegend(), briefBlock, sections),
+      h("div", { class: "report-body" }, renderLegend(), sections, renderCostLine(result)),
       tocNav));
 }
 
 function prefersReducedMotion() {
-  return window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  return document.documentElement.classList.contains("reading-reduced-motion") ||
+    (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
 }
 
 function renderLegend() {
-  return h("div", { class: "legend", role: "note", "aria-label": "How to read this report" },
-    h("p", { class: "legend-title" }, "How to read this report"),
-    h("ul", {},
-      h("li", {}, kindBadge("sourced"), h("span", {}, "Backed by a fact card. Numbered chips open the exact quote.")),
-      h("li", {}, kindBadge("assumption"), h("span", {}, "A working guess. Test it before relying on it.")),
-      h("li", {}, kindBadge("estimate"), h("span", {}, "A number we worked out. The method is shown under it."))));
+  const kinds = [
+    ["sourced", "Backed by a quote. Select a number to read it."],
+    ["assumption", "Not backed by a quote — test it."],
+    ["estimate", "A calculated number. The method is shown."],
+  ];
+  return h("div", { class: "kind-legend", role: "note", "aria-label": "Report labels" },
+    kinds.map(([kind, description]) => h("span", { title: description },
+      kindBadge(kind), h("span", { class: "visually-hidden" }, `: ${description}`))));
 }
 
 export function renderBriefDetails(brief) {
@@ -225,7 +235,7 @@ export function renderBriefDetails(brief) {
   ].filter(([, v]) => v);
   const questions = Array.isArray(brief.questions) ? brief.questions.filter(Boolean) : [];
   return h("details", { class: "brief-details" },
-    h("summary", {}, "The brief this report answers"),
+    h("summary", {}, "Your brief"),
     h("dl", { class: "brief-dl" }, rows.map(([k, v]) => [h("dt", {}, k), h("dd", {}, String(v))])),
     questions.length
       ? [h("p", { class: "brief-q-title" }, "Questions researched"), h("ol", { class: "brief-q" }, questions.map((q) => h("li", {}, q)))]
@@ -250,7 +260,7 @@ function renderBudget(budget, richText) {
       h("th", { scope: "row", class: "budget-item" }, line.item || ""),
       h("td", { class: "num" }, fmtMoney(line.amount, currency)),
       h("td", {}, kindBadge(line.kind)),
-      h("td", { class: "budget-basis" }, richText(line.method || "", line.card_ids))))),
+      h("td", { class: "budget-basis" }, richText(isGenericAssumption(line) ? "Not backed by a quote — test it." : line.method || "", line.card_ids))))),
     h("tfoot", {}, h("tr", {},
       h("th", { scope: "row" }, "Total"),
       h("td", { class: "num" }, fmtMoney(total, currency)),
@@ -258,18 +268,21 @@ function renderBudget(budget, richText) {
       h("td", {}))));
 
   return [
-    h("p", { class: "table-hint", "aria-hidden": "true" }, "Scroll the table sideways to see each line's basis."),
+    h("p", { class: "table-hint", "aria-hidden": "true" }, "Scroll sideways for details."),
     h("div", { class: "table-scroll", role: "region", "aria-label": "Budget table", tabindex: "0" }, table),
   ];
+}
+
+function renderCostLine(result) {
+  const usd = Number((result.cost || {}).usd);
+  return Number.isFinite(usd)
+    ? h("p", { class: "cost-line" }, `This report cost about ${fmtCost(usd)} in AI and search.`)
+    : null;
 }
 
 function renderAbout(result) {
   const cost = result.cost || {};
   const parts = [];
-  const usd = Number(cost.usd);
-  const line = Number.isFinite(usd)
-    ? h("p", { class: "cost-line" }, `This report cost about ${fmtCost(usd)} in AI and search.`)
-    : null;
   if (cost.web_searches != null) parts.push(plural(Number(cost.web_searches) || 0, "web search", "web searches"));
   if (cost.web_fetches != null) parts.push(plural(Number(cost.web_fetches) || 0, "page fetch", "page fetches"));
   if (cost.input_tokens != null || cost.output_tokens != null) {
@@ -299,7 +312,6 @@ function renderAbout(result) {
     : null;
 
   return [
-    line,
     parts.length ? h("p", { class: "cost-detail" }, `${parts.join(", ")}.`) : null,
     agentTable ? h("h3", {}, "Agents") : null,
     agentTable,
@@ -318,6 +330,25 @@ function panel() {
   }
   if (!dlg.dataset.wired) {
     dlg.dataset.wired = "1";
+    dlg.addEventListener("keydown", (ev) => {
+      if (ev.key === "Escape") {
+        ev.preventDefault();
+        dlg.close();
+        return;
+      }
+      if (ev.key !== "Tab") return;
+      const controls = [...dlg.querySelectorAll('button, a[href], input, select, textarea, [tabindex]:not([tabindex="-1"])')]
+        .filter((el) => !el.disabled && el.getClientRects().length);
+      const first = controls[0];
+      const last = controls[controls.length - 1];
+      if (ev.shiftKey && document.activeElement === first) {
+        ev.preventDefault();
+        last.focus();
+      } else if (!ev.shiftKey && document.activeElement === last) {
+        ev.preventDefault();
+        first.focus();
+      }
+    });
     dlg.addEventListener("click", (ev) => {
       if (ev.target !== dlg) return;
       const r = dlg.getBoundingClientRect();
@@ -346,11 +377,11 @@ export function openCardPanel(card, n) {
   const notes = [];
   if (stale) {
     notes.push(h("p", { class: "note note-stale" },
-      `Captured more than ${STALE_DAYS} days ago. Open the page again before relying on it.`));
+      `Over ${STALE_DAYS} days old. Check the source again.`));
   }
   if (card.type !== "sourced") {
     notes.push(h("p", { class: "note note-unverified" },
-      "Unverified means we could not find this exact quote on the page we captured. Treat it as a lead, not a fact."));
+      "This quote did not match the captured page. Check it before use."));
   }
 
   dlg.replaceChildren(
