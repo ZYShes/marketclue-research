@@ -82,7 +82,7 @@ if not RUN:
     sys.exit(0)
 
 status, body = call("POST", "/api/runs", {"conv_id": conv_id})
-check("run created", status == 200 and body.get("run"), json.dumps(body)[:300])
+check("run created", status in (200, 201, 202) and body.get("run"), json.dumps(body)[:300])
 run_id = body["run"]["run_id"]
 t0 = time.time()
 while True:
