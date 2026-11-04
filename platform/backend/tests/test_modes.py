@@ -90,7 +90,7 @@ class FakeClaude:
     def research_call(self, usage, *, system, prompt, model=None, max_fetches=3, **kwargs):
         name = re.search(r"Your research direction: (.+)", prompt).group(1)
         url = f"https://shop.example/{name.lower().replace(' ', '-')}"
-        self.research_calls.append({"model": model, "max_fetches": max_fetches})
+        self.research_calls.append({"model": model, "max_fetches": max_fetches, "effort": kwargs.get("effort")})
         document = SimpleNamespace(title=f"{name} shop", source=SimpleNamespace(type="text", data=f"Welcome. {QUOTE} Thanks."))
         fetched = SimpleNamespace(type="web_fetch_result", url=url, retrieved_at="2026-11-03T12:00:00Z", content=document)
         return [
@@ -133,7 +133,7 @@ class FakeClaude:
 @pytest.mark.parametrize(("mode", "model", "directions", "fetches", "effort"), [
     ("quick", "claude-haiku-5-5", 3, 3, "medium"),
     ("balanced", "claude-sonnet-5-5", 4, 3, "high"),
-    ("smarter", "claude-opus-5-5", 4, 4, "high"),
+    ("smarter", "claude-opus-5-5", 4, 4, "medium"),  # Opus at medium effort throughout
 ])
 def test_pipeline_uses_the_run_mode(aws, monkeypatch, mode, model, directions, fetches, effort):
     fake = FakeClaude()
@@ -144,7 +144,9 @@ def test_pipeline_uses_the_run_mode(aws, monkeypatch, mode, model, directions, f
     pipeline.run(run["run_id"])
     meta = store.get_run(run["run_id"])
     assert meta["status"] == "done", meta["error"]
-    assert fake.research_calls == [{"model": model, "max_fetches": fetches}] * directions
+    assert fake.research_calls == [{"model": model, "max_fetches": fetches, "effort": "medium"}] * directions
+    # FINDING lines in the expected format are parsed in code: no model call converts them.
+    assert not [call for call in fake.json_calls if call["schema"] is pipeline.FINDINGS_SCHEMA]
     plan, writer = fake.json_calls[0], next(call for call in fake.json_calls if "takeaway" in call["schema"]["properties"])
     assert f"2 to {directions} research directions" in plan["prompt"]
     assert writer["effort"] == effort

@@ -19,11 +19,15 @@ from . import capabilities, charts, claude, ebay_report, intake, store, template
 from .capabilities import ebay
 
 MAX_DIRECTIONS = 4
-# Effort modes: research agent model, directions, page fetches per direction, writer effort.
+# Effort modes: research agent model and effort, directions, page fetches per direction, writer effort.
+# Smarter is Opus at medium effort throughout (the writer ran at high before; it cost too much per run).
 MODES = {
-    "quick": {"research_model": "claude-haiku-5-5", "directions": 3, "fetches": 3, "writer_effort": "medium"},
-    "balanced": {"research_model": "claude-sonnet-5-5", "directions": 4, "fetches": 3, "writer_effort": "high"},
-    "smarter": {"research_model": "claude-opus-5-5", "directions": 4, "fetches": 4, "writer_effort": "high"},
+    "quick": {"research_model": "claude-haiku-5-5", "research_effort": "medium", "directions": 3, "fetches": 3,
+              "writer_effort": "medium"},
+    "balanced": {"research_model": "claude-sonnet-5-5", "research_effort": "medium", "directions": 4, "fetches": 3,
+                 "writer_effort": "high"},
+    "smarter": {"research_model": "claude-opus-5-5", "research_effort": "medium", "directions": 4, "fetches": 4,
+                "writer_effort": "medium"},
 }
 USER_AGENT = "MarketClueBot/0.1 (+https://github.com/ZYShes/marketclue-research)"
 
@@ -169,21 +173,40 @@ def research(usage, brief, direction, mode="quick", toolbox=None):
     settings = MODES[mode]
     blocks = claude.research_call(
         usage, system=RESEARCH_SYSTEM + (LISTING_SYSTEM if toolbox else ""), prompt=prompt,
-        model=settings["research_model"], max_fetches=settings["fetches"], **({"toolbox": toolbox} if toolbox else {}),
+        model=settings["research_model"], max_fetches=settings["fetches"], effort=settings["research_effort"],
+        **({"toolbox": toolbox} if toolbox else {}),
     )
     pages = claude.fetched_pages(blocks)
     report = "\n".join(b.text for b in blocks if b.type == "text")
-    rows = [line for line in report.splitlines() if line.strip().startswith("FINDING")]
+    rows = [line.strip() for line in report.splitlines() if line.strip().startswith("FINDING")]
     if not rows:
         return [], pages, claude.search_hits(blocks)
-    findings = claude.json_call(
-        usage,
-        system="You convert research notes into JSON without changing any wording.",
-        prompt="Convert each FINDING line into an object. Copy claim, quote (without the surrounding quotation marks) and URL exactly.\n\n" + "\n".join(rows),
-        schema=FINDINGS_SCHEMA,
-        effort="low",
-    )["findings"]
+    findings = parse_findings(rows)
+    if findings is None:
+        # A line that does not follow the format: let the model convert them, copying the wording exactly.
+        findings = claude.json_call(
+            usage,
+            system="You convert research notes into JSON without changing any wording.",
+            prompt="Convert each FINDING line into an object. Copy claim, quote (without the surrounding quotation marks) and URL exactly.\n\n" + "\n".join(rows),
+            schema=FINDINGS_SCHEMA,
+            effort="low",
+        )["findings"]
     return findings, pages, claude.search_hits(blocks)
+
+
+# FINDING | <claim> | "<quote>" | <url> - the quote may itself contain quotation marks and pipes.
+FINDING_LINE = re.compile(r'^FINDING\s*\|\s*(?P<claim>[^|]+?)\s*\|\s*["“](?P<quote>.+)["”]\s*\|\s*(?P<url>https?://\S+?)\s*$')
+
+
+def parse_findings(rows):
+    """Parses FINDING lines in code (no model call). Returns None if any line does not match the format."""
+    findings = []
+    for row in rows:
+        match = FINDING_LINE.match(row)
+        if not match:
+            return None
+        findings.append({"claim": match["claim"], "quote": match["quote"].strip(), "url": match["url"]})
+    return findings
 
 
 # ---------- 3. Quote checks against captured page text ----------

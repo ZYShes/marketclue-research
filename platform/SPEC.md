@@ -194,6 +194,11 @@ AWS Budget with alerts at $10/$20/$30.
   `max_content_tokens` 6000 per fetch, effort `medium` for research, `low` for checking.
 - Track `usage` of every call; store `cost_usd` on the run (Opus 5.5 $4/$20 per MTok, cache reads $0.20,
   web search $10 per 1,000).
+- Prompt caching (automatic, 5-minute TTL): the intake conversation and every research-agent request are
+  cached, so each turn reads the previous turn's prefix (history, fetched pages, tool results) instead of paying
+  for it again. Keep those prompts append-only and their system prompts, tools, schema and effort fixed per
+  route; nothing per-request (dates, ids) goes ahead of the conversation. Each call logs `cache_read` and
+  `cache_write`. FINDING lines are parsed in code; the model converts them only when a line is off format.
 - Robots: we only fetch pages ourselves as a fallback, with a normal user agent, 10 s timeout, 2 MB cap,
   honouring robots.txt.
 
@@ -304,8 +309,9 @@ what each report's next steps ask the founder to do.
   `result.mode`.
 - quick: research agents on `claude-haiku-5-5`, up to 3 directions, 3 page fetches each, writer effort
   medium. ~1.5 min, ~$0.35.
-- smarter: research agents on `claude-opus-5-5`, up to 4 directions, 4 fetches each, writer effort high.
-  ~3 min, ~$2–2.5.
+- smarter: research agents on `claude-opus-5-5`, up to 4 directions, 4 fetches each, Opus at effort medium
+  throughout, writer included (2026-11-04: the writer ran at high and Smarter cost too much). The old estimate
+  was ~3 min, ~$2–2.5 with the writer at high; re-measure after this change.
 - balanced (added 2026-11-04): research agents on `claude-sonnet-5-5`, up to 4 directions, 3 fetches each,
   writer effort high, ~1.5 min, ~$1 (two test runs 2026-11-04). Any user may pick any mode; Smarter is capped site-wide by `MAX_SMARTER_PER_DAY`
   (429 `smarter_daily_limit`, see v3 decisions). The UI shows time and cost estimates next to the choice.

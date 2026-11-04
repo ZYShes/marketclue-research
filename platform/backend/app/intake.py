@@ -112,8 +112,12 @@ def chat(conv, message):
     if messages[0]["role"] != "user":
         messages.insert(0, {"role": "user", "content": "Hi."})
 
+    # The history is rebuilt from stored text in the same order every turn, so this request starts with exactly
+    # the bytes of the previous one: with caching on, each turn reads the earlier conversation from the cache.
+    # Keep the system prompt, schema and effort fixed per feature and template - changing any of them (or adding
+    # a date or user name to the system prompt) would break the shared prefix.
     out = claude.json_call(None, system=system_prompt(spec, template), prompt=None, schema=reply_schema(template),
-                           effort="low", messages=messages)
+                           effort="low", messages=messages, cache=True)
     brief = out.get("brief") if out.get("ready") else None
     if brief:
         brief["questions"] = [q for q in brief.get("questions", []) if q.strip()][:4]

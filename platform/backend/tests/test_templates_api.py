@@ -114,13 +114,14 @@ def test_ebay_intake_adds_needs_within_three_questions_and_fills_brief_ebay(monk
     answers = {"category": "Mugs", "example_listing": None, "condition": "new", "target_price_usd": 45,
                "buyer_pays_shipping": True, "shipping_cost_usd": 8, "sells_on_ebay": False}
 
-    def json_call(usage, *, system, prompt, schema, effort, messages):
-        seen.update(system=system, schema=schema)
+    def json_call(usage, *, system, prompt, schema, effort, messages, cache):
+        seen.update(system=system, schema=schema, cache=cache)
         return {"reply": "Ready.", "ready": True, "brief": {**GENERAL_BRIEF, "ebay": answers}}
 
     monkeypatch.setattr(claude, "json_call", json_call)
     out = intake.chat({"feature": "marketing_plan", "template": "ebay", "messages": []}, "I sell mugs on eBay")
     assert out["brief"]["template"] == "ebay" and out["brief"]["ebay"] == answers
+    assert seen["cache"] is True  # the intake conversation is cached turn to turn
     assert out["brief"]["feature"] == "marketing_plan"
     assert 'template "eBay seller"' in seen["system"] and "the price they want to ask" in seen["system"]
     assert "same limit of three questions in total" in seen["system"]
