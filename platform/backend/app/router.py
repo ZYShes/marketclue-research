@@ -159,7 +159,7 @@ def _chat(user: dict, data: dict) -> dict:
     is_new = conv_id is None
     if is_new:
         feature = data.get("feature") or "marketing_plan"
-        if feature not in intake.FEATURES:
+        if not isinstance(feature, str) or feature not in intake.FEATURES:
             raise HTTPError(400, "invalid_feature", "Choose one of the four research tools")
         conv = {"conv_id": uuid4().hex[:12], "messages": [], "brief": None, "ready": False, "feature": feature}
     else:
@@ -195,7 +195,7 @@ def _chat(user: dict, data: dict) -> dict:
 
 def _start_run(user: dict, data: dict) -> dict:
     mode = data.get("mode") or "quick"
-    if mode not in pipeline.MODES:
+    if not isinstance(mode, str) or mode not in pipeline.MODES:
         raise HTTPError(400, "invalid_mode", "mode must be quick or smarter")
     conv = _conversation(user["sub"], _text(data, "conv_id"))
     if conv.get("ready") is not True or not isinstance(conv.get("brief"), dict):
@@ -243,7 +243,7 @@ def _create_mockup(user: dict, run_id: str, data: dict) -> dict:
     if not _site_owner(user):
         raise HTTPError(403, "mockups_owner_only", "Mock-up pictures are only available to the site owner for now")
     kind = data.get("prompt_kind")
-    if kind not in mockups.KINDS:
+    if not isinstance(kind, str) or kind not in mockups.KINDS:
         raise HTTPError(400, "invalid_prompt_kind", "prompt_kind must be product, listing or ad")
     if run.get("status") != "done":
         raise HTTPError(409, "run_not_done", "Mock-ups can be made once the report is finished")
