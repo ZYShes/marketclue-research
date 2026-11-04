@@ -4,25 +4,25 @@ from . import claude
 
 FEATURES = {
     "market_check": {
-        "name": "Market check",
+        "name": "Find your customers",
         "question": "Who buys, and what do they say?",
         "needs": "what they sell, who they think buys it, and where they sell (a city or online)",
         "research": "who buys this, what buyers praise, what they complain about, and where buyers talk",
     },
     "competitor_scan": {
-        "name": "Competitor & price scan",
+        "name": "Check competitors & prices",
         "question": "Who sells this, and for how much?",
         "needs": "the exact product (type, size, material), where they sell, and any competitors they already know",
         "research": "direct competitors, their prices by product and size, shipping and fees, and how they describe themselves",
     },
     "marketing_plan": {
-        "name": "Marketing plan & budget",
-        "question": "How do I get my first customers?",
+        "name": "Get your first customers",
+        "question": "Which channels, and what will it cost?",
         "needs": "what they sell, who buys it, where they sell, their stage, and a rough marketing budget",
         "research": "channels similar sellers use and their fees, low-budget promotion that worked, what buyers respond to, and typical costs",
     },
     "launch_checklist": {
-        "name": "Launch checklist",
+        "name": "Get ready to sell",
         "question": "What do I need before I sell?",
         "needs": "what they sell, the city and state they sell from, and how they sell (online, market, store)",
         "research": "business registration and licences for their city and state, sales tax and permits, the selling platform's rules, and product safety or labelling rules, from official pages",

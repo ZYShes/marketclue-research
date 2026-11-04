@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 
 import boto3
+from botocore.exceptions import ClientError
 
 
 @lru_cache(maxsize=None)
@@ -29,6 +30,8 @@ class Settings:
     stale_days: int
     site_origin: str
     region: str
+    openai_image_model: str
+    ses_from: str
 
     @property
     def session_secret(self) -> str:
@@ -37,6 +40,18 @@ class Settings:
     @property
     def anthropic_api_key(self) -> str:
         return _ssm_parameter(f"{self.ssm_prefix}/anthropic_api_key")
+
+    @property
+    def openai_api_key(self) -> str | None:
+        """None when the optional mock-up key is not configured."""
+        try:
+            return _ssm_parameter(f"{self.ssm_prefix}/openai_api_key")
+        except ValueError:
+            return None
+        except ClientError as exc:
+            if exc.response["Error"]["Code"] == "ParameterNotFound":
+                return None
+            raise
 
 
 def _nonnegative_int(name: str, default: int) -> int:
@@ -64,4 +79,6 @@ def get_settings() -> Settings:
         stale_days=_nonnegative_int("STALE_DAYS", 90),
         site_origin=os.environ.get("SITE_ORIGIN", "").rstrip("/"),
         region=os.environ.get("AWS_REGION", os.environ.get("AWS_DEFAULT_REGION", "us-west-2")),
+        openai_image_model=os.environ.get("OPENAI_IMAGE_MODEL", "").strip() or "gpt-image-1",
+        ses_from=os.environ.get("SES_FROM", "").strip(),
     )

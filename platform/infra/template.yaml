@@ -25,6 +25,23 @@ Parameters:
   ResearchModel:
     Type: String
     Default: claude-opus-5-5
+  OpenAIImageModel:
+    Type: String
+    Default: gpt-image-1
+    Description: OpenAI image model for report mock-ups (key in SSM /marketclue/openai_api_key)
+  SesFrom:
+    Type: String
+    Default: ""
+    Description: Sender of team invite emails, e.g. "MarketClue <invites@example.com>"; empty sends no email
+  SesIdentity:
+    Type: String
+    Default: ""
+    Description: The verified SES identity (domain or address) that SesFrom uses; empty sends no email
+
+Conditions:
+  SendsInviteEmail: !And
+    - !Not [!Equals [!Ref SesFrom, ""]]
+    - !Not [!Equals [!Ref SesIdentity, ""]]
 
 Resources:
   Table:
@@ -85,6 +102,8 @@ Resources:
           SITE_ORIGIN: !Ref SiteOrigin
           PLAN_MODEL: !Ref PlanModel
           RESEARCH_MODEL: !Ref ResearchModel
+          OPENAI_IMAGE_MODEL: !Ref OpenAIImageModel
+          SES_FROM: !If [SendsInviteEmail, !Ref SesFrom, ""]
       Policies:
         - DynamoDBCrudPolicy: { TableName: !Ref Table }
         - S3CrudPolicy: { BucketName: !Ref DataBucket }
@@ -93,6 +112,15 @@ Resources:
             - Effect: Allow
               Action: lambda:InvokeFunction
               Resource: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:marketclue-api
+            - Effect: Allow
+              Action: [s3:GetObject, s3:PutObject]
+              Resource: !Sub ${DataBucket.Arn}/mockups/*
+            - !If
+              - SendsInviteEmail
+              - Effect: Allow
+                Action: ses:SendEmail
+                Resource: !Sub arn:aws:ses:${AWS::Region}:${AWS::AccountId}:identity/${SesIdentity}
+              - !Ref AWS::NoValue
       EventInvokeConfig:
         MaximumRetryAttempts: 0
       FunctionUrlConfig:
