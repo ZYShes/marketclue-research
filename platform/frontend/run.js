@@ -256,6 +256,8 @@ async function setupMockups(run, { button, reason, container, showSection }) {
   try {
     const data = await api(`/runs/${encodeURIComponent(run.run_id)}/mockups`);
     items = Array.isArray(data.mockups) ? data.mockups : [];
+    // enabled is false when the server has no image key or this viewer cannot make pictures.
+    if (data.enabled === false && !items.length) return;
   } catch (err) {
     if (err.status !== 403) return;
     items = [];
