@@ -70,6 +70,7 @@ export const ICONS = {
   reading: stroke('<path d="M4 6h16M4 12h10M4 18h7"/><circle cx="18" cy="16" r="3"/>'),
   chevron: stroke('<path d="M9 6l6 6-6 6"/>', 16),
   chevronLeft: stroke('<path d="M15 6l-6 6 6 6"/>', 16),
+  gauge: stroke('<path d="M4.5 17a8.5 8.5 0 1 1 15 0"/><path d="M12 13.5l3.5-4"/><circle cx="12" cy="14" r="1.2"/>', 16),
   chevronDown: stroke('<path d="M6 9l6 6 6-6"/>', 16),
   share: stroke('<path d="M12 4v11M7.5 8.5L12 4l4.5 4.5"/><path d="M5 13v6h14v-6"/>'),
   image: stroke('<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><circle cx="9" cy="10" r="1.8"/><path d="M20.5 16l-5-5L5 19.5"/>'),

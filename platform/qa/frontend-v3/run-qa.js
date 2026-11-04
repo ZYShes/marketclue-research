@@ -166,11 +166,12 @@ async function run(width) {
     await snap(page, "07-conversation-draft", width);
     await go(page, "/c/conv-ready-01");
     await snap(page, "08-conversation-ready", width);
-    await page.focus("#depth");
+    await page.click("#depth-trigger");
     await page.keyboard.press("ArrowRight"); // Quick → Balanced
-    await page.locator(".depth").scrollIntoViewIfNeeded();
+    await page.locator("#depth-trigger").scrollIntoViewIfNeeded();
     await snap(page, "08b-depth-slider-balanced", width, { fullPage: false });
     await page.keyboard.press("End"); // → Smarter
+    await page.keyboard.press("Escape");
     await page.click("button:has-text('Start research')");
     await wait(4500);
     await snap(page, "09-run-progress", width);
@@ -291,8 +292,9 @@ async function run(width) {
     const { ctx, page } = await newContext(browser, width);
     await signIn(page, "owner", "&smarter=limit");
     await go(page, "/c/conv-ready-01", "&smarter=limit");
-    await page.focus("#depth");
+    await page.click("#depth-trigger");
     await page.keyboard.press("End");
+    await page.keyboard.press("Escape");
     await page.click("button:has-text('Start research')");
     await wait(600);
     await page.locator("#start-error").scrollIntoViewIfNeeded();

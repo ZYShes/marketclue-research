@@ -1,7 +1,7 @@
 // Research depth slider: a native range input with one stop per mode (Quick → Balanced → Smarter).
 // Drag, click the track or a stop name, or use arrow keys / Home / End. Screen readers hear the
 // stop name, time and cost through aria-valuetext.
-import { h } from "./ui.js";
+import { h, icon } from "./ui.js";
 import { MODES, MODE_ORDER } from "./features.js";
 
 export function depthSlider({ value = "quick", onChange = () => {}, id = "depth", disabled = false } = {}) {
@@ -61,5 +61,67 @@ export function depthSlider({ value = "quick", onChange = () => {}, id = "depth"
     get value() { return MODE_ORDER[index]; },
     set: (key) => set(MODE_ORDER.indexOf(key), false),
     focus: () => input.focus(),
+  };
+}
+
+// Compact research depth control for the bottom-right corner of a message box: a button showing the
+// current depth that opens the slider in a small panel above it (disclosure pattern: Escape, a click
+// outside or tabbing away closes it and focus returns to the button).
+export function depthPicker({ value = "quick", onChange = () => {}, id = "depth" } = {}) {
+  const name = h("span", { class: "depth-trigger-name" });
+  const trigger = h("button", {
+    type: "button", class: "depth-trigger", id: `${id}-trigger`, "aria-expanded": "false", "aria-controls": `${id}-pop`,
+  }, icon("gauge"), h("span", { class: "visually-hidden" }, "Research depth: "), name, icon("chevronDown"));
+  const slider = depthSlider({
+    value, id,
+    onChange: (m) => { render(); onChange(m); },
+  });
+  const pop = h("div", { class: "depth-pop", id: `${id}-pop`, hidden: true }, slider.el);
+  const el = h("div", { class: "depth-picker" }, pop, trigger);
+
+  function render() {
+    name.textContent = MODES[slider.value].name;
+    el.dataset.mode = slider.value;
+  }
+  function setOpen(open, { focusTrigger = false } = {}) {
+    pop.hidden = !open;
+    trigger.setAttribute("aria-expanded", String(open));
+    if (open) {
+      slider.focus();
+      document.addEventListener("pointerdown", onOutside, true);
+    } else {
+      document.removeEventListener("pointerdown", onOutside, true);
+      if (focusTrigger) trigger.focus();
+    }
+  }
+  function onOutside(event) {
+    if (!el.contains(event.target)) setOpen(false);
+  }
+  trigger.addEventListener("click", () => setOpen(pop.hidden));
+  // Pressing on plain text inside the panel (stop names, padding) would move focus to <main>, which is
+  // focusable for the skip link, and that reads as "focus left the panel". Keep focus where it is.
+  pop.addEventListener("mousedown", (event) => {
+    if (!event.target.closest("input, button, a")) event.preventDefault();
+  });
+  el.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !pop.hidden) {
+      event.preventDefault();
+      event.stopPropagation(); // do not also close the navigation drawer or clear the message box
+      setOpen(false, { focusTrigger: true });
+    }
+  });
+  el.addEventListener("focusout", (event) => {
+    if (!pop.hidden && event.relatedTarget && !el.contains(event.relatedTarget)) setOpen(false);
+  });
+  render();
+
+  return {
+    el,
+    get value() { return slider.value; },
+    set(key) { slider.set(key); render(); },
+    open() { el.scrollIntoView({ block: "nearest" }); setOpen(true); },
+    close() { setOpen(false); },
+    focus() { trigger.focus(); },
+    set disabled(on) { trigger.disabled = !!on; if (on) setOpen(false); },
   };
 }

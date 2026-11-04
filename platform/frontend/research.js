@@ -11,7 +11,7 @@ import {
   FEATURES, MODES, DEFAULT_FEATURE, featureById, stageLabel,
   DEFAULT_TEMPLATE, templateName, isGeneralTemplate,
 } from "./features.js";
-import { depthSlider } from "./depth.js";
+import { depthPicker } from "./depth.js";
 import {
   GENERAL_FALLBACK, templateIcon, fetchTemplates, rememberTemplate, lastTemplate, capabilityBadges,
 } from "./templates.js";
@@ -189,7 +189,13 @@ export function viewNew(isCurrent, featureArg) {
       h("div", { class: "composer-box" }, input,
         h("div", { class: "composer-foot" },
           h("p", { class: "field-hint" }, "Enter to send · Shift + Enter for a new line"),
-          sendBtn)),
+          h("div", { class: "composer-actions" },
+            depthPicker({
+              id: "depth",
+              value: MODES[storage.get(KEYS.mode)] ? storage.get(KEYS.mode) : "quick",
+              onChange: (m) => storage.set(KEYS.mode, m),
+            }).el,
+            sendBtn))),
       error));
   updateComposer();
   renderTemplates();
@@ -379,7 +385,15 @@ function renderConversation(initial, isCurrent) {
   let pendingText = null;
   // Effort belongs to whoever starts the run (SPEC v3 decisions); the last choice is remembered.
   let mode = MODES[storage.get(KEYS.mode)] ? storage.get(KEYS.mode) : "quick";
-  let slider = null;
+  // Research depth sits in the bottom-right corner of the message box; the brief panel shows a summary.
+  const picker = depthPicker({
+    id: "depth", value: mode,
+    onChange: (m) => {
+      mode = m;
+      storage.set(KEYS.mode, m);
+      renderPanel();
+    },
+  });
 
   const titleEl = h("h1", { tabindex: "-1", class: "conv-title", id: "conv-title" });
   const log = h("ol", { class: "messages", "aria-label": "Messages" });
@@ -394,7 +408,7 @@ function renderConversation(initial, isCurrent) {
     h("div", { class: "composer-box" }, input,
       h("div", { class: "composer-foot" },
         h("p", { class: "field-hint", id: "chat-hint" }, "Enter to send · Shift + Enter for a new line"),
-        sendBtn)),
+        h("div", { class: "composer-actions" }, picker.el, sendBtn))),
     chatError);
   const readyNote = h("div", { class: "ready-slot" });
   const finishedNote = h("div", { class: "finished-slot" });
@@ -487,17 +501,16 @@ function renderConversation(initial, isCurrent) {
         briefField("Sells on eBay now", sells)));
   }
 
-  function modeControl() {
-    slider = depthSlider({
-      value: mode, disabled: starting,
-      onChange: (m) => {
-        mode = m;
-        storage.set(KEYS.mode, m);
-        const err = document.getElementById("start-error");
-        if (err) err.replaceChildren();
-      },
-    });
-    return slider.el;
+  function depthSummary() {
+    const m = MODES[mode];
+    return h("p", { class: "depth-summary" },
+      icon("gauge"),
+      "Research depth: ", h("strong", {}, m.name), ` · ${m.time} · ${m.cost}`,
+      composer.hidden ? null : " · ",
+      composer.hidden ? null : h("button", {
+        type: "button", class: "link-inline", "aria-controls": "depth-pop",
+        onclick: () => picker.open(),
+      }, "Change", h("span", { class: "visually-hidden" }, " research depth")));
   }
 
   function renderPanel() {
@@ -525,7 +538,7 @@ function renderConversation(initial, isCurrent) {
       }, starting ? "Starting…" : "Start research");
       startBtn.addEventListener("click", startResearch);
       action = h("div", { class: "panel-action" },
-        modeControl(),
+        depthSummary(),
         startBtn,
         h("p", { class: "field-hint", id: "start-help" }, help),
         h("p", { class: "form-error", role: "alert", id: "start-error" }));
@@ -561,6 +574,7 @@ function renderConversation(initial, isCurrent) {
     renderPanel();
     sendBtn.disabled = sending || starting;
     input.disabled = starting;
+    picker.disabled = starting;
   }
 
   async function send(text) {
@@ -620,9 +634,9 @@ function renderConversation(initial, isCurrent) {
           onclick: () => {
             mode = "quick";
             storage.set(KEYS.mode, mode);
-            slider?.set("quick");
-            el.replaceChildren();
-            slider?.focus();
+            picker.set("quick");
+            renderPanel();
+            picker.focus();
           },
         }, "Switch to Quick"));
       }

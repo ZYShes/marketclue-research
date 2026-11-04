@@ -13,7 +13,7 @@ https://marketclue-zyshes.streamlit.app/.
 
 Static files in `frontend/`, no build step (ES modules): `app.js` (boot, sign-in, router), `shell.js`
 (sidebar with Recent history, mobile drawer), `research.js` (`#/new` tool picker and history, `#/c/<id>`
-conversation with the research depth slider in `depth.js`: Quick → Balanced → Smarter), `run.js` (live run, report actions, mock-ups, shared report),
+conversation; `depth.js` holds the research depth control - a button in the bottom-right corner of each message box that opens a three-stop slider: Quick → Balanced → Smarter), `run.js` (live run, report actions, mock-ups, shared report),
 `report.js` (report, source hover cards, fact card sheet), `charts.js` (accessible SVG charts for
 `result.charts`), `library.js` (Fact library and My reports, Mine | Team), `team.js` (Team, `#/join/<token>`).
 
