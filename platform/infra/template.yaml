@@ -22,6 +22,10 @@ Parameters:
   MaxSmarterPerDay:
     Type: Number
     Default: 10
+  MaxEbayCallsPerDay:
+    Type: Number
+    Default: 1000
+    Description: Site-wide eBay Browse API calls per day for the eBay seller template (keys in SSM /marketclue/ebay_client_id and ebay_client_secret)
   PlanModel:
     Type: String
     Default: claude-opus-5-5
@@ -108,6 +112,7 @@ Resources:
           FREE_RUNS_PER_USER: !Ref FreeRunsPerUser
           MAX_RUNS_PER_DAY: !Ref MaxRunsPerDay
           MAX_SMARTER_PER_DAY: !Ref MaxSmarterPerDay
+          MAX_EBAY_CALLS_PER_DAY: !Ref MaxEbayCallsPerDay
           SSM_PREFIX: /marketclue
           SELF_FUNCTION_NAME: marketclue-api
           STALE_DAYS: "90"

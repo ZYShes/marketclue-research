@@ -30,6 +30,10 @@ MODE=${1:-}
 if [[ "$MODE" != "--frontend-only" && "$MODE" != "--staging" ]]; then
   put_secret anthropic_api_key "$(cat "$CONF/anthropic.key")"
   put_secret session_secret "$(python3 -c 'import secrets; print(secrets.token_urlsafe(48))')"
+  # eBay seller template: optional keys from the eBay Developer Program (production keyset).
+  for name in ebay_client_id ebay_client_secret; do
+    if [[ -s "$CONF/$name" ]]; then put_secret "$name" "$(cat "$CONF/$name")"; fi
+  done
 
   BUILD=$(mktemp -d)
   trap 'rm -rf "$BUILD"' EXIT
