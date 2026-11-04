@@ -590,6 +590,27 @@ def remove_member(team_id, sub) -> bool:
     return True
 
 
+def hand_over_team(team_id, old_owner, new_owner) -> bool:
+    """The team owner leaves: new_owner becomes the owner and old_owner's member rows go, in one step."""
+    owner_role = {"ExpressionAttributeNames": {"#role": "role"}, "ExpressionAttributeValues": {":owner": "owner"}}
+    try:
+        _transaction([
+            {"Update": {"Key": {"PK": f"TEAM#{team_id}", "SK": "META"}, "UpdateExpression": "SET owner_sub = :new",
+                        "ConditionExpression": "owner_sub = :old", "ExpressionAttributeValues": {":new": new_owner, ":old": old_owner}}},
+            {"Update": {"Key": {"PK": f"TEAM#{team_id}", "SK": f"MEMBER#{new_owner}"}, "UpdateExpression": "SET #role = :owner",
+                        "ConditionExpression": "attribute_exists(PK)", **owner_role}},
+            {"Update": {"Key": {"PK": f"USER#{new_owner}", "SK": f"TEAMMEMBER#{team_id}"}, "UpdateExpression": "SET #role = :owner",
+                        "ConditionExpression": "attribute_exists(PK)", **owner_role}},
+            {"Delete": {"Key": {"PK": f"TEAM#{team_id}", "SK": f"MEMBER#{old_owner}"}, "ConditionExpression": "attribute_exists(PK)"}},
+            {"Delete": {"Key": {"PK": f"USER#{old_owner}", "SK": f"TEAMMEMBER#{team_id}"}, "ConditionExpression": "attribute_exists(PK)"}},
+        ])
+    except ClientError as exc:
+        if _condition_failed(exc):
+            return False
+        raise
+    return True
+
+
 def _member_name(member):
     return member.get("name") or member.get("email") or ""
 
@@ -643,8 +664,8 @@ def _project_list_item(project):
         "project_id", "name", "owner_sub", "team_id", "archived", "created_at", "updated_at")}}
 
 
-def create_project(owner_sub, name, team_id=None, brief=None, default_template="general", limit=None, project_id=None) -> dict | None:
-    """Creates a project and its list row; with `limit`, counts it on the owner's profile (None at the limit)."""
+def create_project(owner_sub, name, team_id=None, brief=None, default_template="general", project_id=None) -> dict:
+    """Creates a project and its list row (the router checks the live-project limit first)."""
     now = _timestamp()
     project = {
         "project_id": project_id or uuid4().hex[:12], "name": name, "owner_sub": owner_sub, "team_id": team_id,
@@ -656,19 +677,7 @@ def create_project(owner_sub, name, team_id=None, brief=None, default_template="
                  "ConditionExpression": "attribute_not_exists(PK)"}},
         {"Put": {"Item": _project_list_item(project), "ConditionExpression": "attribute_not_exists(PK)"}},
     ]
-    if limit is not None:
-        actions.append({"Update": {
-            "Key": {"PK": f"USER#{owner_sub}", "SK": "PROFILE"},
-            "UpdateExpression": "SET projects_created = if_not_exists(projects_created, :zero) + :one",
-            "ConditionExpression": "attribute_exists(PK) AND (attribute_not_exists(projects_created) OR projects_created < :limit)",
-            "ExpressionAttributeValues": {":zero": 0, ":one": 1, ":limit": limit},
-        }})
-    try:
-        _transaction(actions)
-    except ClientError as exc:
-        if _condition_failed(exc):
-            return None
-        raise
+    _transaction(actions)
     return project
 
 

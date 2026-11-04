@@ -133,8 +133,15 @@ Promoted Listings help page URLs in `app/templates.py`.
 - `app/store.py` adds projects (`PROJECT#<id>/META`, list rows under `USER#<owner>` or `TEAM#<team_id>`,
   run rows `PROJECT#<id>/RUN#<created_at>#<run_id>` written by `create_run`, mirrored by `update_run` for
   status, title and takeaway, and moved by `file_run`) and membership rows `USER#<sub>/TEAMMEMBER#<team_id>`,
-  which replace `PROFILE.team_id` (no code reads it any more). `projects_created` on the profile enforces the
-  50-project limit atomically; the 10-team limit is checked against the membership rows.
+  which replace `PROFILE.team_id` (no code reads it any more). The limits are read-time checks: at most 10
+  live (not archived) projects per owner (`projects.live_owned`: personal list rows plus the owner's projects
+  in each of their teams) and 10 teams per person (membership rows). Two simultaneous creates can pass the
+  check together; that matches the prototype's other read-time limits.
+- Leaving a team (`router._leave_team`): the team owner, or a member who owns projects in the team, names a
+  remaining member (`new_owner_sub`) who becomes owner of those projects and, for a team owner, of the team
+  (`store.hand_over_team`, one transaction). The heir's live-project limit is checked first. When the team
+  owner removes a member, the member's projects in that team pass to the team owner; any beyond the team
+  owner's limit are archived on the way. `GET /api/teams/{id}` reports `leaving` so the UI can ask.
 - `app/projects.py` holds the rules: `role()` (owner, team_owner, member or none), the list and detail
   shapes, and the AI context: `intake_context()` (brief + one line per finished report) and
   `research_context()` (brief, latest takeaway per stage, up to 30 project cards: sourced first, then
@@ -153,4 +160,7 @@ Promoted Listings help page URLs in `app/templates.py`.
   ignores the new rows) and once more right after deploying (it files done runs created in between).
   `--drop-profile-team-id` removes the legacy attribute once v5 is live.
 - Errors: `project_not_found` 404, `project_owner_only` 403, `project_limit` 429, `team_limit` 429,
-  `no_team` 404. `already_in_team` is no longer returned.
+  `no_team` 404, `new_owner_required` 400, `invalid_new_owner` 400. `already_in_team` is no longer returned;
+  `owner_cannot_leave` 403 now only when the owner is the team's only member.
+- Migrated team projects are owned by the team owner and count toward their 10 live projects (the migration
+  itself does not check the limit, so an owner can start above it and only has to archive before creating).

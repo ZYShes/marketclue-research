@@ -356,7 +356,8 @@ def _team_state(user: dict, team_id: str | None) -> dict:
             _invite_view(invite) for invite in store.list_invites(team_id)
             if invite["status"] == "pending" and not store.invite_expired(invite)
         ]
-    return {"team": team, "role": role, "members": members, "invites": invites, "projects": _team_projects(user, team_id)}
+    return {"team": team, "role": role, "members": members, "invites": invites, "projects": _team_projects(user, team_id),
+            "leaving": _leaving(user, team_id, role)}
 
 
 def _team_member(user: dict, team_id: str | None, owner: bool = False) -> dict:
@@ -498,21 +499,64 @@ def _join_team(user: dict, data: dict) -> dict:
 
 
 def _remove_member(user: dict, team_id: str | None, sub: str) -> dict:
+    """The team owner removes a member; that member's projects in the team pass to the team owner, and any
+    that would take the team owner over the live-project limit are archived on the way."""
     _team_member(user, team_id, owner=True)
     if sub == user["sub"]:
         raise HTTPError(400, "cannot_remove_owner", "The team owner cannot remove themself")
-    if store.get_member(team_id, sub) is None or not store.remove_member(team_id, sub):
+    if store.get_member(team_id, sub) is None:
+        raise HTTPError(404, "not_found", "Member not found")
+    moving = sorted(projects.owned_in_team(sub, team_id), key=lambda row: row.get("updated_at") or "", reverse=True)
+    room = projects.MAX_LIVE_PROJECTS - projects.live_owned(user["sub"], _teams(user))
+    for row in moving:
+        archive = not row.get("archived") and room <= 0
+        room -= 0 if row.get("archived") or archive else 1
+        store.update_project(row["project_id"], owner_sub=user["sub"], **({"archived": True} if archive else {}))
+    if not store.remove_member(team_id, sub):
         raise HTTPError(404, "not_found", "Member not found")
     return {"ok": True}
 
 
-def _leave_team(user: dict, team_id: str | None) -> dict:
+def _leaving(user: dict, team_id: str, role: str | None) -> dict:
+    mine = projects.owned_in_team(user["sub"], team_id)
+    return {"needs_new_owner": role == "owner" or bool(mine),
+            "projects": [{"project_id": row["project_id"], "name": row["name"], "archived": bool(row.get("archived"))}
+                         for row in mine]}
+
+
+def _leave_team(user: dict, team_id: str | None, data: dict) -> dict:
+    """Leaves a team. The team owner, or a member who owns projects in it, names who takes over."""
     member = _team_member(user, team_id)
-    if member["role"] == "owner":
-        raise HTTPError(403, "owner_cannot_leave", "The team owner cannot leave the team")
+    members = store.list_members(team_id)
+    if member["role"] == "owner" and len(members) == 1:
+        raise HTTPError(403, "owner_cannot_leave", "You are the only member; invite someone to take over first")
+    leaving = _leaving(user, team_id, member["role"])
+    if leaving["needs_new_owner"]:
+        new_owner = data.get("new_owner_sub")
+        if new_owner is None:
+            raise HTTPError(400, "new_owner_required", "Choose the member who takes over before you leave")
+        heir = next((item for item in members if item["sub"] == new_owner and new_owner != user["sub"]), None)
+        if heir is None:
+            raise HTTPError(400, "invalid_new_owner", "Choose another member of this team")
+        live = sum(1 for project in leaving["projects"] if not project["archived"])
+        if live:
+            _check_live_limit(new_owner, live, name=heir.get("name") or heir["email"])
+        for project in leaving["projects"]:
+            store.update_project(project["project_id"], owner_sub=new_owner)
+        if member["role"] == "owner":
+            if not store.hand_over_team(team_id, user["sub"], new_owner):
+                raise HTTPError(409, "leave_failed", "Leaving the team failed; please try again")
+            return {"ok": True}
     if not store.remove_member(team_id, user["sub"]):
         raise HTTPError(409, "leave_failed", "Leaving the team failed; please try again")
     return {"ok": True}
+
+
+def _check_live_limit(owner_sub: str, adding: int, teams: dict | None = None, name: str | None = None) -> None:
+    """429 project_limit when the owner would have more than 10 live (not archived) projects."""
+    if projects.live_owned(owner_sub, teams) + adding > projects.MAX_LIVE_PROJECTS:
+        who = f"{name} already has" if name else "You already have"
+        raise HTTPError(429, "project_limit", f"{who} {projects.MAX_LIVE_PROJECTS} live projects. Archive one first.")
 
 
 def _visible_project(user: dict, project_id) -> tuple[dict, str]:
@@ -585,9 +629,9 @@ def _create_project(user: dict, data: dict) -> dict:
     name = _project_name(data)
     team_id = _project_team(user, data)
     brief = _project_brief(data.get("brief") or {})
-    project = store.create_project(user["sub"], name, team_id, brief, _default_template(data), limit=projects.MAX_PROJECTS)
-    if project is None:
-        raise HTTPError(429, "project_limit", f"You can create at most {projects.MAX_PROJECTS} projects")
+    default_template = _default_template(data)
+    _check_live_limit(user["sub"], 1, _teams(user))
+    project = store.create_project(user["sub"], name, team_id, brief, default_template)
     return _project_detail(user, project, projects.role(user["sub"], project, _teams(user)))
 
 
@@ -605,6 +649,8 @@ def _update_project(user: dict, project_id: str, data: dict) -> dict:
     if "archived" in data:
         if not isinstance(data["archived"], bool):
             raise HTTPError(400, "invalid_request", "archived must be true or false")
+        if project.get("archived") and data["archived"] is False:
+            _check_live_limit(project["owner_sub"], 1)
         fields["archived"] = data["archived"]
     if "team_id" in data:
         fields["team_id"] = _project_team(user, data)
@@ -644,7 +690,7 @@ def _team_route(user: dict, method: str, team_id: str | None, rest: list[str], e
     if method == "DELETE" and len(rest) == 2 and rest[0] == "members":
         return _response(_remove_member(user, team_id, rest[1]))
     if method == "POST" and rest == ["leave"]:
-        return _response(_leave_team(user, team_id))
+        return _response(_leave_team(user, team_id, _body(event)))
     if method == "GET" and rest == ["runs"]:
         _team_member(user, team_id)
         return _response({"runs": store.list_team_runs(team_id, _limit(_query(event)))})
@@ -737,6 +783,9 @@ def _dispatch(event: dict) -> dict:
             return _response(_project_detail(user, *_visible_project(user, parts[2])))
         if method == "PATCH" and len(parts) == 3:
             return _response(_update_project(user, parts[2], _body(event)))
+        if method == "GET" and parts[3:] == ["runs"]:
+            project, _ = _visible_project(user, parts[2])
+            return _response({"runs": projects.run_rows(project["project_id"], sub)})
         if method == "GET" and parts[3:] == ["cards"]:
             project, _ = _visible_project(user, parts[2])
             query = _query(event)

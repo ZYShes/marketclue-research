@@ -67,13 +67,37 @@ def test_invalid_project_fields(people, data):
     assert request("/api/projects", "POST", data, people["owner"])["statusCode"] == 400
 
 
-def test_project_limit(people, monkeypatch):
-    monkeypatch.setattr(projects, "MAX_PROJECTS", 2)
-    create(people["owner"])
-    create(people["owner"])
-    response = request("/api/projects", "POST", {"name": "Third"}, people["owner"])
+def test_live_project_limit_counts_unarchived_projects_the_person_owns(people, monkeypatch):
+    owner, member = people["owner"], people["member"]
+    monkeypatch.setattr(projects, "MAX_LIVE_PROJECTS", 2)
+    team_id = make_team(owner, member, "member@example.com")
+    first = create(owner)["project"]["project_id"]
+    create(owner, name="Team one", team_id=team_id)
+    create(member, name="Member's own", team_id=team_id)
+    response = request("/api/projects", "POST", {"name": "Third"}, owner)
     assert response["statusCode"] == 429 and body(response)["error"]["code"] == "project_limit"
-    assert store.get_user("owner-sub")["projects_created"] == 2
+    assert "2 live projects" in body(response)["error"]["message"]
+    request(f"/api/projects/{first}", "PATCH", {"archived": True}, owner)
+    third = create(owner, name="Third")["project"]["project_id"]
+    unarchive = request(f"/api/projects/{first}", "PATCH", {"archived": False}, owner)
+    assert unarchive["statusCode"] == 429 and body(unarchive)["error"]["code"] == "project_limit"
+    assert store.get_project(first)["archived"] is True
+    request(f"/api/projects/{third}", "PATCH", {"archived": True}, owner)
+    assert body(request(f"/api/projects/{first}", "PATCH", {"archived": False}, owner))["project"]["archived"] is False
+    assert projects.live_owned("owner-sub") == 2 and projects.live_owned("member-sub") == 1
+
+
+def test_project_runs_route_lists_what_the_viewer_sees(people):
+    owner, member = people["owner"], people["member"]
+    team_id = make_team(owner, member, "member@example.com")
+    pid = create(owner, team_id=team_id)["project"]["project_id"]
+    done = done_run("owner-sub", project_id=pid)
+    mine = store.create_run("member-sub", "c", "Running", BRIEF, project_id=pid)
+    runs = body(request(f"/api/projects/{pid}/runs", session=member))["runs"]
+    assert [r["run_id"] for r in runs] == [mine["run_id"], done["run_id"]]
+    assert runs == body(request(f"/api/projects/{pid}", session=member))["runs"]
+    assert [r["run_id"] for r in body(request(f"/api/projects/{pid}/runs", session=owner))["runs"]] == [done["run_id"]]
+    assert request(f"/api/projects/{pid}/runs", session=people["outsider"])["statusCode"] == 404
 
 
 def test_team_project_visibility_for_owner_member_and_outsider(people, monkeypatch):

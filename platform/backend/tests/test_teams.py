@@ -168,13 +168,71 @@ def test_removed_member_loses_team_access_at_once(team):
     assert request("/api/team/members/member-sub", "DELETE", session=owner)["statusCode"] == 404
 
 
-def test_members_leave_but_owners_cannot(team):
-    response = request("/api/team/leave", "POST", session=team["owner"])
-    assert response["statusCode"] == 403 and body(response)["error"]["code"] == "owner_cannot_leave"
-    assert body(request("/api/team/leave", "POST", session=team["member"])) == {"ok": True}
+def test_members_leave_and_a_lone_owner_cannot(team):
+    owner, member = team["owner"], team["member"]
+    state = body(request("/api/team", session=member))
+    assert state["leaving"] == {"needs_new_owner": False, "projects": []}
+    assert body(request("/api/team/leave", "POST", session=member)) == {"ok": True}
     assert store.get_member(team["team_id"], "member-sub") is None
-    assert request("/api/team/leave", "POST", session=team["member"])["statusCode"] == 404
-    assert body(request("/api/team", "POST", {"name": "My own"}, team["member"]))["role"] == "owner"
+    assert request("/api/team/leave", "POST", session=member)["statusCode"] == 404
+    alone = request(f"/api/teams/{team['team_id']}/leave", "POST", {"new_owner_sub": "member-sub"}, owner)
+    assert alone["statusCode"] == 403 and body(alone)["error"]["code"] == "owner_cannot_leave"
+    assert body(request("/api/team", "POST", {"name": "My own"}, member))["role"] == "owner"
+
+
+def test_team_owner_hands_the_team_and_their_projects_over(team):
+    owner, member, team_id = team["owner"], team["member"], team["team_id"]
+    personal = body(request("/api/projects", "POST", {"name": "Owner personal"}, owner))["project"]["project_id"]
+    state = body(request(f"/api/teams/{team_id}", session=owner))
+    assert state["leaving"] == {"needs_new_owner": True,
+                                "projects": [{"project_id": team["project_id"], "name": "Clay planters", "archived": False}]}
+    missing = request(f"/api/teams/{team_id}/leave", "POST", {}, owner)
+    assert missing["statusCode"] == 400 and body(missing)["error"]["code"] == "new_owner_required"
+    for heir in ("owner-sub", "stranger", 7):
+        bad = request(f"/api/teams/{team_id}/leave", "POST", {"new_owner_sub": heir}, owner)
+        assert bad["statusCode"] == 400 and body(bad)["error"]["code"] == "invalid_new_owner"
+    assert body(request(f"/api/teams/{team_id}/leave", "POST", {"new_owner_sub": "member-sub"}, owner)) == {"ok": True}
+    assert store.get_team(team_id)["owner_sub"] == "member-sub"
+    assert [(m["sub"], m["role"]) for m in store.list_members(team_id)] == [("member-sub", "owner")]
+    assert [(m["team_id"], m["role"]) for m in store.list_memberships("member-sub")] == [(team_id, "owner")]
+    assert store.list_memberships("owner-sub") == []
+    assert store.get_project(team["project_id"])["owner_sub"] == "member-sub"
+    assert store.get_project(personal)["owner_sub"] == "owner-sub"
+    assert request(f"/api/projects/{team['project_id']}", session=owner)["statusCode"] == 404
+    heir_view = body(request(f"/api/projects/{team['project_id']}", session=member))["project"]
+    assert heir_view["role"] == "owner" and heir_view["can_manage"] is True
+    assert request(f"/api/teams/{team_id}/invites", "POST", {"email": "new@example.com"}, member)["statusCode"] == 201
+
+
+def test_a_member_who_owns_team_projects_names_who_takes_them(team, monkeypatch):
+    owner, member, team_id = team["owner"], team["member"], team["team_id"]
+    mine = body(request("/api/projects", "POST", {"name": "Member project", "team_id": team_id}, member))["project"]["project_id"]
+    old = body(request("/api/projects", "POST", {"name": "Old", "team_id": team_id}, member))["project"]["project_id"]
+    request(f"/api/projects/{old}", "PATCH", {"archived": True}, member)
+    leaving = body(request(f"/api/teams/{team_id}", session=member))["leaving"]
+    assert leaving["needs_new_owner"] is True and {p["project_id"] for p in leaving["projects"]} == {mine, old}
+    assert body(request("/api/team/leave", "POST", session=member))["error"]["code"] == "new_owner_required"
+    monkeypatch.setattr(projects, "MAX_LIVE_PROJECTS", 1)
+    full = request("/api/team/leave", "POST", {"new_owner_sub": "owner-sub"}, member)
+    assert full["statusCode"] == 429 and body(full)["error"]["code"] == "project_limit"
+    assert "Lena Lead already has 1 live projects" in body(full)["error"]["message"]
+    assert store.get_project(mine)["owner_sub"] == "member-sub" and store.get_member(team_id, "member-sub")
+    monkeypatch.setattr(projects, "MAX_LIVE_PROJECTS", 10)
+    assert body(request("/api/team/leave", "POST", {"new_owner_sub": "owner-sub"}, member)) == {"ok": True}
+    assert store.get_project(mine)["owner_sub"] == "owner-sub" and store.get_project(old)["owner_sub"] == "owner-sub"
+    assert store.get_project(old)["archived"] is True and store.get_member(team_id, "member-sub") is None
+
+
+def test_removed_members_projects_go_to_the_team_owner_and_overflow_is_archived(team, monkeypatch):
+    owner, member, team_id = team["owner"], team["member"], team["team_id"]
+    first = body(request("/api/projects", "POST", {"name": "Member one", "team_id": team_id}, member))["project"]["project_id"]
+    second = body(request("/api/projects", "POST", {"name": "Member two", "team_id": team_id}, member))["project"]["project_id"]
+    monkeypatch.setattr(projects, "MAX_LIVE_PROJECTS", 2)
+    assert body(request("/api/team/members/member-sub", "DELETE", session=owner)) == {"ok": True}
+    moved = [store.get_project(pid) for pid in (first, second)]
+    assert all(project["owner_sub"] == "owner-sub" for project in moved)
+    assert sorted(project["archived"] for project in moved) == [False, True]
+    assert projects.live_owned("owner-sub") == 2
 
 
 def test_team_runs_list_finished_runs_of_the_teams_projects(team, monkeypatch):

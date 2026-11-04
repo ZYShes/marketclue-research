@@ -8,7 +8,7 @@ from . import store
 
 FEATURES = ("market_check", "competitor_scan", "launch_checklist", "marketing_plan")
 STAGES = {"market_check": "Discover", "competitor_scan": "Compare", "launch_checklist": "Prepare", "marketing_plan": "Grow"}
-MAX_PROJECTS = 50
+MAX_LIVE_PROJECTS = 10  # live = not archived; personal and team projects the person owns
 MAX_TEAMS = 10
 CONTEXT_CARDS = 30
 CONTEXT_CHARS = 14_000  # about 4,000 tokens
@@ -34,6 +34,20 @@ def role(sub, project, teams) -> str | None:
 
 def can_manage(project_role) -> bool:
     return project_role in {"owner", "team_owner"}
+
+
+def owned_in_team(sub, team_id) -> list[dict]:
+    """List rows of the team's projects (live and archived) that the person owns."""
+    return [row for row in store.list_project_rows(f"TEAM#{team_id}") if row["owner_sub"] == sub]
+
+
+def live_owned(sub, teams=None) -> int:
+    """How many live (not archived) projects the person owns: personal ones and team ones in their teams."""
+    teams = memberships(sub) if teams is None else teams
+    rows = store.list_project_rows(f"USER#{sub}")
+    for team_id in teams:
+        rows += owned_in_team(sub, team_id)
+    return sum(1 for row in rows if row["owner_sub"] == sub and not row.get("archived"))
 
 
 def _feature(row):
@@ -62,10 +76,18 @@ def summary(project, project_role, teams_by_id, viewer_sub) -> dict:
     }
 
 
+def run_rows(project_id, viewer_sub) -> list[dict]:
+    """Report rows a viewer sees in a project: done runs plus their own unfinished ones, newest first."""
+    runs = visible_runs(project_id, viewer_sub)
+    names = {sub: (store.get_user(sub) or {}).get("name") or "" for sub in {row["user_sub"] for row in runs}}
+    return [{**{key: row.get(key) for key in ("run_id", "title", "status", "feature", "mode", "template",
+                                              "created_at", "takeaway", "user_sub")},
+             "owner_name": names[row["user_sub"]], "mine": row["user_sub"] == viewer_sub} for row in runs]
+
+
 def detail(project, project_role, viewer_sub, team=None) -> dict:
     """GET /api/projects/{id}: the project, per-stage latest done report, visible runs and own conversations."""
-    runs = visible_runs(project["project_id"], viewer_sub)
-    names = {sub: (store.get_user(sub) or {}).get("name") or "" for sub in {row["user_sub"] for row in runs}}
+    runs = run_rows(project["project_id"], viewer_sub)
     stages = {feature: {"count": 0, "latest": None} for feature in FEATURES}
     for row in runs:
         if row.get("status") != "done":
@@ -85,9 +107,7 @@ def detail(project, project_role, viewer_sub, team=None) -> dict:
             "role": project_role, "can_manage": can_manage(project_role),
         },
         "stages": stages,
-        "runs": [{**{key: row.get(key) for key in ("run_id", "title", "status", "feature", "mode", "template",
-                                                  "created_at", "takeaway", "user_sub")},
-                  "owner_name": names[row["user_sub"]], "mine": row["user_sub"] == viewer_sub} for row in runs],
+        "runs": runs,
         "conversations": conversations,
     }
 
