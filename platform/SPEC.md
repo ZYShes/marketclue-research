@@ -495,3 +495,12 @@ complete the Marketplace Account Deletion notification step, or the exemption fo
 data → put the keys in SSM as SecureStrings `/marketclue/ebay_client_id` and `/marketclue/ebay_client_secret`
 (or as files `ebay_client_id` / `ebay_client_secret` in `~/.config/marketclue/` for `deploy.sh`). Until then
 `GET /api/templates` reports eBay seller as unavailable ("eBay is not connected yet").
+
+## v5: projects (planned 2026-11-04)
+
+Every conversation and run can belong to a project (one business idea). A project holds many runs across
+Discover → Compare → Prepare → Grow, is personal or belongs to one team; a team has many projects and a
+person can be in several teams. The AI reads the project's brief, latest reports and fact cards when it
+researches. Kept simple: a sidebar list, one project page with a journey strip, Reports and Fact cards tabs.
+Full brief: `tasks/projects.md`.
+
