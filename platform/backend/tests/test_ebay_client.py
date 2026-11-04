@@ -45,7 +45,8 @@ def test_search_calls_browse_and_returns_compact_listings(ebay_keys, fake_ebay, 
     assert first == {
         "title": "Handmade stoneware mug no. 1, 12 oz", "price": 38.0, "currency": "USD", "shipping": 6.5,
         "condition": "New", "url": "https://www.ebay.com/itm/100001", "seller_feedback": 100,
-        "buying_options": ["FIXED_PRICE"], "quote_text": "Handmade stoneware mug no. 1, 12 oz — $38.00",
+        "image_url": "https://i.ebayimg.com/images/g/1/s-l500.jpg", "buying_options": ["FIXED_PRICE"],
+        "retrieved_at": result["retrieved_at"], "quote_text": "Handmade stoneware mug no. 1, 12 oz — $38.00",
     }
     assert [item["shipping"] for item in result["items"]] == [6.5, 0.0, None, 8.25]
     page = toolbox.context.evidence["https://www.ebay.com/itm/100001"]

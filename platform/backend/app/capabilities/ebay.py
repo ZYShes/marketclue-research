@@ -197,8 +197,8 @@ def search_listings(name, tool_input, context):
         "retrieved_at": retrieved_at, "total": data.get("total", len(items)),
         "note": (f"Asking prices of active listings on {day_text(retrieved_at)}, not sold prices. To cite a listing in a "
                  "FINDING, use its url and copy its quote_text exactly as the quote."),
-        "items": [{key: item[key] for key in ("title", "price", "currency", "shipping", "condition", "url",
-                                              "seller_feedback", "buying_options", "quote_text")} for item in items],
+        "items": [{key: item[key] for key in ("title", "price", "currency", "shipping", "condition", "url", "seller_feedback",
+                                              "image_url", "buying_options", "retrieved_at", "quote_text")} for item in items],
     }
 
 
