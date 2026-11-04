@@ -384,10 +384,105 @@ but in the new visual language. Footer credit "Built by Yuexizi Zhang".
 - Mock-up images: provider chain in this order — `MOCKUP_PROVIDER=openai` (OpenAI Images API, key in SSM
   `/marketclue/openai_api_key`); a second provider slot `creatorhub` is reserved but not implemented now.
 
-## v4: templates (planned 2026-11-04)
+# v4 (2026-11-04): templates, starting with "eBay seller"
 
-A template is a ready-made setup picked before a tool runs: extra intake questions, capabilities (tools the
-research agents may call besides web search/fetch), extra report sections and source rules. First template:
-"eBay seller" (comparable active eBay listings via the Browse API, eBay fee and Promoted Listings ad-cost
-scenarios for cost control). "General" stays the default. Full brief: `tasks/templates-ebay.md`.
+Author: Yuexizi Zhang. Full brief: `tasks/templates-ebay.md`. Supersedes earlier sections where they differ.
 
+A **template** is a ready-made setup picked before a tool runs: extra intake questions, **capabilities**
+(tools the research agents may call besides web search/fetch), extra report sections and charts, and source
+rules. `general` (no capabilities, exactly the v3 behaviour) is the default. The first other template is
+`ebay` ("eBay seller"): comparable active eBay listings through the Browse API, and eBay fee and Promoted
+Listings ad-cost scenarios for cost control.
+
+## Facts the design rests on (checked 2026-11-04; re-check, never hard-code fee numbers)
+
+- eBay's Finding and Shopping APIs were decommissioned on 2025-02-05; listings come from the **Browse API**
+  `GET /buy/browse/v1/item_summary/search` (marketplace `EBAY_US`) with an application token
+  (client-credentials grant, scope `https://api.ebay.com/oauth/api_scope`).
+- **Sold prices are not available to us** (Marketplace Insights is a Limited Release). Every eBay price is the
+  **asking price of an active listing on the retrieval date**, and every claim, table and chart says so. The
+  report never says "sells for".
+- Fee rates and ad rules come only from ebay.com help pages fetched during the run. A rate that could not be
+  checked on such a page is left out and named in `missing_evidence`.
+- Suggested ad rates (Recommendation API) need a seller user token: phase 2 ("Connect your eBay seller
+  account"), not built.
+
+## Backend
+
+- `app/templates.py`: `TEMPLATES` with `id, name, description, tools` (feature ids), `capabilities` (ids),
+  `intake_needs`, `source_rules`, plus `brief_fields` (extra brief properties the intake fills; none for
+  `general`).
+- `app/capabilities/`: registry of capabilities `{id, label, tool_definitions, run(name, input, context),
+  available() -> (bool, reason)}`; in-process today, designed so a later one can be a remote MCP server.
+  `ebay_listings` (tool `ebay_search_listings`) and `ebay_fees` (no tool; fee pages are read with web fetch).
+- eBay client: credentials from SSM `/marketclue/ebay_client_id` and `/marketclue/ebay_client_secret`
+  (optional; missing → the template is unavailable, reason "eBay is not connected yet"); token cached in
+  memory until expiry; identical searches cached 24 h in DynamoDB (`EBAY#<sha256>/SEARCH`); at most 8 Browse
+  calls per run and `MAX_EBAY_CALLS_PER_DAY` (default 1000) site-wide (`DAY#<date>/EBAY_CALLS`); 30 s timeout,
+  one retry. The raw JSON of every search a run uses is saved to S3 `runs/<run_id>/ebay/<n>.json`; that
+  snapshot is the evidence for listing cards.
+- Research agents of a run whose template has capabilities get the tools as client tools next to the server
+  web tools (`claude.research_call` runs the tool-use loop, keeping `pause_turn` handling).
+- Quote check: a FINDING may cite a listing (URL = item URL); it is `sourced` when the quote is found in the
+  saved API snapshot of that item (title and price fields). Such cards carry `source_kind: "ebay_api"`,
+  `retrieved_at`, `label: "eBay listing (asking price, <date>)"` and `snapshot_key`; their claim is written in
+  code from the API item ("An active eBay listing asks $45.00 for ... on Nov 4, 2026").
+
+## API
+
+- `GET /api/templates` (signed in) → a JSON array `[{id, name, description, tools, capabilities: [{id, label}],
+  available, unavailable_reason}]`.
+- `POST /api/chat` with no `conv_id` accepts `template` (default `general`; unknown → 400 `invalid_template`;
+  a tool the template does not support → 400 `invalid_template`; unavailable → 409 `template_unavailable`,
+  message = the reason). `template` is stored on the conversation, the brief, the run (META and list rows) and
+  the result, and returned by chat, conversation and conversation-list responses. `POST /api/runs` refuses a
+  run whose template became unavailable (409 `template_unavailable`).
+- The intake prompt adds the template's `intake_needs` and still asks at most three questions. For `ebay` the
+  brief gains `ebay: {category, example_listing, condition, target_price_usd, buyer_pays_shipping,
+  shipping_cost_usd, sells_on_ebay}` (each may be null).
+
+## Result v4 (template `ebay`; `general` results stay version 3 with `template: "general"`)
+
+All v3 fields, plus:
+
+```json
+{
+  "version": 4, "template": "ebay",
+  "listings": [{"title": "...", "price": 45.0, "currency": "USD", "shipping": 5.99, "condition": "New",
+                "url": "https://www.ebay.com/itm/...", "image_url": "...", "seller_feedback": 1520,
+                "buying_options": ["FIXED_PRICE"], "retrieved_at": "2026-11-04T10:00:00Z", "card_id": "..."}],
+  "fees": {"currency": "USD", "price": 45.0, "price_basis": "Your target price", "buyer_pays_shipping": true,
+           "shipping_cost": 8.0, "sale_total": 53.0,
+           "lines": [{"item": "Final value fee", "rate_pct": 13.6, "amount": 7.21, "kind": "estimate",
+                      "card_ids": ["<sourced ebay.com card>"], "method": "13.6% × $53.00 sale total"}],
+           "left_before_ads": 37.39,
+           "scenarios": [{"label": "Low", "ad_rate_pct": 2, "ad_fee": 1.06, "left": 36.33, "method": "..."}],
+           "complete": true, "kind": "estimate", "method": "..."},
+  "ad_budget": {"break_even_rate_pct": 70.5, "suggested_max_rate_pct": 35.2, "suggestion": "Suggestion: ...",
+                "min_rate_pct": 2, "max_rate_pct": 100, "rate_card_ids": [], "kind": "estimate", "method": "...",
+                "priority": {"text": "...", "kind": "sourced|assumption", "card_ids": [], "method": ""}}
+}
+```
+
+- `listings` (up to 12, cheapest first) only for `competitor_scan`, else `[]`. `fees` and `ad_budget` only for
+  `marketing_plan`, else null. `shipping` null = not given, 0 = free. `shipping_cost` and `price` may be null;
+  `fees.lines` holds only lines that could be computed; `complete` is false when the final value fee or the
+  per-order fee could not be sourced (then `ad_budget` is null and there is no `ebay_costs` chart).
+- "What is left" is before the founder's own product cost; a scenario's `left` may be negative (a loss).
+- Charts: `asking_prices` (competitor_scan; `bar`, USD, sourced; caption says "asking prices of active
+  listings on <date>, not sold prices") and `ebay_costs` (marketing_plan; `stacked_bar`, USD, estimate; one
+  series item per ad-rate scenario with `segments: [{label, value}]` = Final value fee, Per-order fee,
+  Shipping, Ad fee, What is left; `value` is the sale total). A stacked chart whose items have `segments`
+  draws one stacked bar per item; without `segments` it stays the v3 single stacked bar.
+- Feature mapping for `ebay`: competitor_scan → listings + asking prices; marketing_plan → fees, ad scenarios
+  and the ad budget next to the v3 plan and budget; launch_checklist → eBay seller account, managed payments,
+  sales tax collected by eBay, item specifics and photo rules from ebay.com help; market_check → what listings
+  in the category emphasise and whom they target, labelled as listing evidence, not buyer voice.
+
+## Frontend
+
+Template choice ("General" / "eBay seller", radio cards with capability badges, unavailable shown disabled
+with its reason, last choice remembered) above the four tools; template badge next to the depth badge on
+conversation and run pages; report sections "Comparable eBay listings" (asking price, shipping, condition,
+link), the fee breakdown, the ad budget box and the two charts; mock mode has an eBay sample report and
+`GET /templates` (`&ebay=off` shows eBay unavailable).
