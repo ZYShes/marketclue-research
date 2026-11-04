@@ -1,0 +1,1007 @@
+{
+  "generated_at": "2026-11-04T02:04:04.170Z",
+  "axe_source": "local npm copy (CDN blocked)",
+  "pages": [
+    {
+      "name": "01-welcome",
+      "file": "01-welcome-1280.jpg",
+      "url": "?mock=1#/",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 1280
+    },
+    {
+      "name": "02-landing",
+      "file": "02-landing-1280.jpg",
+      "url": "?mock=1#/",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 1280
+    },
+    {
+      "name": "03-shared-signed-out",
+      "file": "03-shared-signed-out-1280.jpg",
+      "url": "?mock=1#/shared/sample-share",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 1280
+    },
+    {
+      "name": "04-join-signed-out",
+      "file": "04-join-signed-out-1280.jpg",
+      "url": "?mock=1#/join/sample-invite",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 1280
+    },
+    {
+      "name": "05-new-research",
+      "file": "05-new-research-1280.jpg",
+      "url": "?mock=1#/new",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 1280
+    },
+    {
+      "name": "06-new-existing-history",
+      "file": "06-new-existing-history-1280.jpg",
+      "url": "?mock=1#/new?tab=existing",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 1280
+    },
+    {
+      "name": "07-conversation-draft",
+      "file": "07-conversation-draft-1280.jpg",
+      "url": "?mock=1#/c/conv-draft-01",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 1280
+    },
+    {
+      "name": "08-conversation-ready",
+      "file": "08-conversation-ready-1280.jpg",
+      "url": "?mock=1#/c/conv-ready-01",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 1280
+    },
+    {
+      "name": "08b-depth-slider-balanced",
+      "file": "08b-depth-slider-balanced-1280.jpg",
+      "url": "?mock=1#/c/conv-ready-01",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 1280
+    },
+    {
+      "name": "09-run-progress",
+      "file": "09-run-progress-1280.jpg",
+      "url": "?mock=1#/runs/f75972ff1b11",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 1280
+    },
+    {
+      "name": "10-report-grow",
+      "file": "10-report-grow-1280.jpg",
+      "url": "?mock=1#/runs/a1b2c3d4e5f6",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 1280
+    },
+    {
+      "name": "11-source-hovercard",
+      "file": "11-source-hovercard-1280.jpg",
+      "url": "?mock=1#/runs/a1b2c3d4e5f6",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 1280
+    },
+    {
+      "name": "12-fact-card-sheet",
+      "file": "12-fact-card-sheet-1280.jpg",
+      "url": "?mock=1#/runs/a1b2c3d4e5f6",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 1280
+    },
+    {
+      "name": "13-chart-show-data",
+      "file": "13-chart-show-data-1280.jpg",
+      "url": "?mock=1#/runs/a1b2c3d4e5f6",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 1280
+    },
+    {
+      "name": "14-mockup-dialog",
+      "file": "14-mockup-dialog-1280.jpg",
+      "url": "?mock=1#/runs/a1b2c3d4e5f6",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 1280
+    },
+    {
+      "name": "15-report-with-mockup",
+      "file": "15-report-with-mockup-1280.jpg",
+      "url": "?mock=1#/runs/a1b2c3d4e5f6",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 1280
+    },
+    {
+      "name": "16-report-compare",
+      "file": "16-report-compare-1280.jpg",
+      "url": "?mock=1#/runs/c1d2e3f4a5b6",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 1280
+    },
+    {
+      "name": "17-report-prepare",
+      "file": "17-report-prepare-1280.jpg",
+      "url": "?mock=1#/runs/d1e2f3a4b5c6",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 1280
+    },
+    {
+      "name": "18-report-discover",
+      "file": "18-report-discover-1280.jpg",
+      "url": "?mock=1#/runs/b1c2d3e4f5a6",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 1280
+    },
+    {
+      "name": "19-run-failed",
+      "file": "19-run-failed-1280.jpg",
+      "url": "?mock=1#/runs/e9f8a7b6c5d4",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 1280
+    },
+    {
+      "name": "20-report-teammate",
+      "file": "20-report-teammate-1280.jpg",
+      "url": "?mock=1#/runs/aa11bb22cc33",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 1280
+    },
+    {
+      "name": "21-reports-mine",
+      "file": "21-reports-mine-1280.jpg",
+      "url": "?mock=1#/runs",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 1280
+    },
+    {
+      "name": "22-reports-team",
+      "file": "22-reports-team-1280.jpg",
+      "url": "?mock=1#/runs?scope=team",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 1280
+    },
+    {
+      "name": "23-library-mine",
+      "file": "23-library-mine-1280.jpg",
+      "url": "?mock=1#/library",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 1280
+    },
+    {
+      "name": "24-library-team",
+      "file": "24-library-team-1280.jpg",
+      "url": "?mock=1#/library?scope=team",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 1280
+    },
+    {
+      "name": "25-team-owner",
+      "file": "25-team-owner-1280.jpg",
+      "url": "?mock=1#/team",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 1280
+    },
+    {
+      "name": "26-team-invite-created",
+      "file": "26-team-invite-created-1280.jpg",
+      "url": "?mock=1#/team",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 1280
+    },
+    {
+      "name": "28-reading-dialog",
+      "file": "28-reading-dialog-1280.jpg",
+      "url": "?mock=1#/team",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 1280
+    },
+    {
+      "name": "29-not-found",
+      "file": "29-not-found-1280.jpg",
+      "url": "?mock=1#/does-not-exist",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 1280
+    },
+    {
+      "name": "30-conversation-member",
+      "file": "30-conversation-member-1280.jpg",
+      "url": "?mock=1#/c/conv-sam-01",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 1280
+    },
+    {
+      "name": "31-report-member",
+      "file": "31-report-member-1280.jpg",
+      "url": "?mock=1#/runs/dd44ee55ff66",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 1280
+    },
+    {
+      "name": "32-team-none",
+      "file": "32-team-none-1280.jpg",
+      "url": "?mock=1#/team",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 1280
+    },
+    {
+      "name": "33-reports-team-none",
+      "file": "33-reports-team-none-1280.jpg",
+      "url": "?mock=1#/runs?scope=team",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 1280
+    },
+    {
+      "name": "34-join-signed-in",
+      "file": "34-join-signed-in-1280.jpg",
+      "url": "?mock=1#/join/sample-invite",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 1280
+    },
+    {
+      "name": "35-team-member",
+      "file": "35-team-member-1280.jpg",
+      "url": "?mock=1#/team",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 1280
+    },
+    {
+      "name": "36-report-mockups-off",
+      "file": "36-report-mockups-off-1280.jpg",
+      "url": "?mock=1&mockups=off#/runs/c1d2e3f4a5b6",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 1280
+    },
+    {
+      "name": "39-smarter-daily-limit",
+      "file": "39-smarter-daily-limit-1280.jpg",
+      "url": "?mock=1&smarter=limit#/c/conv-ready-01",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 1280
+    },
+    {
+      "name": "37-larger-text-spacing",
+      "file": "37-larger-text-spacing-1280.jpg",
+      "url": "?mock=1#/c/conv-ready-01",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 1280
+    },
+    {
+      "name": "38-zoom-200",
+      "file": "38-zoom-200-1280.jpg",
+      "url": "?mock=1#/runs/c1d2e3f4a5b6",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 1280
+    },
+    {
+      "name": "01-welcome",
+      "file": "01-welcome-375.jpg",
+      "url": "?mock=1#/",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 375,
+        "clientWidth": 375,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 375
+    },
+    {
+      "name": "02-landing",
+      "file": "02-landing-375.jpg",
+      "url": "?mock=1#/",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 375,
+        "clientWidth": 375,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 375
+    },
+    {
+      "name": "03-shared-signed-out",
+      "file": "03-shared-signed-out-375.jpg",
+      "url": "?mock=1#/shared/sample-share",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 375,
+        "clientWidth": 375,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 375
+    },
+    {
+      "name": "04-join-signed-out",
+      "file": "04-join-signed-out-375.jpg",
+      "url": "?mock=1#/join/sample-invite",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 375,
+        "clientWidth": 375,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 375
+    },
+    {
+      "name": "05-new-research",
+      "file": "05-new-research-375.jpg",
+      "url": "?mock=1#/new",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 375,
+        "clientWidth": 375,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 375
+    },
+    {
+      "name": "06-new-existing-history",
+      "file": "06-new-existing-history-375.jpg",
+      "url": "?mock=1#/new?tab=existing",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 375,
+        "clientWidth": 375,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 375
+    },
+    {
+      "name": "07-conversation-draft",
+      "file": "07-conversation-draft-375.jpg",
+      "url": "?mock=1#/c/conv-draft-01",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 375,
+        "clientWidth": 375,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 375
+    },
+    {
+      "name": "08-conversation-ready",
+      "file": "08-conversation-ready-375.jpg",
+      "url": "?mock=1#/c/conv-ready-01",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 375,
+        "clientWidth": 375,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 375
+    },
+    {
+      "name": "08b-depth-slider-balanced",
+      "file": "08b-depth-slider-balanced-375.jpg",
+      "url": "?mock=1#/c/conv-ready-01",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 375,
+        "clientWidth": 375,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 375
+    },
+    {
+      "name": "09-run-progress",
+      "file": "09-run-progress-375.jpg",
+      "url": "?mock=1#/runs/f063a4391264",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 375,
+        "clientWidth": 375,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 375
+    },
+    {
+      "name": "10-report-grow",
+      "file": "10-report-grow-375.jpg",
+      "url": "?mock=1#/runs/a1b2c3d4e5f6",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 375,
+        "clientWidth": 375,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 375
+    },
+    {
+      "name": "12-fact-card-sheet",
+      "file": "12-fact-card-sheet-375.jpg",
+      "url": "?mock=1#/runs/a1b2c3d4e5f6",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 375,
+        "clientWidth": 375,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 375
+    },
+    {
+      "name": "13-chart-show-data",
+      "file": "13-chart-show-data-375.jpg",
+      "url": "?mock=1#/runs/a1b2c3d4e5f6",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 375,
+        "clientWidth": 375,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 375
+    },
+    {
+      "name": "14-mockup-dialog",
+      "file": "14-mockup-dialog-375.jpg",
+      "url": "?mock=1#/runs/a1b2c3d4e5f6",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 375,
+        "clientWidth": 375,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 375
+    },
+    {
+      "name": "15-report-with-mockup",
+      "file": "15-report-with-mockup-375.jpg",
+      "url": "?mock=1#/runs/a1b2c3d4e5f6",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 375,
+        "clientWidth": 375,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 375
+    },
+    {
+      "name": "16-report-compare",
+      "file": "16-report-compare-375.jpg",
+      "url": "?mock=1#/runs/c1d2e3f4a5b6",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 375,
+        "clientWidth": 375,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 375
+    },
+    {
+      "name": "17-report-prepare",
+      "file": "17-report-prepare-375.jpg",
+      "url": "?mock=1#/runs/d1e2f3a4b5c6",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 375,
+        "clientWidth": 375,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 375
+    },
+    {
+      "name": "18-report-discover",
+      "file": "18-report-discover-375.jpg",
+      "url": "?mock=1#/runs/b1c2d3e4f5a6",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 375,
+        "clientWidth": 375,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 375
+    },
+    {
+      "name": "19-run-failed",
+      "file": "19-run-failed-375.jpg",
+      "url": "?mock=1#/runs/e9f8a7b6c5d4",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 375,
+        "clientWidth": 375,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 375
+    },
+    {
+      "name": "20-report-teammate",
+      "file": "20-report-teammate-375.jpg",
+      "url": "?mock=1#/runs/aa11bb22cc33",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 375,
+        "clientWidth": 375,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 375
+    },
+    {
+      "name": "21-reports-mine",
+      "file": "21-reports-mine-375.jpg",
+      "url": "?mock=1#/runs",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 375,
+        "clientWidth": 375,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 375
+    },
+    {
+      "name": "22-reports-team",
+      "file": "22-reports-team-375.jpg",
+      "url": "?mock=1#/runs?scope=team",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 375,
+        "clientWidth": 375,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 375
+    },
+    {
+      "name": "23-library-mine",
+      "file": "23-library-mine-375.jpg",
+      "url": "?mock=1#/library",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 375,
+        "clientWidth": 375,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 375
+    },
+    {
+      "name": "24-library-team",
+      "file": "24-library-team-375.jpg",
+      "url": "?mock=1#/library?scope=team",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 375,
+        "clientWidth": 375,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 375
+    },
+    {
+      "name": "25-team-owner",
+      "file": "25-team-owner-375.jpg",
+      "url": "?mock=1#/team",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 375,
+        "clientWidth": 375,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 375
+    },
+    {
+      "name": "26-team-invite-created",
+      "file": "26-team-invite-created-375.jpg",
+      "url": "?mock=1#/team",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 375,
+        "clientWidth": 375,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 375
+    },
+    {
+      "name": "27-mobile-navigation",
+      "file": "27-mobile-navigation-375.jpg",
+      "url": "?mock=1#/team",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 375,
+        "clientWidth": 375,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 375
+    },
+    {
+      "name": "28-reading-dialog",
+      "file": "28-reading-dialog-375.jpg",
+      "url": "?mock=1#/team",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 375,
+        "clientWidth": 375,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 375
+    },
+    {
+      "name": "29-not-found",
+      "file": "29-not-found-375.jpg",
+      "url": "?mock=1#/does-not-exist",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 375,
+        "clientWidth": 375,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 375
+    },
+    {
+      "name": "30-conversation-member",
+      "file": "30-conversation-member-375.jpg",
+      "url": "?mock=1#/c/conv-sam-01",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 375,
+        "clientWidth": 375,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 375
+    },
+    {
+      "name": "31-report-member",
+      "file": "31-report-member-375.jpg",
+      "url": "?mock=1#/runs/dd44ee55ff66",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 375,
+        "clientWidth": 375,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 375
+    },
+    {
+      "name": "32-team-none",
+      "file": "32-team-none-375.jpg",
+      "url": "?mock=1#/team",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 375,
+        "clientWidth": 375,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 375
+    },
+    {
+      "name": "33-reports-team-none",
+      "file": "33-reports-team-none-375.jpg",
+      "url": "?mock=1#/runs?scope=team",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 375,
+        "clientWidth": 375,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 375
+    },
+    {
+      "name": "34-join-signed-in",
+      "file": "34-join-signed-in-375.jpg",
+      "url": "?mock=1#/join/sample-invite",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 375,
+        "clientWidth": 375,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 375
+    },
+    {
+      "name": "35-team-member",
+      "file": "35-team-member-375.jpg",
+      "url": "?mock=1#/team",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 375,
+        "clientWidth": 375,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 375
+    },
+    {
+      "name": "36-report-mockups-off",
+      "file": "36-report-mockups-off-375.jpg",
+      "url": "?mock=1&mockups=off#/runs/c1d2e3f4a5b6",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 375,
+        "clientWidth": 375,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 375
+    },
+    {
+      "name": "39-smarter-daily-limit",
+      "file": "39-smarter-daily-limit-375.jpg",
+      "url": "?mock=1&smarter=limit#/c/conv-ready-01",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 375,
+        "clientWidth": 375,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 375
+    },
+    {
+      "name": "37-larger-text-spacing",
+      "file": "37-larger-text-spacing-375.jpg",
+      "url": "?mock=1#/c/conv-ready-01",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 375,
+        "clientWidth": 375,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 375
+    }
+  ]
+}

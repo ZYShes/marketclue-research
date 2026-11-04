@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800" width="800" height="800">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#F3D9C9"/><stop offset="1" stop-color="#E9B99E"/></linearGradient>
+    <linearGradient id="pot" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#C9C2B3"/><stop offset=".45" stop-color="#ECE7DC"/><stop offset="1" stop-color="#B9B1A0"/></linearGradient>
+    <pattern id="speck" width="22" height="22" patternUnits="userSpaceOnUse"><circle cx="4" cy="6" r="1.6" fill="#6F6657"/><circle cx="15" cy="14" r="1.2" fill="#7E7464"/><circle cx="9" cy="19" r="0.9" fill="#5E574B"/></pattern>
+  </defs>
+  <rect width="800" height="800" fill="url(#bg)"/>
+  <rect x="0" y="560" width="800" height="240" fill="#C98E6C" opacity=".35"/><text x="400" y="740" text-anchor="middle" font-family="Georgia, serif" font-style="italic" font-size="54" fill="#5A2412">Made in Seattle</text>
+  <ellipse cx="400" cy="640" rx="210" ry="26" fill="#000" opacity=".10"/>
+  <ellipse cx="400" cy="610" rx="200" ry="34" fill="#B5AC9A"/>
+  <ellipse cx="400" cy="600" rx="200" ry="30" fill="#D9D2C3"/>
+  <path d="M250 370 L550 370 L520 600 Q400 628 280 600 Z" fill="url(#pot)"/>
+  <path d="M250 370 L550 370 L520 600 Q400 628 280 600 Z" fill="url(#speck)" opacity=".55"/>
+  <ellipse cx="400" cy="370" rx="150" ry="24" fill="#8E8576"/>
+  <ellipse cx="400" cy="366" rx="140" ry="18" fill="#4A3F33"/>
+  <g fill="none" stroke-linecap="round">
+    <path d="M400 362 C380 280 330 230 270 210" stroke="#56703F" stroke-width="10"/>
+    <path d="M400 362 C410 270 450 210 520 180" stroke="#4E6A38" stroke-width="10"/>
+    <path d="M400 362 C400 290 395 230 400 150" stroke="#5C7744" stroke-width="10"/>
+  </g>
+  <g fill="#6E8B4E">
+    <ellipse cx="285" cy="230" rx="52" ry="22" transform="rotate(-25 285 230)"/>
+    <ellipse cx="330" cy="275" rx="44" ry="18" transform="rotate(-40 330 275)"/>
+    <ellipse cx="505" cy="195" rx="55" ry="22" transform="rotate(20 505 195)"/>
+    <ellipse cx="455" cy="250" rx="44" ry="18" transform="rotate(35 455 250)"/>
+    <ellipse cx="400" cy="160" rx="22" ry="48"/>
+    <ellipse cx="370" cy="215" rx="16" ry="40" transform="rotate(-20 370 215)"/>
+    <ellipse cx="430" cy="215" rx="16" ry="40" transform="rotate(20 430 215)"/>
+  </g>
+</svg>

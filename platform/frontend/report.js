@@ -1,14 +1,17 @@
-// Classic research brief, shared by private and public report routes.
+// The research report, shared by the private (#/runs/<id>) and public (#/shared/<token>) routes.
+// Classic structure: brief at a glance → numbered findings with sources → tool section (with charts)
+// → next steps & missing evidence → evidence coverage → all fact cards / about.
 import {
   h, icon, externalLink, domainOf, fmtDate, fmtMoney, fmtCost, fmtSeconds, isStale,
-  kindBadge, typeBadge, staleBadge, statusPill, plural, STALE_DAYS,
+  kindBadge, typeBadge, staleBadge, statusChip, plural, trapFocus, STALE_DAYS,
 } from "./ui.js";
-import { featureById } from "./features.js";
+import { featureById, stageLabel, MODES } from "./features.js";
+import { renderChart, validSeries } from "./charts.js";
 
 const SOURCED_NOTE =
-  "Sourced means the exact quote matched the captured page. The page may still be wrong.";
+  "Sourced means the exact quote matched the captured page. The page itself may still be wrong.";
 const INLINE_REF = /\s*\[(?:card[:#\s]*)?([A-Za-z0-9_-]{4,40})\]/g;
-const list = (value) => Array.isArray(value) ? value : [];
+const list = (value) => (Array.isArray(value) ? value : []);
 
 function isGenericAssumption(item) {
   return item.kind === "assumption" &&
@@ -43,7 +46,35 @@ function methodNote(item) {
     isGenericAssumption(item) ? "Not backed by a quote — test it." : String(item.method));
 }
 
-export function renderReport(result = {}, { run = null, shared = false, actions = null } = {}) {
+function isCoverageChart(spec) {
+  return /coverage/i.test(`${spec.id || ""} ${spec.title || ""}`);
+}
+
+// Fallback coverage chart for reports that predate result.charts.
+function coverageChart(coverage) {
+  if (!coverage) return null;
+  const series = [
+    ["Pages read", coverage.pages_read],
+    ["Quotes checked", coverage.quotes_total],
+    ["Quotes found word for word", coverage.quotes_found],
+  ].filter(([, v]) => v != null && Number.isFinite(Number(v))).map(([label, value]) => ({ label, value: Number(value), card_ids: [] }));
+  if (!series.length) return null;
+  const found = Number(coverage.quotes_found);
+  const total = Number(coverage.quotes_total);
+  return {
+    id: "coverage", type: "bar", title: "Evidence coverage", unit: "count", kind: "sourced", series,
+    caption: Number.isFinite(found) && total ? `${found} of ${total} quotes were found word for word on the captured pages.` : "",
+  };
+}
+
+const TOOL_SECTION = {
+  market_check: { id: "r-themes", title: "Buyer themes" },
+  competitor_scan: { id: "r-prices", title: "Price comparison" },
+  launch_checklist: { id: "r-checklist", title: "Launch checklist" },
+  marketing_plan: { id: "r-plan", title: "Marketing plan" },
+};
+
+export function renderReport(result = {}, { run = null, shared = false, actions = null, mockups = null } = {}) {
   const cards = list(result.cards).filter(Boolean);
   const index = new Map(cards.map((card, i) => [card.card_id, { card, n: i + 1 }]));
   const feature = featureById(result.feature || result.brief?.feature || run?.brief?.feature || run?.feature);
@@ -52,12 +83,7 @@ export function renderReport(result = {}, { run = null, shared = false, actions 
   function chip(id) {
     const entry = index.get(id);
     if (!entry) return null;
-    const { card, n } = entry;
-    return h("button", {
-      type: "button", class: `chip ${card.type === "sourced" ? "chip-sourced" : "chip-unverified"}`,
-      title: card.claim, "aria-label": `Fact card ${n}: ${card.claim || "Read source"}`,
-      "aria-haspopup": "dialog", onclick: () => openCardPanel(card, n),
-    }, String(n));
+    return sourceChip(entry.card, entry.n);
   }
 
   function richText(text, ids = []) {
@@ -80,113 +106,177 @@ export function renderReport(result = {}, { run = null, shared = false, actions 
   function statement(raw) {
     const item = asItem(raw);
     if (!item) return null;
-    return h("li", { class: "brief-statement" },
+    return h("li", { class: "statement" },
       item.kind ? kindBadge(item.kind) : null,
-      h("p", {}, richText(item.text, item.card_ids)), methodNote(item));
+      h("div", { class: "statement-body" }, h("p", {}, richText(item.text, item.card_ids)), methodNote(item)));
   }
 
+  const sections = [];
   function section(id, title, ...content) {
-    return h("section", { class: "brief-section", id, "aria-labelledby": `${id}-h` },
-      h("h2", { id: `${id}-h` }, title), content);
+    sections.push({ id, title });
+    return h("section", { class: "report-section", id, "aria-labelledby": `${id}-h` },
+      h("h2", { id: `${id}-h`, tabindex: "-1" }, title), content);
   }
+
+  const charts = list(result.charts).filter((c) => c && validSeries(c).length);
+  const toolCharts = charts.filter((c) => !isCoverageChart(c));
+  const covSpec = charts.find(isCoverageChart) || coverageChart(result.coverage);
+  const chartNodes = (specs) => {
+    const nodes = specs.map((spec) => renderChart(spec, { chip })).filter(Boolean);
+    return nodes.length ? h("div", { class: "chart-stack" }, nodes) : null;
+  };
 
   const takeaway = asItem(result.takeaway || list(result.summary)[0]);
   const findings = reportFindings(result);
-  const content = [section("r-summary", "The brief at a glance",
-    takeaway ? h("div", { class: "brief-takeaway" },
+  const content = [];
+  content.push(section("r-summary", "The brief at a glance",
+    takeaway ? h("div", { class: "takeaway" },
       takeaway.kind ? kindBadge(takeaway.kind) : null,
       h("p", { class: "takeaway-text" }, richText(takeaway.text, takeaway.card_ids)), methodNote(takeaway))
-      : h("p", { class: "muted" }, "No takeaway was recorded for this report.")),
-    section("r-findings", "Findings", findings.length
-      ? h("ol", { class: "brief-findings" }, findings.map((finding, i) => {
-          const refs = [...new Set([...finding.card_ids, ...[...finding.text.matchAll(INLINE_REF)].map((m) => m[1])])];
-          const sources = refs.map((id) => index.get(id)).filter(Boolean);
-          return h("li", { class: "brief-finding" },
-            h("div", { class: "finding-heading" },
-              h("span", { class: "finding-number", "aria-hidden": "true" }, String(i + 1).padStart(2, "0")),
-              h("h3", {}, finding.title)),
-            finding.kind ? kindBadge(finding.kind) : null,
-            h("p", { class: "finding-text" }, richText(finding.text)), methodNote(finding),
-            h("details", { class: "finding-sources" },
-              h("summary", {}, `Sources for finding ${i + 1}`),
-              sources.length ? h("div", { class: "inline-sources" }, sources.map(({ card, n }) => cardTile(card, n)))
-                : h("p", { class: "muted" }, "No fact cards linked to this finding.")));
-        })) : h("p", { class: "muted" }, "No findings were recorded."))];
+      : h("p", { class: "muted" }, "No takeaway was recorded for this report.")));
 
-  if (feature?.id === "competitor_scan" && result.table) {
-    content.push(section("r-prices", result.table.title || "Price comparison",
-      h("p", { class: "table-hint", "aria-hidden": "true" }, "Scroll sideways for details."),
-      renderPriceTable(result.table, richText)));
+  content.push(section("r-findings", "Findings", findings.length
+    ? h("ol", { class: "findings" }, findings.map((finding, i) => {
+        const refs = [...new Set([...finding.card_ids, ...[...finding.text.matchAll(INLINE_REF)].map((m) => m[1])])];
+        const sources = refs.map((id) => index.get(id)).filter(Boolean);
+        return h("li", { class: "finding" },
+          h("span", { class: "finding-number", "aria-hidden": "true" }, String(i + 1)),
+          h("div", { class: "finding-body" },
+            h("h3", { class: "finding-title" }, h("span", { class: "visually-hidden" }, `Finding ${i + 1}: `), finding.title),
+            h("p", { class: "finding-text" }, finding.kind ? [kindBadge(finding.kind), " "] : null, richText(finding.text, finding.card_ids)),
+            methodNote(finding),
+            h("details", { class: "finding-sources" },
+              h("summary", {}, icon("chevron"), `Sources for finding ${i + 1}`, h("span", { class: "summary-count" }, ` (${sources.length})`)),
+              sources.length ? h("div", { class: "source-tiles" }, sources.map(({ card, n }) => cardTile(card, n)))
+                : h("p", { class: "muted" }, "No fact cards linked to this finding."))));
+      }))
+    : h("p", { class: "muted" }, "No findings were recorded.")));
+
+  // Tool section, with its charts first.
+  const tool = TOOL_SECTION[feature.id];
+  if (feature.id === "competitor_scan" && (result.table || toolCharts.length)) {
+    content.push(section(tool.id, result.table?.title || tool.title, chartNodes(toolCharts),
+      result.table ? renderPriceTable(result.table, richText) : null));
+  } else if (feature.id === "marketing_plan" || (!result.version && (list(result.plan).length || result.budget))) {
+    if (list(result.plan).length) {
+      content.push(section("r-plan", "Marketing plan",
+        list(result.plan).filter(Boolean).map((group) => h("div", { class: "plan-group" },
+          h("h3", {}, group.section || "Plan"), h("ul", { class: "statements" }, list(group.items).map(statement))))));
+    }
+    if (result.budget || toolCharts.length) {
+      content.push(section("r-budget", "Budget & projection", chartNodes(toolCharts),
+        result.budget ? renderBudget({ ...result.budget, lines: list(result.budget.lines) }, richText) : null));
+    }
+  } else if (feature.id === "launch_checklist" && (list(result.checklist).length || toolCharts.length)) {
+    content.push(section(tool.id, tool.title, chartNodes(toolCharts),
+      list(result.checklist).length ? h("ol", { class: "checklist" },
+        list(result.checklist).filter(Boolean).map((entry) => h("li", { class: "checklist-item" },
+          h("span", { class: "checklist-box", "aria-hidden": "true" }),
+          h("div", { class: "checklist-body" },
+            h("h3", {}, entry.step || "Launch step"),
+            h("div", { class: "badge-row" }, entry.kind ? kindBadge(entry.kind) : null,
+              entry.official ? h("span", { class: "badge badge-official" }, "Official source") : null),
+            h("p", {}, richText(entry.text, entry.card_ids)), methodNote(entry))))) : null));
+  } else if (toolCharts.length) {
+    content.push(section(tool?.id || "r-charts", tool && feature.id === "market_check" ? tool.title : "Charts", chartNodes(toolCharts)));
   }
-  if (feature?.id === "marketing_plan" || (!result.version && (list(result.plan).length || result.budget))) {
-    if (list(result.plan).length) content.push(section("r-plan", "Marketing plan",
-      list(result.plan).filter(Boolean).map((group) => h("div", { class: "brief-plan-group" },
-        h("h3", {}, group.section || "Plan"), h("ul", { class: "brief-statements" }, list(group.items).map(statement))))));
-    if (result.budget) content.push(section("r-budget", "4-week budget", renderBudget({ ...result.budget, lines: list(result.budget.lines) }, richText)));
-  }
-  if (feature?.id === "launch_checklist" && list(result.checklist).length) {
-    content.push(section("r-checklist", "Launch checklist", h("ol", { class: "launch-checklist" },
-      list(result.checklist).filter(Boolean).map((entry) => h("li", {},
-        h("span", { class: "checklist-box", "aria-hidden": "true" }),
-        h("div", {}, h("h3", {}, entry.step || "Launch step"),
-          h("div", { class: "badge-row" }, entry.kind ? kindBadge(entry.kind) : null,
-            entry.official ? h("span", { class: "badge official-badge" }, "Official source") : null),
-          h("p", {}, richText(entry.text, entry.card_ids)), methodNote(entry)))))));
-  }
+
+  if (mockups) content.push(section("r-mockups", "Mock-ups", mockups));
 
   const steps = list(result.next_steps).length ? list(result.next_steps) : list(result.next_checks).map((entry) => ({ text: asItem(entry)?.text }));
   const missing = list(result.missing_evidence);
   content.push(section("r-next", "Next steps & missing evidence",
-    steps.length ? h("ol", { class: "brief-next-steps" }, steps.filter(Boolean).map((step) => h("li", {},
+    steps.length ? h("ol", { class: "next-steps" }, steps.filter(Boolean).map((step) => h("li", {},
       h("p", { class: "next-step-text" }, typeof step === "string" ? step : step.text || ""),
-      h("p", { class: "next-step-how" }, h("strong", {}, "How to check: "),
+      h("p", { class: "next-step-how" }, h("span", { class: "how-label" }, "How to check: "),
         step.how || "No check method was recorded."))))
       : h("p", { class: "muted" }, "No next steps were recorded."),
-    missing.length ? [h("h3", {}, "Missing evidence"), h("ul", { class: "missing-evidence" }, missing.map((item) => h("li", {}, String(item))))] : null));
-  content.push(section("r-coverage", "Evidence coverage", renderCoverage(result.coverage), renderCostLine(result)));
-  content.push(h("details", { class: "brief-appendix", id: "r-cards" },
-    h("summary", {}, `All fact cards (${cards.length})`),
+    missing.length ? [h("h3", { class: "subhead" }, "Missing evidence"), h("ul", { class: "missing" }, missing.map((item) => h("li", {}, String(item))))] : null));
+
+  content.push(section("r-coverage", "Evidence coverage",
+    covSpec ? renderChart(covSpec, { chip }) : null,
+    renderCoverage(result.coverage), renderCostLine(result)));
+
+  content.push(h("details", { class: "appendix", id: "r-cards" },
+    h("summary", {}, icon("chevron"), `All fact cards (${cards.length})`),
     h("p", { class: "section-note" }, SOURCED_NOTE),
-    cards.length ? h("div", { class: "all-fact-cards" }, cards.map((card, i) => cardTile(card, i + 1)))
+    cards.length ? h("div", { class: "source-tiles" }, cards.map((card, i) => cardTile(card, i + 1)))
       : h("p", { class: "muted" }, "No fact cards were recorded.")));
   const brief = result.brief || run?.brief;
-  content.push(h("details", { class: "brief-appendix", id: "r-about" }, h("summary", {}, "About this report"),
+  content.push(h("details", { class: "appendix", id: "r-about" }, h("summary", {}, icon("chevron"), "About this report"),
     h("p", { class: "section-note" }, SOURCED_NOTE), brief ? renderBriefDetails(brief) : null, renderAbout(result)));
 
+  const mode = MODES[result.mode || run?.mode];
   const meta = [];
   if (result.generated_at || run?.created_at) meta.push(fmtDate(result.generated_at || run.created_at));
   meta.push(`${plural(cards.length, "fact card")}, ${sourcedCount} sourced`);
   if (result.seconds != null) meta.push(`Research took ${fmtSeconds(result.seconds)}`);
-  return h("article", { class: "report report-v2" },
+  if (run?.owner_name && shared === false) meta.push(`By ${run.owner_name}`);
+
+  const toc = h("nav", { class: "report-toc", "aria-label": "On this page" },
+    h("p", { class: "toc-title" }, "On this page"),
+    h("ul", {}, sections.map((s) => h("li", {}, h("a", {
+      href: `#${s.id}`,
+      onclick: (ev) => {
+        ev.preventDefault();
+        const target = document.getElementById(`${s.id}-h`);
+        if (!target) return;
+        target.scrollIntoView({ block: "start" });
+        target.focus({ preventScroll: true });
+      },
+    }, s.title)))));
+
+  return h("article", { class: "report" },
     h("header", { class: "report-head" },
-      h("p", { class: "eyebrow" }, shared ? "Shared report · read only" : "Your research brief"),
-      h("h1", { class: "report-title" }, result.title || run?.title || "Your report"),
-      feature ? h("p", { class: "report-feature" }, feature.name) : null,
-      h("p", { class: "report-meta" }, meta.filter(Boolean).join(" · ")),
-      actions ? h("div", { class: "report-actions" }, actions) : null),
-    h("div", { class: "classic-report-body" }, content));
+      h("p", { class: "eyebrow tool-eyebrow" }, shared ? "Shared report · read only · " : "", `${stageLabel(feature)} · ${feature.name}`),
+      h("h1", { class: "report-title", tabindex: "-1" }, result.title || run?.title || "Your report"),
+      h("p", { class: "report-meta" },
+        meta.filter(Boolean).join(" · "),
+        mode ? h("span", { class: `badge badge-mode` }, `${mode.name} research`) : null),
+      actions ? h("div", { class: "report-actions" }, actions) : null,
+      h("p", { class: "legend" },
+        h("span", { class: "legend-item" }, kindBadge("sourced"), " exact quote on a captured page"),
+        h("span", { class: "legend-item" }, kindBadge("assumption"), " not backed by a quote"),
+        h("span", { class: "legend-item" }, kindBadge("estimate"), " calculated, method shown"))),
+    h("div", { class: "report-layout" },
+      h("div", { class: "report-body" }, content),
+      sections.length > 3 ? toc : null));
+}
+
+// Numbered source chip: hover/focus shows a preview card, click opens the full fact card.
+export function sourceChip(card, n) {
+  const chipEl = h("button", {
+    type: "button", class: `chip ${card.type === "sourced" ? "chip-sourced" : "chip-unverified"}`,
+    "aria-label": `Source ${n}: ${card.claim || card.source_title || "fact card"}`,
+    "aria-haspopup": "dialog",
+    onclick: () => { hideHovercard(); openCardPanel(card, n); },
+  }, String(n));
+  attachHovercard(chipEl, card, n);
+  return chipEl;
 }
 
 export function cardTile(card, n) {
-  return h("article", { class: "inline-fact-card" },
-    h("div", { class: "inline-fact-head" },
-      n ? h("span", { class: "inline-card-number" }, `Fact card ${n}`) : null,
+  return h("article", { class: "source-tile" },
+    h("div", { class: "source-tile-head" },
+      n ? h("span", { class: "source-n" }, String(n)) : null,
+      h("span", { class: "source-domain" }, domainOf(card.url) || "Source"),
       typeBadge(card.type), isStale(card) ? staleBadge() : null),
-    card.claim ? h("p", { class: "inline-fact-claim" }, card.claim) : null,
+    card.claim ? h("p", { class: "source-claim" }, card.claim) : null,
     card.quote ? h("blockquote", { class: "quote" }, h("p", {}, `“${card.quote}”`)) : null,
-    externalLink(card.url, card.source_title || domainOf(card.url) || "Open source", "inline-source-link"),
-    h("p", { class: "inline-captured" }, `Captured ${fmtDate(card.captured_at) || "date unknown"}`));
+    h("p", { class: "source-foot" },
+      externalLink(card.url, card.source_title || domainOf(card.url) || "Open source", "source-link"),
+      h("span", { class: "muted" }, ` · Captured ${fmtDate(card.captured_at) || "date unknown"}`)));
 }
 
 function renderPriceTable(table, richText) {
   const columns = list(table.columns);
-  return h("div", { class: "table-scroll", role: "region", "aria-label": table.title || "Price comparison", tabindex: "0" },
-    h("table", { class: "price-comparison-table" },
+  return h("div", { class: "table-scroll", role: "region", "aria-label": `${table.title || "Price comparison"} table`, tabindex: "0" },
+    h("table", { class: "data-table" },
       h("caption", { class: "visually-hidden" }, table.title || "Price comparison"),
       h("thead", {}, h("tr", {}, columns.map((column) => h("th", { scope: "col" }, column)), h("th", { scope: "col" }, "Sources"))),
       h("tbody", {}, list(table.rows).filter(Boolean).map((row) => h("tr", {},
         list(row.cells).map((cell, i) => h(i === 0 ? "th" : "td", i === 0 ? { scope: "row" } : {}, String(cell ?? ""))),
-        h("td", { class: "price-row-sources" }, richText("", row.card_ids)))))));
+        h("td", { class: "chips-cell" }, richText("", row.card_ids)))))));
 }
 
 function renderCoverage(coverage) {
@@ -197,10 +287,8 @@ function renderCoverage(coverage) {
     ["Claims narrowed", "claims_narrowed"], ["Claims relabelled", "relabelled"],
   ].filter(([, key]) => coverage[key] != null);
   if (!metrics.length) return h("p", { class: "muted" }, "Coverage counts were not recorded for this report.");
-  return h("div", { class: "table-scroll coverage-scroll" }, h("table", { class: "coverage-table" },
-    h("caption", { class: "visually-hidden" }, "Evidence coverage counts"),
-    h("tbody", {}, metrics.map(([label, key]) => h("tr", {},
-      h("th", { scope: "row" }, label), h("td", { class: "num" }, String(coverage[key])))))));
+  return h("dl", { class: "stat-grid" }, metrics.map(([label, key]) => h("div", { class: "stat" },
+    h("dt", {}, label), h("dd", {}, String(coverage[key])))));
 }
 
 export function renderBriefDetails(brief) {
@@ -213,11 +301,11 @@ export function renderBriefDetails(brief) {
     ["Goal", brief.goal],
   ].filter(([, v]) => v);
   const questions = Array.isArray(brief.questions) ? brief.questions.filter(Boolean) : [];
-  return h("details", { class: "brief-details" },
-    h("summary", {}, "Your brief"),
-    h("dl", { class: "brief-dl" }, rows.map(([k, v]) => [h("dt", {}, k), h("dd", {}, String(v))])),
+  return h("div", { class: "brief-details" },
+    h("h3", { class: "subhead" }, "Your brief"),
+    h("dl", { class: "kv" }, rows.map(([k, v]) => h("div", {}, h("dt", {}, k), h("dd", {}, String(v))))),
     questions.length
-      ? [h("p", { class: "brief-q-title" }, "Questions researched"), h("ol", { class: "brief-q" }, questions.map((q) => h("li", {}, q)))]
+      ? [h("h3", { class: "subhead" }, "Questions researched"), h("ol", { class: "plain-list" }, questions.map((q) => h("li", {}, q)))]
       : null);
 }
 
@@ -227,29 +315,24 @@ function renderBudget(budget, richText) {
   const total = budget.total != null && Number.isFinite(Number(budget.total)) && Number(budget.total) >= 0
     ? Number(budget.total)
     : lines.reduce((sum, l) => sum + (Number(l.amount) || 0), 0);
-
-  const table = h("table", { class: "budget-table" },
-    h("caption", { class: "visually-hidden" }, `Budget in ${currency}`),
-    h("thead", {}, h("tr", {},
-      h("th", { scope: "col" }, "Item"),
-      h("th", { scope: "col", class: "num" }, "Amount"),
-      h("th", { scope: "col" }, "Kind"),
-      h("th", { scope: "col" }, "Basis"))),
-    h("tbody", {}, lines.map((line) => h("tr", {},
-      h("th", { scope: "row", class: "budget-item" }, line.item || ""),
-      h("td", { class: "num" }, fmtMoney(line.amount, currency)),
-      h("td", {}, kindBadge(line.kind)),
-      h("td", { class: "budget-basis" }, richText(isGenericAssumption(line) ? "Not backed by a quote — test it." : line.method || "", line.card_ids))))),
-    h("tfoot", {}, h("tr", {},
-      h("th", { scope: "row" }, "Total"),
-      h("td", { class: "num" }, fmtMoney(total, currency)),
-      h("td", {}),
-      h("td", {}))));
-
-  return [
-    h("p", { class: "table-hint", "aria-hidden": "true" }, "Scroll sideways for details."),
-    h("div", { class: "table-scroll", role: "region", "aria-label": "Budget table", tabindex: "0" }, table),
-  ];
+  return h("div", { class: "table-scroll", role: "region", "aria-label": "Budget table", tabindex: "0" },
+    h("table", { class: "data-table budget-table" },
+      h("caption", { class: "visually-hidden" }, `4-week budget in ${currency}`),
+      h("thead", {}, h("tr", {},
+        h("th", { scope: "col" }, "Item"),
+        h("th", { scope: "col", class: "num" }, "Amount"),
+        h("th", { scope: "col" }, "Kind"),
+        h("th", { scope: "col" }, "Basis"))),
+      h("tbody", {}, lines.map((line) => h("tr", {},
+        h("th", { scope: "row" }, line.item || ""),
+        h("td", { class: "num" }, fmtMoney(line.amount, currency)),
+        h("td", {}, kindBadge(line.kind)),
+        h("td", { class: "basis" }, richText(isGenericAssumption(line) ? "Not backed by a quote — test it." : line.method || "", line.card_ids))))),
+      h("tfoot", {}, h("tr", {},
+        h("th", { scope: "row" }, "Total"),
+        h("td", { class: "num" }, fmtMoney(total, currency)),
+        h("td", {}),
+        h("td", {})))));
 }
 
 function renderCostLine(result) {
@@ -269,11 +352,10 @@ function renderAbout(result) {
     const fmt = (n) => (Number(n) || 0).toLocaleString("en-US");
     parts.push(`${fmt(cost.input_tokens)} input and ${fmt(cost.output_tokens)} output tokens`);
   }
-
   const agents = list(result.agents).filter(Boolean);
   const agentTable = agents.length
     ? h("div", { class: "table-scroll", role: "region", "aria-label": "Agent timings", tabindex: "0" },
-        h("table", { class: "agents-table" },
+        h("table", { class: "data-table" },
           h("caption", { class: "visually-hidden" }, "Time each agent took"),
           h("thead", {}, h("tr", {},
             h("th", { scope: "col" }, "Agent"),
@@ -281,7 +363,7 @@ function renderAbout(result) {
             h("th", { scope: "col", class: "num" }, "Time"))),
           h("tbody", {}, agents.map((a) => h("tr", {},
             h("th", { scope: "row" }, a.name || "Agent"),
-            h("td", {}, statusPill(a.status)),
+            h("td", {}, statusChip(a.status)),
             h("td", { class: "num" }, a.seconds != null ? fmtSeconds(a.seconds) : "")))),
           Number(result.seconds) > 0
             ? h("tfoot", {}, h("tr", {},
@@ -290,45 +372,117 @@ function renderAbout(result) {
                 h("td", { class: "num" }, fmtSeconds(result.seconds))))
             : null))
     : null;
-
   return [
-    parts.length ? h("p", { class: "cost-detail" }, `${parts.join(", ")}.`) : null,
-    agentTable ? h("h3", {}, "Agents") : null,
+    parts.length ? h("p", { class: "muted" }, `${parts.join(", ")}.`) : null,
+    agentTable ? h("h3", { class: "subhead" }, "Agents") : null,
     agentTable,
   ];
 }
 
-// ---- Fact card side panel --------------------------------------------------
+// ---- Source hover card (preview on hover or keyboard focus) -------------------
+// WCAG 1.4.13: dismissible with Escape, hoverable (pointer can move onto it), persistent until
+// pointer/focus leaves. Touch devices skip the preview; a tap opens the full fact card.
+
+let hoverTimer = null;
+let hideTimer = null;
+let hoverAnchor = null;
+let escWired = false;
+const canHover = () => window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+
+// The card lives inside <main> (so it is inside a landmark) and is positioned absolutely
+// against it; <main> is a size container, which would also capture position: fixed.
+function hovercardEl() {
+  const mainEl = document.getElementById("main");
+  let el = document.getElementById("hovercard");
+  if (!el) {
+    el = h("div", { id: "hovercard", class: "hovercard", role: "tooltip", hidden: true });
+    el.addEventListener("mouseenter", () => clearTimeout(hideTimer));
+    el.addEventListener("mouseleave", () => scheduleHide());
+  }
+  if (el.parentElement !== mainEl) mainEl.append(el);
+  if (!escWired) {
+    escWired = true;
+    document.addEventListener("keydown", (ev) => {
+      const card = document.getElementById("hovercard");
+      if (ev.key === "Escape" && card && !card.hidden) hideHovercard();
+    });
+  }
+  return el;
+}
+
+function scheduleHide() {
+  clearTimeout(hideTimer);
+  hideTimer = setTimeout(hideHovercard, 180);
+}
+
+export function hideHovercard() {
+  clearTimeout(hoverTimer);
+  clearTimeout(hideTimer);
+  const el = document.getElementById("hovercard");
+  if (el) el.hidden = true;
+  if (hoverAnchor) hoverAnchor.removeAttribute("aria-describedby");
+  hoverAnchor = null;
+}
+
+function showHovercard(anchor, card, n) {
+  const el = hovercardEl();
+  if (!el || !anchor.isConnected) return;
+  clearTimeout(hideTimer);
+  if (hoverAnchor && hoverAnchor !== anchor) hoverAnchor.removeAttribute("aria-describedby");
+  hoverAnchor = anchor;
+  const quote = String(card.quote || "");
+  const parts = [
+    h("div", { class: "hovercard-head" },
+      h("span", { class: "source-n" }, String(n)),
+      h("span", { class: "source-domain" }, domainOf(card.url) || "Source"),
+      typeBadge(card.type), isStale(card) ? staleBadge() : null),
+    card.source_title ? h("p", { class: "hovercard-title" }, card.source_title) : null,
+    quote ? h("p", { class: "hovercard-quote" }, `“${quote.length > 220 ? `${quote.slice(0, 217)}…` : quote}”`) : null,
+    h("p", { class: "hovercard-foot" }, `Captured ${fmtDate(card.captured_at) || "date unknown"} · Select for the full fact card`),
+  ];
+  el.replaceChildren(...parts.filter(Boolean));
+  el.hidden = false;
+  anchor.setAttribute("aria-describedby", "hovercard");
+  // Rects are in zoomed pixels; offsets inside <main> are in CSS pixels.
+  const zoom = Number(document.documentElement.style.zoom || 1) || 1;
+  const r = anchor.getBoundingClientRect();
+  const m = el.parentElement.getBoundingClientRect();
+  const cw = el.offsetWidth;
+  const ch = el.offsetHeight;
+  const maxLeft = m.width / zoom - cw - 8;
+  const left = Math.max(8, Math.min(maxLeft, (r.left - m.left + r.width / 2) / zoom - cw / 2));
+  const fitsBelow = r.bottom + (ch + 16) * zoom < window.innerHeight;
+  const top = fitsBelow ? (r.bottom - m.top) / zoom + 8 : Math.max(8, (r.top - m.top) / zoom - ch - 8);
+  el.style.left = `${left}px`;
+  el.style.top = `${top}px`;
+}
+
+function attachHovercard(anchor, card, n) {
+  anchor.addEventListener("mouseenter", () => {
+    if (!canHover()) return;
+    clearTimeout(hoverTimer);
+    clearTimeout(hideTimer);
+    hoverTimer = setTimeout(() => showHovercard(anchor, card, n), 220);
+  });
+  anchor.addEventListener("mouseleave", () => {
+    clearTimeout(hoverTimer);
+    scheduleHide();
+  });
+  anchor.addEventListener("focus", () => {
+    if (anchor.matches(":focus-visible")) showHovercard(anchor, card, n);
+  });
+  anchor.addEventListener("blur", () => scheduleHide());
+}
+
+// ---- Fact card side sheet -----------------------------------------------------
 
 let panelReturnFocus = null;
 
 function panel() {
-  let dlg = document.getElementById("card-panel");
-  if (!dlg) {
-    dlg = h("dialog", { id: "card-panel", class: "panel" });
-    document.body.append(dlg);
-  }
+  const dlg = document.getElementById("card-panel");
   if (!dlg.dataset.wired) {
     dlg.dataset.wired = "1";
-    dlg.addEventListener("keydown", (ev) => {
-      if (ev.key === "Escape") {
-        ev.preventDefault();
-        dlg.close();
-        return;
-      }
-      if (ev.key !== "Tab") return;
-      const controls = [...dlg.querySelectorAll('button, a[href], input, select, textarea, [tabindex]:not([tabindex="-1"])')]
-        .filter((el) => !el.disabled && el.getClientRects().length);
-      const first = controls[0];
-      const last = controls[controls.length - 1];
-      if (ev.shiftKey && document.activeElement === first) {
-        ev.preventDefault();
-        last.focus();
-      } else if (!ev.shiftKey && document.activeElement === last) {
-        ev.preventDefault();
-        first.focus();
-      }
-    });
+    trapFocus(dlg);
     dlg.addEventListener("click", (ev) => {
       if (ev.target !== dlg) return;
       const r = dlg.getBoundingClientRect();
@@ -352,39 +506,30 @@ export function openCardPanel(card, n) {
   const dlg = panel();
   panelReturnFocus = document.activeElement;
   const stale = isStale(card);
-  const close = h("button", { type: "button", class: "icon-btn panel-close", "aria-label": "Close fact card", onclick: () => dlg.close() }, icon("close"));
-
+  const close = h("button", { type: "button", class: "icon-btn", "aria-label": "Close fact card", onclick: () => dlg.close() }, icon("close"));
   const notes = [];
-  if (stale) {
-    notes.push(h("p", { class: "note note-stale" },
-      `Over ${STALE_DAYS} days old. Check the source again.`));
-  }
-  if (card.type !== "sourced") {
-    notes.push(h("p", { class: "note note-unverified" },
-      "This quote did not match the captured page. Check it before use."));
-  }
+  if (stale) notes.push(h("p", { class: "note note-warn" }, `Captured over ${STALE_DAYS} days ago. Check the source again.`));
+  if (card.type !== "sourced") notes.push(h("p", { class: "note note-warn" }, "This quote did not match the captured page. Check it before use."));
 
   dlg.replaceChildren(
-    h("div", { class: "panel-inner" },
-      h("div", { class: "panel-head" },
+    h("div", { class: "sheet-inner" },
+      h("div", { class: "sheet-head" },
         h("p", { class: "eyebrow" }, n ? `Fact card ${n}` : "Fact card"),
         close),
       h("div", { class: "badge-row" },
         typeBadge(card.type),
         stale ? staleBadge() : null,
         card.direction ? h("span", { class: "tag" }, card.direction) : null),
-      h("h2", { class: "panel-claim", id: "card-panel-title" }, card.claim || "Untitled card"),
+      h("h2", { class: "sheet-title", id: "card-panel-title" }, card.claim || "Untitled card"),
       card.quote ? h("blockquote", { class: "quote quote-lg" }, h("p", {}, `“${card.quote}”`)) : null,
-      h("dl", { class: "panel-meta" },
-        h("dt", {}, "Source"),
-        h("dd", {},
-          externalLink(card.url, card.source_title || domainOf(card.url) || "Open source", "source-link"),
-          domainOf(card.url) ? h("span", { class: "source-domain" }, domainOf(card.url)) : null),
-        h("dt", {}, "Captured"),
-        h("dd", {}, fmtDate(card.captured_at) || "Unknown")),
+      h("dl", { class: "kv" },
+        h("div", {}, h("dt", {}, "Source"),
+          h("dd", {}, externalLink(card.url, card.source_title || domainOf(card.url) || "Open source", "source-link"),
+            domainOf(card.url) ? h("span", { class: "muted block" }, domainOf(card.url)) : null)),
+        h("div", {}, h("dt", {}, "Captured"), h("dd", {}, fmtDate(card.captured_at) || "Unknown")),
+        card.added_by ? h("div", {}, h("dt", {}, "Added by"), h("dd", {}, card.added_by)) : null),
       notes,
-      h("p", { class: "note note-help" }, SOURCED_NOTE))
-  );
+      h("p", { class: "note" }, SOURCED_NOTE)));
   dlg.setAttribute("aria-labelledby", "card-panel-title");
   if (!dlg.open) dlg.showModal();
   close.focus();
