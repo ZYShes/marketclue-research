@@ -83,6 +83,15 @@ export function friendlyError(err) {
   if (err.code === "daily_limit") {
     return "MarketClue has reached today's limit for new reports. Please try again tomorrow.";
   }
+  if (err.code === "smarter_owner_only") return "Smarter research is limited to owner accounts for now. Choose Quick instead.";
+  if (err.code === "mockups_disabled") return "Mock-ups are not available on this site.";
+  if (err.code === "mockup_limit") return "This report already has the maximum of 3 mock-ups.";
+  if (err.code === "invite_email_mismatch") {
+    return "This invite was sent to a different email address. Sign in with the Google account the invite was sent to.";
+  }
+  if (err.code === "invite_expired") return "This invite has expired. Ask the team owner for a new link.";
+  if (err.code === "invite_revoked") return "This invite was cancelled by the team owner.";
+  if (err.code === "already_in_team") return "You are already in a team. Leave it first to join another one.";
   if (err.status === 401) return "Your session has ended. Please sign in again.";
   return err.message;
 }

@@ -1,77 +1,85 @@
-import { h, svg, typeBadge, externalLink, fmtDate } from "./ui.js";
+// Signed-out landing page. Keeps the slogan "See the market differently." in the v3 visual language.
+import { h, kindBadge, typeBadge, externalLink, fmtDate } from "./ui.js";
 import { FEATURES } from "./features.js";
+import { toolIcon } from "./research.js";
 
-const TOOL_ICONS = {
-  market_check: '<circle cx="10" cy="10" r="6.5"/><path d="m15 15 6 6M7 10h6m-3-3v6"/>',
-  competitor_scan: '<path d="M4 20V10m5 10V4m6 16v-7m5 7V7M2 21h20"/>',
-  launch_checklist: '<rect x="4" y="3" width="16" height="19" rx="1"/><path d="m7 9 2 2 3-4m-5 9 2 2 3-4m3-5h2m-2 7h2"/>',
-  marketing_plan: '<path d="m3 10 15-6v16L3 14zM7 15l2 6h4l-2-5m10-6h2m-2 4h2"/>',
-};
-
-export function toolIcon(id) {
-  return svg(`<svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${TOOL_ICONS[id]}</svg>`);
-}
-
-export function toolJourney({ interactive = false, onChoose } = {}) {
-  return h("div", { class: `tool-journey${interactive ? " tool-journey-large" : ""}` },
-    FEATURES.map((feature, i) => {
-      const props = interactive
-        ? { href: `#/new/${feature.id}`, onclick: () => onChoose?.(feature.id) }
-        : {};
-      return h(interactive ? "a" : "article", { ...props, class: "tool-tile" },
-        h("div", { class: "journey-step" }, h("span", { class: "step-number" }, `0${i + 1}`), feature.step,
-          i < FEATURES.length - 1 ? h("span", { class: "journey-arrow", "aria-hidden": "true" }, "→") : null),
-        h("span", { class: "tool-icon" }, toolIcon(feature.id)),
-        h("h3", {}, feature.name),
-        h("p", {}, feature.question),
-        interactive ? h("span", { class: "tool-start" }, "Start a conversation", h("span", { "aria-hidden": "true" }, "↗")) : null);
-    }));
+function previewWindow() {
+  // A static, readable example of what a report looks like: a finding with numbered sources,
+  // an open source preview and a small labelled chart.
+  const bars = [["Cedar House", 48], ["Rainier Clay Studio", 54], ["Fern Pottery", 62]];
+  return h("figure", { class: "preview" },
+    h("div", { class: "preview-window" },
+      h("div", { class: "preview-bar", "aria-hidden": "true" }, h("span"), h("span"), h("span")),
+      h("div", { class: "preview-body" },
+        h("p", { class: "preview-eyebrow" }, "2 · Compare · Check competitors & prices"),
+        h("p", { class: "preview-title" }, "Handmade planter prices in Seattle"),
+        h("div", { class: "preview-finding" },
+          h("span", { class: "finding-number", "aria-hidden": "true" }, "1"),
+          h("div", {},
+            h("p", { class: "preview-finding-title" }, "Local sets cost $54 to $62"),
+            h("p", { class: "preview-text" }, kindBadge("sourced"), " Rainier Clay Studio lists a $54 set with a 2–3 week wait; Fern Pottery lists $62 with studio pickup. ",
+              h("span", { class: "chip chip-sourced chip-static" }, h("span", { class: "visually-hidden" }, "source "), "1"), " ",
+              h("span", { class: "chip chip-sourced chip-static" }, h("span", { class: "visually-hidden" }, "source "), "2")))),
+        h("div", { class: "preview-hover" },
+          h("p", { class: "preview-hover-head" }, h("span", { class: "source-n" }, "1"), "example.com", typeBadge("sourced")),
+          h("p", { class: "hovercard-quote" }, "“6-inch speckled stoneware planter with saucer: $54. Made to order.”")),
+        h("div", { class: "preview-chart" },
+          h("p", { class: "preview-chart-title" }, "Planter + saucer price by seller ", kindBadge("sourced")),
+          h("ul", { class: "mini-bars" }, bars.map(([label, value]) => h("li", {},
+            h("span", { class: "mini-label" }, label),
+            h("span", { class: "mini-track" }, h("span", { class: "mini-fill", style: `width: ${Math.round((value / 62) * 100)}%` })),
+            h("span", { class: "mini-value" }, `$${value}`))))))),
+    h("figcaption", {}, "Sample report: numbered sources open the exact quote, and charts carry their own labels and data."));
 }
 
 export function landingPage(signin, bootError) {
-  const captionTitle = h("h2", {}, "Start with a better question.");
-  const captionText = h("p", {}, "Compare a price. Explore a feature. Find a starting point.");
-  const hero = h("section", { class: "hero hero-ask", "aria-labelledby": "hero-title" },
-    h("div", { class: "hero-meta" }, h("span", {}, "AN INDEPENDENT VIEW OF YOUR MARKET"), h("span", {}, "VOL. 02 — FOUNDER RESEARCH")),
-    h("div", { class: "hero-type" },
-      h("h1", { id: "hero-title" }, "See the market", h("br"), h("em", {}, "differently.")),
-      h("p", { class: "hero-subline" }, "From scattered product information to a perspective you can explain."),
-      signin, h("p", { class: "hero-free" }, "Your first report is free.")),
-    h("div", { class: "lens-space", "aria-hidden": "true" },
-      h("div", { class: "lens-scene" },
-        h("div", { class: "axis axis-x" }), h("div", { class: "axis axis-y" }),
-        h("div", { class: "lens lens-back" }), h("div", { class: "lens lens-front" }), h("div", { class: "lens-core" }),
-        h("span", { class: "coordinate coordinate-a" }, "01 — QUESTION"),
-        h("span", { class: "coordinate coordinate-b" }, "02 — EVIDENCE"),
-        h("span", { class: "coordinate coordinate-c" }, "03 — PERSPECTIVE"))),
-    h("div", { class: "hero-bottom" }, h("span", {}, "LESS NOISE. MORE CONTEXT."), h("span", { "aria-hidden": "true" }, "↙ EXPLORE THE PROCESS")));
-  const stages = [
-    ["ask", "Ask", "Start with a better question.", "Compare a price. Explore a feature. Find a starting point."],
-    ["trace", "Trace", "Follow the evidence.", "Every finding leads back to a captured source."],
-    ["decide", "Decide", "Make room for judgment.", "See the limits, follow the sources, and choose your next step."],
-  ];
-  const controls = stages.map(([mode, label, title, text], i) => h("button", {
-    type: "button", "aria-pressed": String(i === 0), "aria-controls": "process-caption",
-    onclick: () => {
-      hero.className = `hero hero-${mode}`;
-      controls.forEach((button, index) => button.setAttribute("aria-pressed", String(index === i)));
-      captionTitle.textContent = title;
-      captionText.textContent = text;
-    },
-  }, h("span", {}, `0${i + 1}`), label));
-  return h("div", { class: "wrap page landing" },
-    bootError ? h("p", { class: "banner banner-error", role: "alert" }, bootError) : null,
-    h("div", { class: "hero-cover" }, hero,
-      h("div", { class: "process-switch", role: "group", "aria-label": "Explore the process" }, controls),
-      h("div", { id: "process-caption", class: "process-copy", role: "status", "aria-live": "polite" }, captionTitle, captionText)),
-    h("section", { class: "landing-tools", "aria-labelledby": "tools-title" },
-      h("h2", { id: "tools-title" }, "Four tools for one founder"), toolJourney()),
-    h("figure", { class: "specimen" },
-      h("div", { class: "fact fact-specimen" },
-        h("div", { class: "badge-row" }, typeBadge("sourced"), h("span", { class: "tag" }, "Sales channels & fees")),
-        h("p", { class: "fact-claim" }, "Etsy charges $0.20 to publish a listing."),
-        h("blockquote", { class: "quote" }, h("p", {}, "“It costs $0.20 to publish a listing to the marketplace. A listing lasts for four months or until the item is sold.”")),
-        h("p", { class: "fact-source" }, externalLink("https://www.etsy.com/sell", "How to sell on Etsy"),
-          h("span", { class: "sample-date" }, `Captured ${fmtDate("2026-10-17T04:21:58Z")}`))),
-      h("figcaption", {}, "Every sourced finding links to a quote, a page, and a capture date.")));
+  return h("div", { class: "landing" },
+    bootError ? h("p", { class: "callout callout-error", role: "alert" }, bootError) : null,
+    h("section", { class: "hero", "aria-labelledby": "hero-title" },
+      h("div", { class: "hero-copy" },
+        h("p", { class: "pill" }, "Market research you can check"),
+        h("h1", { id: "hero-title", tabindex: "-1" }, "See the market ", h("em", {}, "differently.")),
+        h("p", { class: "hero-sub" },
+          "Tell MarketClue what you are building. Agents read public pages and return a short report where every statement is Sourced, an Assumption or an Estimate."),
+        h("div", { class: "hero-cta", id: "signin-area" }, signin),
+        h("p", { class: "fine" }, "Your first report is free. No card needed.")),
+      previewWindow()),
+
+    h("section", { class: "landing-section", "aria-labelledby": "journey-title" },
+      h("p", { class: "eyebrow" }, "Four tools, one journey"),
+      h("h2", { id: "journey-title" }, "From first question to first customers."),
+      h("ol", { class: "journey" }, FEATURES.map((f) => h("li", { class: "journey-step" },
+        h("p", { class: "journey-stage" }, h("span", { class: "tool-step" }, String(f.n)), f.stage),
+        h("span", { class: "tool-icon" }, toolIcon(f.id)),
+        h("h3", {}, f.name),
+        h("p", { class: "muted" }, f.question))))),
+
+    h("section", { class: "landing-section trust", "aria-labelledby": "trust-title" },
+      h("div", { class: "trust-copy" },
+        h("p", { class: "eyebrow" }, "Every claim is checkable"),
+        h("h2", { id: "trust-title" }, "Evidence first. Judgment stays yours."),
+        h("dl", { class: "kind-list" },
+          h("div", {}, h("dt", {}, kindBadge("sourced")), h("dd", {}, "The exact quote was found on the page we captured, with the link and date.")),
+          h("div", {}, h("dt", {}, kindBadge("assumption")), h("dd", {}, "No checked quote backs it. Each report says how to test it.")),
+          h("div", {}, h("dt", {}, kindBadge("estimate")), h("dd", {}, "Calculated from sourced numbers, with the method written out.")))),
+      h("figure", { class: "specimen" },
+        h("article", { class: "fact surface" },
+          h("div", { class: "badge-row" }, typeBadge("sourced"), h("span", { class: "tag" }, "Sales channels & fees")),
+          h("p", { class: "fact-claim" }, "Etsy charges $0.20 to publish a listing."),
+          h("blockquote", { class: "quote" }, h("p", {}, "“It costs $0.20 to publish a listing to the marketplace. A listing lasts for four months or until the item is sold.”")),
+          h("p", { class: "fact-source" }, externalLink("https://www.etsy.com/sell", "How to sell on Etsy", "source-link"),
+            h("span", { class: "muted" }, ` · captured ${fmtDate("2026-10-17T04:21:58Z")}`))),
+        h("figcaption", {}, "A real fact card: quote, page and capture date. Sourced shows the quote is on the page, not that the page is right."))),
+
+    h("section", { class: "landing-section closing", "aria-labelledby": "closing-title" },
+      h("h2", { id: "closing-title" }, "Start with one good question."),
+      h("p", { class: "muted" }, "Three questions from the research lead, a few minutes of reading, one report you can check line by line."),
+      h("button", {
+        type: "button", class: "btn btn-primary btn-lg",
+        onclick: () => {
+          const area = document.getElementById("signin-area");
+          area?.scrollIntoView({ block: "center" });
+          area?.querySelector("button, [role=button], iframe")?.focus();
+        },
+      }, "Get started")));
 }

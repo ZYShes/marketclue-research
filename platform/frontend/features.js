@@ -1,11 +1,47 @@
-// One ordered catalog for the founder journey and conversation entry points.
+// The four research tools in journey order (SPEC v3: Discover → Compare → Prepare → Grow).
 export const FEATURES = [
-  { id: "market_check", step: "Validate", name: "Market check", question: "Who buys, and what do they say?", greeting: "Tell me what you are building and who you think will buy it." },
-  { id: "competitor_scan", step: "Price", name: "Competitor & price scan", question: "Who sells this, and for how much?", greeting: "Tell me what you sell, where you sell it, and any competitors you want to compare." },
-  { id: "launch_checklist", step: "Launch", name: "Launch checklist", question: "What do I need before I sell?", greeting: "Tell me what you sell and in which city and state." },
-  { id: "marketing_plan", step: "Grow", name: "Marketing plan & budget", question: "How do I get my first customers?", greeting: "Tell me what you sell, who it is for, and your budget for the first four weeks." },
+  {
+    id: "market_check", n: 1, stage: "Discover", name: "Find your customers", short: "Customers",
+    question: "Who buys, and what do they say?",
+    greeting: "Tell me what you are building and who you think will buy it.",
+    placeholder: "For example: Handmade stoneware planters for Seattle plant lovers.",
+  },
+  {
+    id: "competitor_scan", n: 2, stage: "Compare", name: "Check competitors & prices", short: "Competitors",
+    question: "Who sells this, and for how much?",
+    greeting: "Tell me what you sell, where you sell it, and any competitors you want to compare.",
+    placeholder: "For example: 6-inch planters with saucers, sold in Seattle and online.",
+  },
+  {
+    id: "launch_checklist", n: 3, stage: "Prepare", name: "Get ready to sell", short: "Launch",
+    question: "What do I need before I sell?",
+    greeting: "Tell me what you sell and in which city and state.",
+    placeholder: "For example: Planters made in my home studio, sold at Seattle markets.",
+  },
+  {
+    id: "marketing_plan", n: 4, stage: "Grow", name: "Get your first customers", short: "Growth",
+    question: "Which channels, and what will it cost?",
+    greeting: "Tell me what you sell, who it is for, and your budget for the first four weeks.",
+    placeholder: "For example: Planters for Seattle plant owners, $600 for the first month.",
+  },
 ];
+
+export const DEFAULT_FEATURE = "market_check";
+
+export function isFeature(id) {
+  return FEATURES.some((feature) => feature.id === id);
+}
 
 export function featureById(id) {
   return FEATURES.find((feature) => feature.id === id) || FEATURES.find((feature) => feature.id === "marketing_plan");
 }
+
+export function stageLabel(feature) {
+  return `${feature.n} · ${feature.stage}`;
+}
+
+// Effort modes (SPEC v3 "Effort: Quick ↔ Smarter").
+export const MODES = {
+  quick: { id: "quick", name: "Quick", time: "about 1½ min", cost: "about $0.35", detail: "Fast model, up to 3 research directions" },
+  smarter: { id: "smarter", name: "Smarter", time: "about 3 min", cost: "about $2–2.50", detail: "Strongest model, up to 4 directions, more pages" },
+};

@@ -3,33 +3,38 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>MarketClue · Market research you can check</title>
-  <meta name="description" content="Sourced market research, a marketing plan and a budget for solo founders. Every statement links to the exact quote it rests on, or is labelled as an assumption or an estimate.">
-  <meta name="theme-color" content="#F4F2EA">
+  <title>MarketClue · See the market differently</title>
+  <meta name="description" content="Market research you can check, for solo founders. Every statement links to the exact quote it rests on, or is labelled as an assumption or an estimate.">
+  <meta name="theme-color" content="#FBFAF7">
   <meta name="color-scheme" content="light">
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23F4F2EA'/%3E%3Ccircle cx='16' cy='16' r='10.5' fill='none' stroke='%23242522' stroke-width='2.5'/%3E%3Cpath d='M16 5.5A10.5 10.5 0 0 0 16 26.5Z' fill='%23B13C1C'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="report.css">
   <link rel="stylesheet" href="landing.css">
-  <link rel="stylesheet" href="report-v2.css">
   <script src="config.js"></script>
   <script type="module" src="app.js"></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
-  <header class="site-header" id="site-header"></header>
-  <main id="main" tabindex="-1">
-    <noscript>
-      <div class="wrap page"><p>MarketClue needs JavaScript to run. Please turn it on and reload the page.</p></div>
-    </noscript>
-  </main>
-  <footer class="site-footer">
-    <div class="wrap footer-inner">
-      <p>MarketClue · Built by Yuexizi Zhang</p>
-      <p class="mock-note" id="mock-note" hidden>Mock mode: sample data, not a real account</p>
+  <div class="shell shell-public" id="shell">
+    <header class="topbar" id="topbar"></header>
+    <nav class="sidebar" id="sidebar" aria-label="Main" hidden></nav>
+    <div class="sidebar-backdrop" id="sidebar-backdrop" hidden></div>
+    <div class="content" id="content">
+      <main id="main" tabindex="-1">
+        <noscript>
+          <div class="page"><p>MarketClue needs JavaScript to run. Please turn it on and reload the page.</p></div>
+        </noscript>
+      </main>
+      <footer class="site-footer">
+        <p>MarketClue · Built by Yuexizi Zhang</p>
+        <p class="mock-note" id="mock-note" hidden>Mock mode: sample data, not a real account</p>
+      </footer>
     </div>
-  </footer>
-  <dialog id="card-panel" class="panel"></dialog>
-  <dialog id="reading-dialog" class="reading-dialog" aria-labelledby="reading-dialog-title"></dialog>
+  </div>
+  <dialog id="card-panel" class="sheet"></dialog>
+  <dialog id="reading-dialog" class="dialog" aria-labelledby="reading-dialog-title"></dialog>
+  <div id="hovercard" class="hovercard" role="tooltip" hidden></div>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <div id="live" class="visually-hidden" aria-live="polite"></div>
 </body>
