@@ -515,17 +515,17 @@ Fact cards tabs. Not built: folders, nested projects, file uploads, instructions
 | `USER#<owner>` or `TEAM#<team_id>` | `PROJECT#<id>` | list row: project_id, name, owner_sub, team_id, archived, created_at, updated_at (personal projects under the owner, team projects under the team) |
 | `PROJECT#<id>` | `RUN#<created_at>#<run_id>` | run row: run_id, user_sub, title, status, feature, mode, template, created_at, takeaway (≤300 chars, set when done; also kept on run META so a later move carries it) |
 | `USER#<sub>` | `TEAMMEMBER#<team_id>` | team_id, role owner/member, joined_at (replaces PROFILE.team_id; `TEAM#<id>/MEMBER#<sub>` stays) |
-| `USER#<sub>` | `PROFILE` | + projects_created (counts toward the 50-project limit; archiving does not free a slot) |
 
 `project_id` (or null) is stored on conversations, run META, the user's run index row, and the project run
-row; `result.project` is set for runs with a project. Limits: 10 teams per person (`team_limit` 429),
-50 projects created per person (`project_limit` 429).
+row; `result.project` is set for runs with a project. Limits: 10 teams per person (`team_limit` 429) and
+**10 live projects per owner** (`project_limit` 429): live = not archived, personal and team projects the person
+owns. Archiving frees a slot; creating or un-archiving a project checks the owner's live count.
 
 ## Visibility
 
 - Personal project: its owner only. Team project: every current member of the team (sees the project, its
-  done reports read-only and its fact cards, may start research in it). If the project's creator leaves the
-  team, the project stays with the team.
+  done reports read-only and its fact cards, may start research in it). A team project always has an owner
+  who is in the team (see "Leaving a team").
 - Runs that are not done and all conversations stay private to their author, inside a project too.
 - A done run is readable by its author and by everyone who can see the run's project. Unfiled runs are private;
   team sharing is per project.
@@ -575,8 +575,30 @@ row; `result.project` is set for runs with a project. Limits: 10 teams per perso
   `POST /api/teams/{id}/leave`, `GET /api/teams/{id}/runs`, `GET /api/teams/{id}/cards` (runs and cards of that
   team's projects only). `POST /api/team/join {token}` joins any number of teams up to the limit. The old
   `/api/team...` routes keep working on the first team joined.
+- `GET /api/projects/{id}/runs` → `{runs}` (the same rows as the detail's `runs`), for report lists filtered
+  by project.
 - Errors: `project_not_found` 404, `project_owner_only` 403, `project_limit` 429, `team_limit` 429, `no_team`
-  404 (a team you are not in).
+  404 (a team you are not in), `new_owner_required` 400, `invalid_new_owner` 400.
+
+## Leaving a team (handover)
+
+- `POST /api/teams/{id}/leave {new_owner_sub?}` (and the legacy `/api/team/leave`). When the person leaving is
+  the team owner, or owns projects in this team (live or archived), `new_owner_sub` is required (400
+  `new_owner_required`): another current member (else 400 `invalid_new_owner`). That member becomes the team
+  owner (if the leaver owned the team) and the owner of all the leaver's projects in this team. If that would
+  give them more than 10 live projects → 429 `project_limit` and nothing changes. A team owner who is the only
+  member still cannot leave (403 `owner_cannot_leave`).
+- `GET /api/teams/{id}` adds `leaving: {needs_new_owner, projects: [{project_id, name, archived}]}` for the
+  viewer, so the UI knows whether to show the "Who takes over?" dialog and what moves.
+- `DELETE /api/teams/{id}/members/{sub}` (team owner): the removed member's projects in this team go to the
+  team owner; any that would take the team owner over 10 live projects are archived on the way (nothing is
+  lost, they can be un-archived after archiving another).
+
+## Viewing reports and fact cards by team or project
+
+My reports and the Fact library have one scope picker: "Mine", each of the person's teams (that team's
+project reports and cards: `GET /api/teams/{id}/runs`, `/cards`) and each visible project
+(`GET /api/projects/{id}/runs`, `/cards`). The legacy first-team routes stay for old clients.
 
 ## Migration (`infra/migrate_projects.py`, idempotent, `--dry-run`)
 
