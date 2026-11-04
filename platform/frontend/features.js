@@ -42,6 +42,6 @@ export function stageLabel(feature) {
 
 // Effort modes (SPEC v3 "Effort: Quick ↔ Smarter").
 export const MODES = {
-  quick: { id: "quick", name: "Quick", time: "about 1½ min", cost: "about $0.35", detail: "Fast model, up to 3 research directions" },
-  smarter: { id: "smarter", name: "Smarter", time: "about 3 min", cost: "about $2–2.50", detail: "Strongest model, up to 4 directions, more pages" },
+  quick: { id: "quick", name: "Quick", time: "1½ min", cost: "about $0.35", detail: "Fast model, up to 3 research directions" },
+  smarter: { id: "smarter", name: "Smarter", time: "3 min", cost: "about $2–2.50", detail: "Strongest model, up to 4 directions, more pages" },
 };

@@ -14,6 +14,7 @@ const SHOTS = path.join(OUT, "screenshots");
 const AXE_CDN = "https://cdnjs.cloudflare.com/ajax/libs/axe-core/4.10.2/axe.min.js";
 const AXE_PATH = process.env.AXE_PATH;
 const WIDTHS = (process.env.WIDTHS || "1280,375").split(",").map(Number);
+const SCALE = Number(process.env.SCALE || 1); // 2 for crisp review copies; 1 keeps the committed set small
 const PREFS = { largerText: false, extraSpacing: false, reduceMotion: true, zoom: 100 };
 fs.mkdirSync(SHOTS, { recursive: true });
 
@@ -79,7 +80,7 @@ async function checks(page, width) {
 async function snap(page, name, width, { fullPage = true } = {}) {
   await wait(250);
   const file = `${name}-${width}.jpg`;
-  await page.screenshot({ path: path.join(SHOTS, file), fullPage, type: "jpeg", quality: 82 });
+  await page.screenshot({ path: path.join(SHOTS, file), fullPage, type: "jpeg", quality: 85 });
   const res = await checks(page, width);
   report.pages.push({ name, file, url: page.url().replace(/^.*index\.html/, ""), ...res });
   const flags = [
@@ -93,7 +94,7 @@ async function snap(page, name, width, { fullPage = true } = {}) {
 async function newContext(browser, width, { prefs = PREFS } = {}) {
   const ctx = await browser.newContext({
     viewport: { width, height: width < 600 ? 812 : 860 },
-    deviceScaleFactor: 2,
+    deviceScaleFactor: SCALE,
     hasTouch: width < 600,
     isMobile: width < 600,
     reducedMotion: "reduce",
@@ -150,7 +151,7 @@ async function run(width) {
     await go(page, "/c/conv-ready-01");
     await snap(page, "08-conversation-ready", width);
     await page.click("label[for=mode-smarter]");
-    await page.click("text=Start research");
+    await page.click("button:has-text('Start research')");
     await wait(4500);
     await snap(page, "09-run-progress", width);
 

@@ -73,7 +73,7 @@ export function viewRun(runId, isCurrent) {
     if (failed) statusLine = "This run stopped before it finished.";
     else if (run.status === "queued") statusLine = "Waiting for a research worker…";
     else if (run.status === "done") statusLine = "Finished. Loading the report…";
-    else statusLine = `Research in progress${mode ? ` (${mode.name}, ${mode.time})` : ""}. You can leave this page; the report appears in Recent when it is ready.`;
+    else statusLine = `Research in progress${mode ? ` (${mode.name}, usually ${mode.time})` : ""}. You can leave this page; the report appears in Recent when it is ready.`;
     const { stages, idx } = stageList(run);
     const pct = run.status === "done" ? 100 : Math.max(4, Math.round(((idx < 0 ? 0 : idx) / (stages.length - 1)) * 100));
 
