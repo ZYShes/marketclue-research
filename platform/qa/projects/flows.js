@@ -279,6 +279,142 @@ const text = (page, sel) => page.locator(sel).first().innerText();
     await ctx.close();
   }
 
+  // 7. My reports: one scope picker — Mine, each team, each project; remembered; stale scopes fall back to Mine.
+  {
+    const { ctx, page } = await context(browser);
+    await signIn(page);
+    await go(page, "/runs", "", 1200);
+    const label = await page.locator("label[for='reports-scope']").innerText();
+    check(label === "Show reports from", "My reports has a labelled scope picker");
+    const options = await page.locator("#reports-scope option").allInnerTexts();
+    check(options[0] === "Mine" && options.includes("Team · Clay & Leaf Studio") && options.includes("Team · North Market Makers"),
+      "scope picker offers Mine and both teams");
+    check(options.includes("Project · Handmade ceramic planters") && options.includes("Project · Market stall planters")
+      && !options.some((o) => o.includes("Wheel-throwing")), "scope picker offers visible live projects, not archived ones");
+    check(await page.locator(".toggle-btn").count() === 0, "the old Mine | Team toggle is gone");
+    const mineList = await text(page, ".list-body");
+    check(mineList.includes("Who buys glaze workshops") && mineList.includes("First customers for handmade planters")
+      && !mineList.includes("(Sam)"), "Mine lists your own reports, filed or not, and nobody else's");
+    await page.selectOption("#reports-scope", "team:team-clay");
+    await wait(800);
+    check(page.url().includes("scope=team%3Ateam-clay"), "the chosen team is kept in the address");
+    const teamList = await text(page, ".list-body");
+    check(teamList.includes("by Riley Chen") && teamList.includes("comparable listings"), "a team scope lists finished reports in that team's projects, with their author");
+    check(!teamList.includes("Who buys glaze workshops"), "a team scope leaves out unfiled reports");
+    check(!teamList.includes("by Demo Founder"), "your own reports in a team scope are not labelled “by” you");
+    check((await text(page, ".scope-picker .field-hint")).includes("Clay & Leaf Studio"), "the hint says whose reports are shown");
+    await page.selectOption("#reports-scope", "project:proj-planters");
+    await wait(800);
+    check(await page.locator(".list-body .row-list > li").count() === 4, "a project scope lists that project's reports (done + your own running)");
+    await go(page, "/runs", "", 1200);
+    check((await page.inputValue("#reports-scope")) === "project:proj-planters", "the last scope is remembered after leaving the page");
+    await go(page, "/runs?scope=project:nope", "", 1200);
+    check((await page.inputValue("#reports-scope")) === "mine", "a scope that no longer exists falls back to Mine");
+    await page.focus("#reports-scope");
+    await page.keyboard.press("ArrowDown");
+    await wait(800);
+    check((await page.inputValue("#reports-scope")) !== "mine", "the scope picker works from the keyboard");
+    await ctx.close();
+  }
+
+  // 8. Fact library: the same picker; filters work inside the chosen scope.
+  {
+    const { ctx, page } = await context(browser);
+    await signIn(page);
+    await go(page, "/library", "", 1200);
+    check((await page.locator("label[for='lib-scope']").innerText()) === "Show fact cards from", "Fact library has a labelled scope picker");
+    await page.selectOption("#lib-scope", "project:proj-ebay");
+    await wait(900);
+    const all = await page.locator(".card-grid > li").count();
+    check(all > 0 && (await text(page, ".library-results")).includes("Added by"), `a project scope lists the project's fact cards with who added them (${all})`);
+    await page.selectOption("#lib-type", "unverified");
+    await wait(700);
+    const unverified = await page.locator(".card-grid > li").count();
+    check(unverified < all, `the type filter narrows cards inside the project (${unverified} of ${all})`);
+    await page.selectOption("#lib-scope", "team:team-north");
+    await wait(900);
+    check((await text(page, ".library-results")).includes("No fact cards in this team's projects yet"), "a team without finished reports says so");
+    check((await page.inputValue("#lib-type")) === "", "changing the scope clears the filters");
+    await ctx.close();
+  }
+
+  // 9. Leaving a team: a project owner picks who takes over; 429 when that member already has 10 live projects.
+  {
+    const { ctx, page } = await context(browser);
+    await signIn(page);
+    await go(page, "/team?team=team-north", "&limit=riley", 1300);
+    await page.click("button:has-text('Leave team')");
+    await wait(500);
+    check(await page.locator("#leave-dialog[open]").isVisible(), "Leave team opens a dialog");
+    check(await page.evaluate(() => document.activeElement?.id === "leave-heir"), "focus starts on Who takes over?");
+    check((await page.locator("label[for='leave-heir']").innerText()) === "Who takes over?", "the member select is labelled “Who takes over?”");
+    const heirs = await page.locator("#leave-heir option").allInnerTexts();
+    check(heirs.length === 3 && heirs.some((t) => t.startsWith("Riley Chen")) && heirs.some((t) => t.startsWith("Jordan Lee")), "it offers the other members");
+    check((await text(page, ".leave-moves")).includes("Market stall planters"), "it lists the projects that move");
+    await page.click("#leave-dialog button:has-text('Leave team')");
+    await wait(300);
+    check((await text(page, "#leave-error")).includes("Choose who takes over"), "leaving without choosing asks who takes over");
+    await page.selectOption("#leave-heir", "demo-riley");
+    await page.click("#leave-dialog button:has-text('Leave team')");
+    await wait(600);
+    const limitError = await text(page, "#leave-error");
+    check(limitError.includes("Riley Chen already has 10 live projects") && limitError.includes("Choose someone else"),
+      "a member at 10 live projects is refused, with a hint to pick someone else");
+    check(await page.locator("#leave-dialog[open]").isVisible() && (await page.getAttribute("#leave-heir", "aria-invalid")) === "true",
+      "the dialog stays open on the refusal");
+    await page.selectOption("#leave-heir", "demo-jordan");
+    await page.click("#leave-dialog button:has-text('Leave team')");
+    await wait(1200);
+    check(await page.locator("#leave-dialog").isHidden(), "the dialog closes after leaving");
+    check((await text(page, "#toast")).includes("Jordan Lee takes over"), "a toast says who took over");
+    check(await page.locator("#team-select").count() === 0 && (await text(page, "h1")) === "Clay & Leaf Studio", "the person is now in one team");
+    check(!(await text(page, ".sb-projects")).includes("Market stall planters"), "the handed-over project leaves the sidebar");
+    await ctx.close();
+  }
+  {
+    const { ctx, page } = await context(browser);
+    await signIn(page);
+    await go(page, "/team?team=team-clay", "", 1300);
+    const remove = page.locator(".member-row button:has-text('Remove')").first();
+    await remove.click();
+    await wait(400);
+    check((await text(page, "#confirm-body")).includes("move to you"), "removing a member says their projects move to the team owner");
+    await page.keyboard.press("Escape");
+    await page.click("button:has-text('Leave team')");
+    await wait(500);
+    const moves = await text(page, ".leave-moves");
+    check(moves.includes("Ownership of the team") && moves.includes("Planters on eBay"), "a team owner hands over the team and their projects in it");
+    await page.selectOption("#leave-heir", "demo-riley");
+    await page.click("#leave-dialog button:has-text('Leave team')");
+    await wait(1200);
+    check((await text(page, "h1")) === "North Market Makers", "after handing over, the former owner sees their other team");
+    check(!(await text(page, ".sb-projects")).includes("Planters on eBay"), "the former owner no longer sees the handed-over team project");
+    await ctx.close();
+  }
+
+  // 10. 10 live projects: creating or restoring one at the limit is refused with a hint to archive.
+  {
+    const { ctx, page } = await context(browser);
+    await signIn(page);
+    await go(page, "/new", "&projects=limit", 1000);
+    await page.click(".sb-add");
+    await wait(400);
+    await page.fill("#npd-name", "An eleventh idea");
+    await page.click("#new-project-dialog button:has-text('Create project')");
+    await wait(600);
+    const createError = await text(page, "#new-project-dialog .form-error");
+    check(createError.includes("10 live projects") && /archive/i.test(createError), "creating an 11th live project is refused with a hint to archive one");
+    await page.keyboard.press("Escape");
+    await go(page, "/p/proj-classes", "&projects=limit", 1200);
+    await page.click("button:has-text('Project settings')");
+    await wait(400);
+    await page.click("#project-settings button:has-text('Restore project')");
+    await wait(600);
+    const restoreError = await text(page, "#project-settings .form-error");
+    check(restoreError.includes("10 live projects"), "restoring an archived project at the limit is refused");
+    await ctx.close();
+  }
+
   // 6. Screenshots with axe, horizontal scroll and target-size checks at both widths.
   for (const width of [1280, 375]) {
     const { ctx, page } = await context(browser, width);
@@ -304,6 +440,17 @@ const text = (page, sel) => page.locator(sel).first().innerText();
     await page.click("button:has-text('Project settings')");
     await wait(600);
     await snap(page, "07-project-settings", width, { fullPage: false });
+    await page.keyboard.press("Escape");
+    await go(page, "/runs?scope=team:team-clay", "", 1200);
+    await snap(page, "10-reports-scope-team", width);
+    await go(page, "/library?scope=project:proj-ebay", "", 1300);
+    await snap(page, "11-library-scope-project", width);
+    await go(page, "/team?team=team-north", "&limit=riley", 1200);
+    await page.click("button:has-text('Leave team')");
+    await page.selectOption("#leave-heir", "demo-riley");
+    await page.click("#leave-dialog button:has-text('Leave team')");
+    await wait(700);
+    await snap(page, "12-leave-dialog-handover", width, { fullPage: false });
     await page.keyboard.press("Escape");
     if (width < 600) {
       await go(page, "/new", "", 900);

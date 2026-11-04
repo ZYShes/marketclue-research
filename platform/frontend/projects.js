@@ -222,7 +222,7 @@ export function newProjectForm({ idPrefix = "np", onCreated, onCancel = null, au
   return form;
 }
 
-function dialogShell(id, title) {
+export function dialogShell(id, title) {
   let dlg = document.getElementById(id);
   if (!dlg) {
     dlg = h("dialog", { id, class: "dialog dialog-sm", "aria-labelledby": `${id}-title` });

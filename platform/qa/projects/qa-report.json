@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-04T04:29:08.707Z",
+  "generated_at": "2026-11-04T05:06:28.498Z",
   "axe_source": "local npm copy (CDN blocked)",
   "checks": [
     {
@@ -264,6 +264,154 @@
     },
     {
       "ok": true,
+      "label": "My reports has a labelled scope picker"
+    },
+    {
+      "ok": true,
+      "label": "scope picker offers Mine and both teams"
+    },
+    {
+      "ok": true,
+      "label": "scope picker offers visible live projects, not archived ones"
+    },
+    {
+      "ok": true,
+      "label": "the old Mine | Team toggle is gone"
+    },
+    {
+      "ok": true,
+      "label": "Mine lists your own reports, filed or not, and nobody else's"
+    },
+    {
+      "ok": true,
+      "label": "the chosen team is kept in the address"
+    },
+    {
+      "ok": true,
+      "label": "a team scope lists finished reports in that team's projects, with their author"
+    },
+    {
+      "ok": true,
+      "label": "a team scope leaves out unfiled reports"
+    },
+    {
+      "ok": true,
+      "label": "your own reports in a team scope are not labelled “by” you"
+    },
+    {
+      "ok": true,
+      "label": "the hint says whose reports are shown"
+    },
+    {
+      "ok": true,
+      "label": "a project scope lists that project's reports (done + your own running)"
+    },
+    {
+      "ok": true,
+      "label": "the last scope is remembered after leaving the page"
+    },
+    {
+      "ok": true,
+      "label": "a scope that no longer exists falls back to Mine"
+    },
+    {
+      "ok": true,
+      "label": "the scope picker works from the keyboard"
+    },
+    {
+      "ok": true,
+      "label": "Fact library has a labelled scope picker"
+    },
+    {
+      "ok": true,
+      "label": "a project scope lists the project's fact cards with who added them (15)"
+    },
+    {
+      "ok": true,
+      "label": "the type filter narrows cards inside the project (0 of 15)"
+    },
+    {
+      "ok": true,
+      "label": "a team without finished reports says so"
+    },
+    {
+      "ok": true,
+      "label": "changing the scope clears the filters"
+    },
+    {
+      "ok": true,
+      "label": "Leave team opens a dialog"
+    },
+    {
+      "ok": true,
+      "label": "focus starts on Who takes over?"
+    },
+    {
+      "ok": true,
+      "label": "the member select is labelled “Who takes over?”"
+    },
+    {
+      "ok": true,
+      "label": "it offers the other members"
+    },
+    {
+      "ok": true,
+      "label": "it lists the projects that move"
+    },
+    {
+      "ok": true,
+      "label": "leaving without choosing asks who takes over"
+    },
+    {
+      "ok": true,
+      "label": "a member at 10 live projects is refused, with a hint to pick someone else"
+    },
+    {
+      "ok": true,
+      "label": "the dialog stays open on the refusal"
+    },
+    {
+      "ok": true,
+      "label": "the dialog closes after leaving"
+    },
+    {
+      "ok": true,
+      "label": "a toast says who took over"
+    },
+    {
+      "ok": true,
+      "label": "the person is now in one team"
+    },
+    {
+      "ok": true,
+      "label": "the handed-over project leaves the sidebar"
+    },
+    {
+      "ok": true,
+      "label": "removing a member says their projects move to the team owner"
+    },
+    {
+      "ok": true,
+      "label": "a team owner hands over the team and their projects in it"
+    },
+    {
+      "ok": true,
+      "label": "after handing over, the former owner sees their other team"
+    },
+    {
+      "ok": true,
+      "label": "the former owner no longer sees the handed-over team project"
+    },
+    {
+      "ok": true,
+      "label": "creating an 11th live project is refused with a hint to archive one"
+    },
+    {
+      "ok": true,
+      "label": "restoring an archived project at the limit is refused"
+    },
+    {
+      "ok": true,
       "label": "01-project-page @1280: no axe violations"
     },
     {
@@ -345,6 +493,42 @@
     {
       "ok": true,
       "label": "07-project-settings @1280: no targets under 44 px"
+    },
+    {
+      "ok": true,
+      "label": "10-reports-scope-team @1280: no axe violations"
+    },
+    {
+      "ok": true,
+      "label": "10-reports-scope-team @1280: no horizontal scroll"
+    },
+    {
+      "ok": true,
+      "label": "10-reports-scope-team @1280: no targets under 44 px"
+    },
+    {
+      "ok": true,
+      "label": "11-library-scope-project @1280: no axe violations"
+    },
+    {
+      "ok": true,
+      "label": "11-library-scope-project @1280: no horizontal scroll"
+    },
+    {
+      "ok": true,
+      "label": "11-library-scope-project @1280: no targets under 44 px"
+    },
+    {
+      "ok": true,
+      "label": "12-leave-dialog-handover @1280: no axe violations"
+    },
+    {
+      "ok": true,
+      "label": "12-leave-dialog-handover @1280: no horizontal scroll"
+    },
+    {
+      "ok": true,
+      "label": "12-leave-dialog-handover @1280: no targets under 44 px"
     },
     {
       "ok": true,
@@ -441,6 +625,42 @@
     {
       "ok": true,
       "label": "07-project-settings @375: no targets under 44 px"
+    },
+    {
+      "ok": true,
+      "label": "10-reports-scope-team @375: no axe violations"
+    },
+    {
+      "ok": true,
+      "label": "10-reports-scope-team @375: no horizontal scroll"
+    },
+    {
+      "ok": true,
+      "label": "10-reports-scope-team @375: no targets under 44 px"
+    },
+    {
+      "ok": true,
+      "label": "11-library-scope-project @375: no axe violations"
+    },
+    {
+      "ok": true,
+      "label": "11-library-scope-project @375: no horizontal scroll"
+    },
+    {
+      "ok": true,
+      "label": "11-library-scope-project @375: no targets under 44 px"
+    },
+    {
+      "ok": true,
+      "label": "12-leave-dialog-handover @375: no axe violations"
+    },
+    {
+      "ok": true,
+      "label": "12-leave-dialog-handover @375: no horizontal scroll"
+    },
+    {
+      "ok": true,
+      "label": "12-leave-dialog-handover @375: no targets under 44 px"
     },
     {
       "ok": true,
@@ -553,6 +773,42 @@
       "small_targets": []
     },
     {
+      "name": "10-reports-scope-team",
+      "file": "10-reports-scope-team-1280.jpg",
+      "width": 1280,
+      "axe": [],
+      "layout": {
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "horizontalScroll": false
+      },
+      "small_targets": []
+    },
+    {
+      "name": "11-library-scope-project",
+      "file": "11-library-scope-project-1280.jpg",
+      "width": 1280,
+      "axe": [],
+      "layout": {
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "horizontalScroll": false
+      },
+      "small_targets": []
+    },
+    {
+      "name": "12-leave-dialog-handover",
+      "file": "12-leave-dialog-handover-1280.jpg",
+      "width": 1280,
+      "axe": [],
+      "layout": {
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "horizontalScroll": false
+      },
+      "small_targets": []
+    },
+    {
       "name": "08-sidebar-projects",
       "file": "08-sidebar-projects-1280.jpg",
       "width": 1280,
@@ -639,6 +895,42 @@
     {
       "name": "07-project-settings",
       "file": "07-project-settings-375.jpg",
+      "width": 375,
+      "axe": [],
+      "layout": {
+        "scrollWidth": 375,
+        "clientWidth": 375,
+        "horizontalScroll": false
+      },
+      "small_targets": []
+    },
+    {
+      "name": "10-reports-scope-team",
+      "file": "10-reports-scope-team-375.jpg",
+      "width": 375,
+      "axe": [],
+      "layout": {
+        "scrollWidth": 375,
+        "clientWidth": 375,
+        "horizontalScroll": false
+      },
+      "small_targets": []
+    },
+    {
+      "name": "11-library-scope-project",
+      "file": "11-library-scope-project-375.jpg",
+      "width": 375,
+      "axe": [],
+      "layout": {
+        "scrollWidth": 375,
+        "clientWidth": 375,
+        "horizontalScroll": false
+      },
+      "small_targets": []
+    },
+    {
+      "name": "12-leave-dialog-handover",
+      "file": "12-leave-dialog-handover-375.jpg",
       "width": 375,
       "axe": [],
       "layout": {
