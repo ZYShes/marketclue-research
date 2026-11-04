@@ -3,14 +3,17 @@
 // Session storage keeps the demo sign-in, conversations, runs and team across reloads.
 //
 // Two demo accounts:
-//   owner  — "Demo Founder", owner account (unlimited, Smarter and mock-ups allowed), owns the
+//   owner  — "Demo Founder", owner account (unlimited reports, mock-ups allowed), owns the
 //            team "Clay & Leaf Studio".
-//   member — "Sam Rivera", regular account (free reports, Quick only), not in a team yet but has
+//   member — "Sam Rivera", regular account (free reports), not in a team yet but has
 //            a pending invite: open #/join/sample-invite to accept it.
-// Page URL switches: &mockups=off makes the mock-up endpoints answer 503 (button hidden).
+// Anyone may pick any research depth (SPEC v3 decisions): quick, balanced or smarter.
+// Page URL switches: &mockups=off makes the mock-up endpoints answer 503 (button hidden);
+// &smarter=limit makes Smarter runs answer 429 smarter_daily_limit.
 
 const STORE_KEY = "mc_mock_state_v3";
-const DURATION = { quick: 18, smarter: 30 };
+const DURATION = { quick: 18, balanced: 24, smarter: 30 };
+const MODE_IDS = Object.keys(DURATION);
 const FREE_RUNS = 2;
 const DAY = 86400000;
 const HOUR = 3600000;
@@ -223,22 +226,23 @@ function fixtureCharts(feature, set) {
 function fixtureResult(run, generatedAt) {
   const feature = run.feature;
   const set = run.cardSet || feature;
-  const coverage = { directions: run.mode === "smarter" ? 4 : 3, pages_read: run.mode === "smarter" ? 9 : 6, quotes_found: feature === "market_check" || feature === "launch_checklist" ? 3 : 4, quotes_total: 4, claims_narrowed: 2, relabelled: 1 };
+  const coverage = { directions: run.mode === "quick" || !run.mode ? 3 : 4, pages_read: { smarter: 9, balanced: 8 }[run.mode] || 6, quotes_found: feature === "market_check" || feature === "launch_checklist" ? 3 : 4, quotes_total: 4, claims_narrowed: 2, relabelled: 1 };
   const result = {
     version: 3, feature, mode: run.mode || "quick", title: run.title, generated_at: generatedAt, brief: run.brief,
     table: null, plan: [], budget: null, checklist: [], cards: fixtureCards(set),
     coverage,
     charts: [...fixtureCharts(feature, set), coverageChart(coverage)],
-    cost: run.mode === "smarter"
-      ? { usd: 2.14, input_tokens: 182400, output_tokens: 21800, web_searches: 14, web_fetches: 16 }
-      : { usd: 0.36, input_tokens: 48210, output_tokens: 7480, web_searches: 8, web_fetches: 9 },
+    cost: {
+      smarter: { usd: 2.14, input_tokens: 182400, output_tokens: 21800, web_searches: 14, web_fetches: 16 },
+      balanced: { usd: 0.88, input_tokens: 121300, output_tokens: 15200, web_searches: 12, web_fetches: 12 },
+    }[run.mode] || { usd: 0.36, input_tokens: 48210, output_tokens: 7480, web_searches: 8, web_fetches: 9 },
     agents: [
       { name: "Planner", status: "done", seconds: 9 },
       { name: TOOL_NAMES[feature], status: "done", seconds: 71 },
       { name: "Verifier", status: "done", seconds: 22 },
       { name: "Writer", status: "done", seconds: 26 },
     ],
-    seconds: run.mode === "smarter" ? 184 : 92,
+    seconds: { smarter: 184, balanced: 126 }[run.mode] || 92,
   };
   if (set === "riley") {
     return {
@@ -400,7 +404,7 @@ function initialState() {
     { run_id: "a1b2c3d4e5f6", owner: "demo-owner", feature: "marketing_plan", mode: "smarter", created_at: hoursAgo(1.2), seeded: true },
     { run_id: "f0e1d2c3b4a5", owner: "demo-owner", feature: "competitor_scan", mode: "quick", created_at: new Date(now - 4000).toISOString(), startedMs: now - 4000, title: "Sample · Saucer prices at Seattle plant shops" },
     { run_id: "c1d2e3f4a5b6", owner: "demo-owner", feature: "competitor_scan", mode: "quick", created_at: daysAgo(2), seeded: true },
-    { run_id: "d1e2f3a4b5c6", owner: "demo-owner", feature: "launch_checklist", mode: "quick", created_at: daysAgo(4), seeded: true },
+    { run_id: "d1e2f3a4b5c6", owner: "demo-owner", feature: "launch_checklist", mode: "balanced", created_at: daysAgo(4), seeded: true },
     { run_id: "e9f8a7b6c5d4", owner: "demo-owner", feature: "market_check", mode: "quick", created_at: daysAgo(5), seeded: true, failed: true, title: "Sample · Who buys glaze workshops?", error: "The research agents could not reach enough public pages. Try again with a narrower question." },
     { run_id: "b1c2d3e4f5a6", owner: "demo-owner", feature: "market_check", mode: "quick", created_at: daysAgo(12), seeded: true },
     { run_id: "aa11bb22cc33", owner: "demo-riley", feature: "competitor_scan", cardSet: "riley", mode: "quick", created_at: daysAgo(3), seeded: true, title: "Sample · Planter prices across online shops" },
@@ -660,8 +664,9 @@ function route(method, segments, query, body) {
     if (!conv || conv.owner !== user.sub) return fail(404, "not_found", "Conversation not found.");
     if (!conv.ready) return fail(409, "not_ready", "The brief is not ready yet.");
     if (conv.run_id) return fail(409, "already_started", "Research already started from this conversation.");
-    const mode = body.mode === "smarter" ? "smarter" : "quick";
-    if (mode === "smarter" && !user.is_owner) return fail(403, "smarter_owner_only", "Smarter research is limited to owner accounts.");
+    const mode = body.mode || "quick";
+    if (!MODE_IDS.includes(mode)) return fail(400, "invalid_mode", "mode must be quick, balanced or smarter");
+    if (mode === "smarter" && pageQuery.get("smarter") === "limit") return fail(429, "smarter_daily_limit", "Smarter research has reached today's limit.");
     if (userView().free_runs_left !== null && userView().free_runs_left <= 0) return fail(402, "free_run_used", "You have used your free reports.");
     const now = Date.now();
     const run = {

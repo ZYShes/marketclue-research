@@ -580,21 +580,53 @@ html.reading-reduced-motion *, html.reading-reduced-motion *::before, html.readi
 .brief-questions ol { padding-left: 20px; font-size: 0.9375rem; display: grid; gap: 4px; }
 .panel-action { display: grid; gap: 12px; border-top: 1px solid var(--rule); padding-top: 16px; }
 .panel-status { display: flex; align-items: center; gap: 8px; font-weight: 600; }
-.mode-picker { border: 0; margin: 0; padding: 0; min-width: 0; display: grid; gap: 8px; }
-.mode-picker legend { font-size: 0.875rem; font-weight: 650; padding: 0; margin-bottom: 8px; }
-.mode-options { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.mode-option {
-  position: relative; display: grid; gap: 2px; padding: 10px 12px; min-height: 60px; cursor: pointer;
-  border: 1px solid var(--field); border-radius: var(--radius); background: var(--surface);
+/* Research depth slider (Quick → Balanced → Smarter). Native range input, restyled. */
+.depth { --thumb: 28px; --fill: 0%; display: grid; gap: 4px; }
+.depth-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.depth-label { font-size: 0.875rem; font-weight: 650; }
+.depth-current { font-weight: 700; color: var(--accent-ink); }
+.depth-track { position: relative; }
+.depth-range {
+  -webkit-appearance: none; appearance: none; display: block; width: 100%; height: 44px; margin: 0;
+  background: transparent; cursor: pointer; touch-action: pan-y;
 }
-.mode-option input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
-.mode-option:has(input:checked) { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); background: var(--accent-wash); }
-.mode-option:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
-.mode-option.is-disabled { cursor: not-allowed; background: var(--surface-2); border-style: dashed; }
-.mode-option.is-disabled input { cursor: not-allowed; }
-.mode-name { font-weight: 650; }
-.mode-option:has(input:checked) .mode-name { color: var(--accent-ink); }
-.mode-hint { font-size: 0.8125rem; color: var(--muted); }
+.depth-range:focus-visible { outline: none; }
+.depth-range::-webkit-slider-runnable-track {
+  height: 8px; border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent) 0 var(--fill), var(--surface-2) var(--fill));
+  box-shadow: inset 0 0 0 1px var(--field);
+}
+.depth-range::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none; width: var(--thumb); height: var(--thumb); margin-top: calc((8px - var(--thumb)) / 2);
+  border-radius: 50%; background: var(--surface); border: 2px solid var(--accent);
+  box-shadow: 0 1px 3px rgba(28, 32, 40, 0.25); cursor: grab;
+}
+.depth-range:active::-webkit-slider-thumb { cursor: grabbing; }
+.depth-range:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px var(--surface), 0 0 0 5px var(--accent); }
+.depth-range::-moz-range-track { height: 8px; border-radius: 999px; background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--field); }
+.depth-range::-moz-range-progress { height: 8px; border-radius: 999px; background: var(--accent); }
+.depth-range::-moz-range-thumb {
+  width: var(--thumb); height: var(--thumb); border-radius: 50%; background: var(--surface);
+  border: 2px solid var(--accent); box-shadow: 0 1px 3px rgba(28, 32, 40, 0.25); box-sizing: border-box;
+}
+.depth-range:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 3px var(--surface), 0 0 0 5px var(--accent); }
+.depth-range:disabled { cursor: not-allowed; opacity: 0.6; }
+/* Stop dots sit on the track; the current one marks the thumb's centre. */
+.depth-ticks {
+  position: absolute; left: calc(var(--thumb) / 2 - 4px); right: calc(var(--thumb) / 2 - 4px); top: 50%;
+  transform: translateY(-50%); display: flex; justify-content: space-between; pointer-events: none;
+}
+.depth-tick { width: 8px; height: 8px; border-radius: 50%; background: var(--field); }
+.depth-tick.is-filled { background: var(--surface); }
+.depth-tick.is-current { background: var(--accent); }
+.depth-stops { display: grid; grid-template-columns: repeat(var(--stops, 3), minmax(0, 1fr)); font-size: 0.8125rem; color: var(--muted); }
+.depth-stop { cursor: pointer; padding: 2px 0; }
+.depth-stop:nth-child(2) { text-align: center; }
+.depth-stop:last-child { text-align: right; }
+.depth-stop.is-active { color: var(--ink); font-weight: 650; }
+.depth-detail { font-size: 0.84375rem; color: var(--ink-2); background: var(--surface-2); border-radius: 8px; padding: 8px 10px; margin-top: 6px; }
+.depth-meta { font-weight: 650; color: var(--ink); }
+.form-error .btn { margin-top: 6px; }
 
 /* ---- Run progress ------------------------------------------------------------------ */
 

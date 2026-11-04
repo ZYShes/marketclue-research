@@ -83,7 +83,11 @@ export function friendlyError(err) {
   if (err.code === "daily_limit") {
     return "MarketClue has reached today's limit for new reports. Please try again tomorrow.";
   }
-  if (err.code === "smarter_owner_only") return "Smarter research is limited to owner accounts for now. Choose Quick instead.";
+  if (err.code === "smarter_daily_limit") {
+    return "Smarter research has reached today's limit for the site. Choose a lighter depth, or try Smarter tomorrow.";
+  }
+  if (err.code === "smarter_owner_only") return "Smarter research is not available for your account yet. Choose a lighter depth.";
+  if (err.code === "invalid_mode") return "This research depth is not available on the server yet. Choose Quick or Smarter.";
   if (err.code === "mockups_disabled") return "Mock-ups are not available on this site.";
   if (err.code === "mockup_limit") return "This report already has the maximum of 3 mock-ups.";
   if (err.code === "invite_email_mismatch") {

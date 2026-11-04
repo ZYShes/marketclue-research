@@ -40,8 +40,12 @@ export function stageLabel(feature) {
   return `${feature.n} · ${feature.stage}`;
 }
 
-// Effort modes (SPEC v3 "Effort: Quick ↔ Smarter").
+// Effort modes, cheapest first; the research depth slider has one stop per mode.
+// SPEC v3 defines quick and smarter; balanced is the middle stop (the backend must list it in
+// pipeline.MODES, otherwise POST /api/runs answers 400 invalid_mode).
 export const MODES = {
-  quick: { id: "quick", name: "Quick", time: "1½ min", cost: "about $0.35", detail: "Fast model, up to 3 research directions" },
-  smarter: { id: "smarter", name: "Smarter", time: "3 min", cost: "about $2–2.50", detail: "Strongest model, up to 4 directions, more pages" },
+  quick: { id: "quick", name: "Quick", time: "1½ min", cost: "about $0.35", detail: "Fast model, up to 3 research directions, 3 pages each." },
+  balanced: { id: "balanced", name: "Balanced", time: "2 min", cost: "about $0.90", detail: "Mid-size model, up to 4 directions, 3 pages each, careful writing." },
+  smarter: { id: "smarter", name: "Smarter", time: "3 min", cost: "about $2–2.50", detail: "Strongest model, up to 4 directions, 4 pages each, careful writing." },
 };
+export const MODE_ORDER = ["quick", "balanced", "smarter"];

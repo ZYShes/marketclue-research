@@ -150,7 +150,11 @@ async function run(width) {
     await snap(page, "07-conversation-draft", width);
     await go(page, "/c/conv-ready-01");
     await snap(page, "08-conversation-ready", width);
-    await page.click("label[for=mode-smarter]");
+    await page.focus("#depth");
+    await page.keyboard.press("ArrowRight"); // Quick → Balanced
+    await page.locator(".depth").scrollIntoViewIfNeeded();
+    await snap(page, "08b-depth-slider-balanced", width, { fullPage: false });
+    await page.keyboard.press("End"); // → Smarter
     await page.click("button:has-text('Start research')");
     await wait(4500);
     await snap(page, "09-run-progress", width);
@@ -254,6 +258,20 @@ async function run(width) {
     await signIn(page, "owner", "&mockups=off");
     await go(page, "/runs/c1d2e3f4a5b6", "&mockups=off", 1000);
     await snap(page, "36-report-mockups-off", width, { fullPage: false });
+    await ctx.close();
+  }
+
+  // Smarter refused by the site-wide daily cap: the error offers Quick.
+  {
+    const { ctx, page } = await newContext(browser, width);
+    await signIn(page, "owner", "&smarter=limit");
+    await go(page, "/c/conv-ready-01", "&smarter=limit");
+    await page.focus("#depth");
+    await page.keyboard.press("End");
+    await page.click("button:has-text('Start research')");
+    await wait(600);
+    await page.locator("#start-error").scrollIntoViewIfNeeded();
+    await snap(page, "39-smarter-daily-limit", width, { fullPage: false });
     await ctx.close();
   }
 

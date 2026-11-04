@@ -133,6 +133,56 @@ async function context(browser, width = 1280) {
     await ctx.close();
   }
 
+  // 6. Research depth slider: keyboard, mouse drag, stop names, Balanced run, Smarter cap fallback.
+  {
+    const { ctx, page } = await context(browser);
+    await page.goto(`${BASE}&smarter=limit#/`);
+    await wait(400);
+    await page.click("text=Continue as demo member");
+    await wait(700);
+    await page.goto(`${BASE}&smarter=limit#/new`);
+    await wait(600);
+    await page.fill("#first-message", "Handmade planters for Seattle plant owners.");
+    await page.keyboard.press("Enter");
+    await wait(1200);
+    for (const text of ["Market shoppers.", "$600 for four weeks."]) {
+      await page.fill("#chat-input", text);
+      await page.keyboard.press("Enter");
+      await wait(1100);
+    }
+    const valueText = () => page.getAttribute("#depth", "aria-valuetext");
+    check((await page.locator("#depth").getAttribute("max")) === "2", "slider has three stops (min 0, max 2)");
+    check(/^Quick/.test(await valueText()), "slider starts at Quick");
+    check(await page.locator("#depth").isEnabled(), "a non-owner can move the slider (effort belongs to the starter)");
+    await page.focus("#depth");
+    await page.keyboard.press("ArrowRight");
+    check(/^Balanced: about 2 min/.test(await valueText()), "ArrowRight moves to Balanced and announces time and cost");
+    check((await page.locator(".depth-current").textContent()) === "Balanced", "visible label follows the slider");
+    const box = await page.locator("#depth").boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width - 4, box.y + box.height / 2, { steps: 8 });
+    await page.mouse.up();
+    check(/^Smarter/.test(await valueText()), "dragging the thumb to the end selects Smarter");
+    await page.click(".depth-stop >> text=Quick");
+    check(/^Quick/.test(await valueText()), "clicking a stop name jumps to it");
+    await page.keyboard.press("End");
+    await page.click("button:has-text('Start research')");
+    await wait(600);
+    check((await page.locator("#start-error").textContent()).includes("today's limit"), "Smarter at the daily cap shows the limit message");
+    await page.click("#start-error button:has-text('Switch to Quick')");
+    check(/^Quick/.test(await valueText()), "Switch to Quick moves the slider back to Quick");
+    check(await page.evaluate(() => document.activeElement.id === "depth"), "focus returns to the slider");
+    await page.keyboard.press("ArrowRight");
+    await page.click("button:has-text('Start research')");
+    await wait(1500);
+    check((await page.locator(".run-mode").textContent()).includes("Balanced research"), "a Balanced run starts and shows its depth");
+    await page.goto(`${BASE}&smarter=limit#/c/conv-sam-01`);
+    await wait(700);
+    check(/^Balanced/.test(await valueText()), "the last depth choice is remembered");
+    await ctx.close();
+  }
+
   await browser.close();
   console.log(failures ? `\n${failures} check(s) failed` : "\nall checks passed");
   process.exit(failures ? 1 : 0);

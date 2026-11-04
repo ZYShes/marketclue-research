@@ -8,6 +8,8 @@
 .share-slot { flex: 1 1 100%; display: grid; gap: 6px; max-width: 560px; }
 .share-slot:empty { display: none; }
 .report-actions .field-hint { flex: 1 1 100%; }
+.run-mode { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; font-size: 0.9375rem; }
+.run-mode .badge-mode { margin-left: 0; }
 .legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 0.8125rem; color: var(--muted); margin-top: 6px; }
 .legend-item { display: inline-flex; align-items: center; gap: 6px; }
 

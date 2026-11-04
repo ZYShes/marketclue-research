@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-04T01:53:44.566Z",
+  "generated_at": "2026-11-04T02:04:04.170Z",
   "axe_source": "local npm copy (CDN blocked)",
   "pages": [
     {
@@ -107,9 +107,22 @@
       "width": 1280
     },
     {
+      "name": "08b-depth-slider-balanced",
+      "file": "08b-depth-slider-balanced-1280.jpg",
+      "url": "?mock=1#/c/conv-ready-01",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 1280
+    },
+    {
       "name": "09-run-progress",
       "file": "09-run-progress-1280.jpg",
-      "url": "?mock=1#/runs/bdb3e53c750a",
+      "url": "?mock=1#/runs/f75972ff1b11",
       "axe": [],
       "layout": {
         "scrollWidth": 1280,
@@ -458,6 +471,19 @@
       "width": 1280
     },
     {
+      "name": "39-smarter-daily-limit",
+      "file": "39-smarter-daily-limit-1280.jpg",
+      "url": "?mock=1&smarter=limit#/c/conv-ready-01",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 1280
+    },
+    {
       "name": "37-larger-text-spacing",
       "file": "37-larger-text-spacing-1280.jpg",
       "url": "?mock=1#/c/conv-ready-01",
@@ -588,9 +614,22 @@
       "width": 375
     },
     {
+      "name": "08b-depth-slider-balanced",
+      "file": "08b-depth-slider-balanced-375.jpg",
+      "url": "?mock=1#/c/conv-ready-01",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 375,
+        "clientWidth": 375,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 375
+    },
+    {
       "name": "09-run-progress",
       "file": "09-run-progress-375.jpg",
-      "url": "?mock=1#/runs/1b891606b24f",
+      "url": "?mock=1#/runs/f063a4391264",
       "axe": [],
       "layout": {
         "scrollWidth": 375,
@@ -929,6 +968,19 @@
       "name": "36-report-mockups-off",
       "file": "36-report-mockups-off-375.jpg",
       "url": "?mock=1&mockups=off#/runs/c1d2e3f4a5b6",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 375,
+        "clientWidth": 375,
+        "horizontalScroll": false,
+        "small": []
+      },
+      "width": 375
+    },
+    {
+      "name": "39-smarter-daily-limit",
+      "file": "39-smarter-daily-limit-375.jpg",
+      "url": "?mock=1&smarter=limit#/c/conv-ready-01",
       "axe": [],
       "layout": {
         "scrollWidth": 375,

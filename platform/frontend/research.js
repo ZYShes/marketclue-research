@@ -5,9 +5,10 @@ import {
 import { api, friendlyError } from "./api.js";
 import {
   state, KEYS, main, go, page, pageHeader, loadingBlock, routeQuery, setRouteQuery, announce,
-  setOpenConv, openConvId, isOwner,
+  setOpenConv, openConvId,
 } from "./core.js";
 import { FEATURES, MODES, DEFAULT_FEATURE, featureById, stageLabel } from "./features.js";
+import { depthSlider } from "./depth.js";
 import { refreshHistory, getHistory, onHistory, historyRow, groupHistory } from "./shell.js";
 
 const TOOL_ICONS = {
@@ -257,8 +258,9 @@ function renderConversation(initial, isCurrent) {
   let sending = false;
   let starting = false;
   let pendingText = null;
-  const ownerAccount = isOwner();
-  let mode = storage.get(KEYS.mode) === "smarter" && ownerAccount ? "smarter" : "quick";
+  // Effort belongs to whoever starts the run (SPEC v3 decisions); the last choice is remembered.
+  let mode = MODES[storage.get(KEYS.mode)] ? storage.get(KEYS.mode) : "quick";
+  let slider = null;
 
   const titleEl = h("h1", { tabindex: "-1", class: "conv-title", id: "conv-title" });
   const log = h("ol", { class: "messages", "aria-label": "Messages" });
@@ -346,21 +348,16 @@ function renderConversation(initial, isCurrent) {
   }
 
   function modeControl() {
-    const option = (m) => {
-      const disabled = m.id === "smarter" && !ownerAccount;
-      return h("label", { class: `mode-option${disabled ? " is-disabled" : ""}`, for: `mode-${m.id}` },
-        h("input", {
-          type: "radio", name: "mode", id: `mode-${m.id}`, value: m.id, checked: mode === m.id, disabled,
-          "aria-describedby": disabled ? "mode-reason" : `mode-${m.id}-hint`,
-          onchange: () => { mode = m.id; storage.set(KEYS.mode, mode); },
-        }),
-        h("span", { class: "mode-name" }, m.name),
-        h("span", { class: "mode-hint", id: `mode-${m.id}-hint` }, `${m.time} · ${m.cost}`));
-    };
-    return h("fieldset", { class: "mode-picker" },
-      h("legend", {}, "Research depth"),
-      h("div", { class: "mode-options" }, option(MODES.quick), option(MODES.smarter)),
-      ownerAccount ? null : h("p", { class: "field-hint", id: "mode-reason" }, "Smarter is limited to owner accounts for now."));
+    slider = depthSlider({
+      value: mode, disabled: starting,
+      onChange: (m) => {
+        mode = m;
+        storage.set(KEYS.mode, m);
+        const err = document.getElementById("start-error");
+        if (err) err.replaceChildren();
+      },
+    });
+    return slider.el;
   }
 
   function renderPanel() {
@@ -473,7 +470,21 @@ function renderConversation(initial, isCurrent) {
       if (!isCurrent()) return;
       renderAll();
       const el = document.getElementById("start-error");
-      if (el) el.textContent = friendlyError(err);
+      if (!el) return;
+      el.replaceChildren(friendlyError(err));
+      // Smarter (or a depth the server does not offer) was refused: offer Quick in one step.
+      if (mode !== "quick" && ["smarter_daily_limit", "smarter_owner_only", "invalid_mode"].includes(err.code)) {
+        el.append(" ", h("button", {
+          type: "button", class: "btn btn-secondary btn-sm",
+          onclick: () => {
+            mode = "quick";
+            storage.set(KEYS.mode, mode);
+            slider?.set("quick");
+            el.replaceChildren();
+            slider?.focus();
+          },
+        }, "Switch to Quick"));
+      }
     }
   }
 
