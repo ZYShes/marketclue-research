@@ -6,9 +6,9 @@ import {
 } from "./ui.js";
 import { api, friendlyError } from "./api.js";
 import { state, main, page, loadingBlock, rerender, announce } from "./core.js";
-import { FEATURES, featureById } from "./features.js";
-import { openCardPanel } from "./report.js";
-import { toolIcon } from "./research.js";
+import { FEATURES, featureById, toolIcon } from "./features.js";
+// report.js (with charts.js) is only needed when a fact card is opened; loaded then, not with the sidebar.
+const openCardPanel = (card, n) => import("./report.js").then((m) => m.openCardPanel(card, n));
 
 export const BRIEF_FIELDS = [
   ["business", "Business"],

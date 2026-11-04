@@ -9,14 +9,60 @@ import {
 } from "./core.js";
 import { renderShell, refreshHistory, resetHistory, onSignOut, refreshAccount } from "./shell.js";
 import { isFeature } from "./features.js";
-import { landingPage } from "./landing.js";
-import { viewNew, viewConversation } from "./research.js";
-import { viewTemplates } from "./templates.js";
-import { viewRun, viewShared } from "./run.js";
-import { viewLibrary, viewReports } from "./library.js";
-import { viewTeam, viewJoin } from "./team.js";
-import { viewProject } from "./projects.js";
-import { closeCardPanel, hideHovercard } from "./report.js";
+
+// Page modules load when a route first needs them (and are prefetched once the first page is up), so a
+// first visit downloads only the shell and the page it opens - not every view, the report and the charts.
+const MODULES = {
+  landing: () => import("./landing.js"),
+  research: () => import("./research.js"),
+  templates: () => import("./templates.js"),
+  run: () => import("./run.js"),
+  library: () => import("./library.js"),
+  team: () => import("./team.js"),
+  projects: () => import("./projects.js"),
+};
+const loaded = {};
+const loading = {};
+function loadModule(name) {
+  if (!loading[name]) {
+    loading[name] = MODULES[name]().then((mod) => { loaded[name] = mod; return mod; }, (err) => {
+      delete loading[name]; // a later navigation can try again
+      throw err;
+    });
+  }
+  return loading[name];
+}
+
+// Which module renders a route, and how.
+function routeView(head, arg) {
+  if (!head) return ["landing", (m) => viewLanding(m)];
+  if (head === "new" && (!arg || isFeature(arg))) return ["research", (m, cur) => m.viewNew(cur, arg || null)];
+  if (head === "templates" && !arg) return ["templates", (m, cur) => m.viewTemplates(cur)];
+  if (head === "c" && arg) return ["research", (m, cur) => m.viewConversation(arg, cur)];
+  if (head === "p" && arg) return ["projects", (m, cur) => m.viewProject(arg, cur)];
+  if (head === "runs" && arg) return ["run", (m, cur) => m.viewRun(arg, cur)];
+  if (head === "runs") return ["library", (m, cur) => m.viewReports(cur)];
+  if (head === "library") return ["library", (m, cur) => m.viewLibrary(cur)];
+  if (head === "team") return ["team", (m, cur) => m.viewTeam(cur)];
+  if (head === "join" && arg) return ["team", (m, cur) => m.viewJoin(arg, cur, { mountSignIn })];
+  if (head === "shared" && arg) return ["run", (m, cur) => m.viewShared(arg, cur)];
+  return [null, () => viewNotFound()];
+}
+
+// The fact card sheet and source hover card belong to the report module; close them without loading it.
+function closeOverlays() {
+  const sheet = document.getElementById("card-panel");
+  if (sheet && sheet.open) sheet.close();
+  const card = document.getElementById("hovercard");
+  if (card) card.hidden = true;
+}
+
+// After the first page has settled (its own data loaded), fetch the other pages in the background so
+// later navigation is instant. Never before: they would compete with the page's own requests.
+function prefetchModules() {
+  const idle = window.requestIdleCallback || ((fn) => setTimeout(fn, 200));
+  setTimeout(() => idle(() => Object.keys(MODULES).forEach((name) => loadModule(name).catch(() => {})), { timeout: 5000 }), 2500);
+}
 
 const cfg = window.MC_CONFIG || {};
 const PROTECTED = new Set(["home", "new", "templates", "c", "runs", "library", "team", "p"]);
@@ -34,8 +80,7 @@ async function router() {
     try { cleanup(); } catch { /* ignore */ }
     cleanup = null;
   }
-  closeCardPanel();
-  hideHovercard();
+  closeOverlays();
   hideToast();
   const seq = ++renderSeq;
   const isCurrent = () => seq === renderSeq;
@@ -55,19 +100,23 @@ async function router() {
   if (moveFocus) window.scrollTo(0, 0);
   firstRender = false;
 
-  let result;
-  if (!head) result = viewLanding();
-  else if (head === "new" && (!arg || isFeature(arg))) result = viewNew(isCurrent, arg || null);
-  else if (head === "templates" && !arg) result = viewTemplates(isCurrent);
-  else if (head === "c" && arg) result = viewConversation(arg, isCurrent);
-  else if (head === "p" && arg) result = viewProject(arg, isCurrent);
-  else if (head === "runs" && arg) result = viewRun(arg, isCurrent);
-  else if (head === "runs") result = viewReports(isCurrent);
-  else if (head === "library") result = viewLibrary(isCurrent);
-  else if (head === "team") result = viewTeam(isCurrent);
-  else if (head === "join" && arg) result = viewJoin(arg, isCurrent, { mountSignIn });
-  else if (head === "shared" && arg) result = viewShared(arg, isCurrent);
-  else result = viewNotFound();
+  const [moduleName, render] = routeView(head, arg);
+  let mod = moduleName ? loaded[moduleName] : null;
+  if (moduleName && !mod) {
+    // Not downloaded yet: show the loading state only if it takes noticeably long.
+    const slow = setTimeout(() => { if (isCurrent()) main.replaceChildren(loadingBlock()); }, 150);
+    try {
+      mod = await loadModule(moduleName);
+    } catch {
+      clearTimeout(slow);
+      if (isCurrent()) showLoadError();
+      return;
+    } finally {
+      clearTimeout(slow);
+    }
+    if (!isCurrent()) return;
+  }
+  let result = render(mod, isCurrent);
 
   const focusPage = () => {
     if (!moveFocus || !isCurrent()) return;
@@ -93,6 +142,14 @@ async function router() {
 }
 
 setRouter(router);
+
+function showLoadError() {
+  main.replaceChildren(page(emptyState({
+    title: "This page could not load", headingLevel: 1,
+    text: "Check your connection. If MarketClue was just updated, reloading the page fixes this.",
+    action: h("button", { type: "button", class: "btn btn-primary", onclick: () => location.reload() }, "Reload"),
+  })));
+}
 
 function showPageError(err) {
   if (err instanceof ApiError && err.status === 401) return; // handled globally
@@ -143,6 +200,7 @@ async function onGoogleCredential(response) {
 
 function afterLogin(user) {
   state.user = user;
+  storage.set(KEYS.signedIn, "1");
   resetHistory();
   const next = storage.get(KEYS.afterLogin);
   storage.remove(KEYS.afterLogin);
@@ -214,6 +272,7 @@ async function signOut() {
   try { await api("/auth/logout", { method: "POST", quiet401: true }); } catch { /* ignore */ }
   try { window.google && window.google.accounts && window.google.accounts.id.disableAutoSelect(); } catch { /* ignore */ }
   state.user = null;
+  storage.remove(KEYS.signedIn);
   state.convCache.clear();
   resetHistory();
   setOpenConv(null);
@@ -225,6 +284,7 @@ onSignOut(signOut);
 onUnauthorized(() => {
   if (!state.user) return;
   state.user = null;
+  storage.remove(KEYS.signedIn);
   resetHistory();
   const parts = parseRoute();
   if (parts && PROTECTED.has(parts[0] || "")) storage.set(KEYS.afterLogin, location.hash);
@@ -247,10 +307,10 @@ window.addEventListener("mc:refresh-history", () => refreshHistory());
 
 // ---- Landing and not found ---------------------------------------------------
 
-function viewLanding() {
+function viewLanding(mod) {
   setTitle("");
   const signin = h("div", { class: "signin" });
-  main.replaceChildren(landingPage(signin, state.bootError));
+  main.replaceChildren(mod.landingPage(signin, state.bootError));
   mountSignIn(signin);
 }
 
@@ -279,26 +339,36 @@ async function boot() {
     target.scrollIntoView({ block: "start" });
   });
 
+  // The sign-in check starts now (boot.js usually started it already), in parallel with everything below.
+  const me = api("/me", { quiet401: true }).then(({ user }) => ({ user: user || null, error: null }), (err) => ({
+    user: null,
+    error: err instanceof ApiError && err.status === 401 ? null
+      : err instanceof ApiError && err.code === "network" ? err.message
+        : "MarketClue could not check your sign-in just now. Please reload the page in a moment.",
+  }));
+
   renderShell({ head: "", arg: null });
   if (!hasReadingPreferences()) {
     document.getElementById("shell").classList.add("is-welcome");
     await new Promise((resolve) => main.replaceChildren(renderWelcome(resolve)));
     document.getElementById("shell").classList.remove("is-welcome");
   }
-  main.replaceChildren(loadingBlock());
-  try {
-    const { user } = await api("/me", { quiet401: true });
-    state.user = user || null;
-  } catch (err) {
-    state.user = null;
-    if (!(err instanceof ApiError) || err.status !== 401) {
-      state.bootError = err instanceof ApiError && err.code === "network"
-        ? err.message
-        : "MarketClue could not check your sign-in just now. Please reload the page in a moment.";
-    }
-  }
+  // A visitor who was not signed in last time sees the landing page at once; the check finishes behind it.
+  const parts = parseRoute() || [];
+  const landingFirst = !parts[0] && storage.get(KEYS.signedIn) !== "1";
   window.addEventListener("hashchange", router);
-  router();
+  if (landingFirst) router();
+  else main.replaceChildren(loadingBlock());
+
+  const { user, error } = await me;
+  if (!state.user) { // a sign-in that finished meanwhile wins
+    state.user = user;
+    state.bootError = error;
+    if (user) storage.set(KEYS.signedIn, "1");
+    else if (!error) storage.remove(KEYS.signedIn);
+    if (!landingFirst || user || error) router();
+  }
+  prefetchModules();
 }
 
 boot();

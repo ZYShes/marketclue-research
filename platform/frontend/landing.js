@@ -1,7 +1,6 @@
 // Signed-out landing page. Keeps the slogan "See the market differently." in the v3 visual language.
 import { h, kindBadge, typeBadge, externalLink, fmtDate } from "./ui.js";
-import { FEATURES } from "./features.js";
-import { toolIcon } from "./research.js";
+import { FEATURES, toolIcon } from "./features.js";
 
 function previewWindow() {
   // A static, readable example of what a report looks like: a finding with numbered sources,

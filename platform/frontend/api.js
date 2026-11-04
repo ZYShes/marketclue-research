@@ -43,7 +43,16 @@ export async function api(path, { method = "GET", body, query, quiet401 = false 
 
   let status;
   let data = null;
-  if (MOCK) {
+  // The boot script may already have asked for this (/me, the opening page's data) while the modules
+  // were loading; use that answer once.
+  const store = window.__mcEarly;
+  const fresh = store && store.base === API_BASE && Date.now() - store.at < 15000; // used only for the opening page
+  const early = !MOCK && method === "GET" && fresh && url.startsWith("/") && store[url];
+  if (early) delete store[url];
+  const pre = early ? await early : null;
+  if (pre) {
+    ({ status, data } = pre);
+  } else if (MOCK) {
     mockModule = mockModule || (await import("./mock.js"));
     ({ status, data } = await mockModule.handle(method, url, body));
   } else {

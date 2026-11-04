@@ -282,6 +282,77 @@ async function context(browser, width = 1280) {
     await ctx.close();
   }
 
+  // 9. Research brief panel: fits the window on wide screens, details scroll inside, Start research visible.
+  {
+    const { ctx, page } = await context(browser);
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto(`${BASE}#/`);
+    await wait(400);
+    await page.click("text=Continue as demo owner");
+    await wait(700);
+    await page.goto(`${BASE}#/c/conv-ebay-ready`);
+    await wait(900);
+    const m = await page.evaluate(() => {
+      const inner = document.querySelector(".brief-panel-inner").getBoundingClientRect();
+      const start = [...document.querySelectorAll(".panel-action button")].find((b) => b.textContent.trim() === "Start research").getBoundingClientRect();
+      const body = document.querySelector(".panel-body");
+      return { innerBottom: inner.bottom, startBottom: start.bottom, vh: innerHeight,
+        scrolls: body.scrollHeight > body.clientHeight, tab: body.getAttribute("tabindex"), name: body.getAttribute("aria-labelledby") };
+    });
+    check(m.innerBottom <= m.vh, `long brief: the panel fits the window (${Math.round(m.innerBottom)} ≤ ${m.vh})`);
+    check(m.startBottom <= m.vh, "long brief: Start research is visible without scrolling the page");
+    check(m.scrolls && m.tab === "0" && m.name === "brief-title", "long brief: details scroll inside the panel and take keyboard focus");
+    const box = await page.locator(".panel-body").boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.wheel(0, 400);
+    await wait(300);
+    const after = await page.evaluate(() => ({ body: document.querySelector(".panel-body").scrollTop, win: scrollY }));
+    check(after.body > 0, "the mouse wheel scrolls the brief details");
+    await page.focus(".panel-body");
+    await page.keyboard.press("End");
+    await wait(200);
+    check(await page.evaluate(() => { const b = document.querySelector(".panel-body"); return b.scrollTop + b.clientHeight >= b.scrollHeight - 2; }),
+      "keyboard End scrolls the details to the bottom");
+    await page.goto(`${BASE}#/c/conv-draft-01`);
+    await wait(900);
+    check(await page.evaluate(() => !document.querySelector(".panel-body").hasAttribute("tabindex")), "short brief: no extra tab stop");
+    await page.setViewportSize({ width: 375, height: 812 });
+    await page.goto(`${BASE}#/c/conv-ebay-ready`);
+    await wait(900);
+    check(await page.evaluate(() => getComputedStyle(document.querySelector(".brief-panel-inner")).maxHeight === "none"
+      && !document.querySelector(".panel-body").hasAttribute("tabindex")), "phone: the brief stays in the page flow, no inner scroll");
+    await ctx.close();
+  }
+
+  // 10. Loading: a first visit downloads only the shell and the page it opens; the rest comes later.
+  {
+    const { ctx, page } = await context(browser);
+    await page.goto(`${BASE}#/`);
+    await page.waitForSelector("#hero-title");
+    const files = () => page.evaluate(() => performance.getEntriesByType("resource").map((e) => e.name.split("/").pop().split("?")[0]));
+    const first = await files();
+    const heavy = ["research.js", "run.js", "report.js", "charts.js", "library.js", "team.js", "templates.js", "depth.js"];
+    check(!heavy.some((f) => first.includes(f)), "landing: page modules (research, report, charts…) are not downloaded up front");
+    await page.waitForFunction(() => performance.getEntriesByType("resource").some((e) => e.name.endsWith("/run.js")), null, { timeout: 15000 });
+    check(true, "the other page modules are prefetched once the page is idle");
+    await ctx.close();
+  }
+  {
+    // Without mock mode: /api/me starts from the inline boot script and is asked for exactly once.
+    const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+    await ctx.addInitScript(() => { try { localStorage.setItem("mc_reading_preferences_v1", JSON.stringify({ largerText: false, extraSpacing: false, reduceMotion: true, zoom: 100 })); } catch { /* ignore */ } });
+    const page = await ctx.newPage();
+    const order = [];
+    await page.route("**/api/**", (route) => { order.push("api" + new URL(route.request().url()).pathname.slice(4)); route.fulfill({ status: 401, contentType: "application/json", body: '{"error":{"code":"unauthorized","message":"Sign in"}}' }); });
+    await page.route("**/app.js", async (route) => { await new Promise((r) => setTimeout(r, 500)); order.push("app.js arrived"); await route.continue(); });
+    await page.goto(BASE.replace("?mock=1", "") + "#/");
+    await page.waitForSelector("#hero-title");
+    await wait(300);
+    check(order.filter((x) => x === "api/me").length === 1, "real mode: /api/me is requested once (the early answer is reused)");
+    check(order.indexOf("api/me") > -1 && order.indexOf("api/me") < order.indexOf("app.js arrived"), "real mode: /api/me does not wait for app.js to arrive");
+    await ctx.close();
+  }
+
   await browser.close();
   console.log(failures ? `\n${failures} check(s) failed` : "\nall checks passed");
   process.exit(failures ? 1 : 0);

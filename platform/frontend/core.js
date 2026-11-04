@@ -11,6 +11,7 @@ export const KEYS = {
   conv: "mc_open_conv", // the conversation a reload returns to
   afterLogin: "mc_after_login",
   mode: "mc_mode",
+  signedIn: "mc_signed_in", // hint for boot.js: preload the app rather than the landing page
 };
 
 export const main = document.getElementById("main");
