@@ -15,8 +15,9 @@ from datetime import datetime, timezone
 import requests
 from bs4 import BeautifulSoup
 
-from . import capabilities, charts, claude, ebay_report, intake, projects, store, templates
+from . import capabilities, charts, claude, ebay_report, etsy_report, intake, local_report, projects, store, templates
 from .capabilities import ebay
+from .capabilities.etsy import is_etsy_listing
 
 MAX_DIRECTIONS = 4
 # Effort modes: research agent model and effort, directions, page fetches per direction, writer effort.
@@ -58,11 +59,30 @@ def brief_text(brief):
         "Founder's questions:",
     ]
     lines += [f"- {q}" for q in brief.get("questions") or []]
-    answers = brief.get("ebay") or {}
-    if answers:
-        lines.append("About selling on eBay:")
-        lines += [f"- {key.replace('_', ' ')}: {value}" for key, value in answers.items() if value is not None]
+    template = templates.of(brief)
+    for field in template["brief_fields"]:
+        answers = brief.get(field) or {}
+        if answers:
+            lines.append(f"{template['brief_heading']}:")
+            lines += [f"- {key.replace('_', ' ')}: {answer_text(value)}" for key, value in answers.items()
+                      if value is not None and value != []]
     return "\n".join(lines)
+
+
+def answer_text(value):
+    """A template answer for the prompt; known costs read as "Truck quote $45,000; Generator $2,500"."""
+    if isinstance(value, list):
+        return "; ".join(f"{entry.get('item')} {money(entry.get('amount_usd'))}" if isinstance(entry, dict) else str(entry)
+                         for entry in value)
+    return value
+
+
+def money(value):
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return "(no amount)"
+    return f"${number:,.0f}" if number.is_integer() else f"${number:,.2f}"
 
 
 def template_notes(brief, part):
@@ -409,7 +429,50 @@ EBAY_FEES_SCHEMA = _object({
 })
 
 
+ETSY_FEES_SCHEMA = _object({
+    "listing_fee_usd": NUMBER_OR_NULL,
+    "listing_fee_card_ids": _array({"type": "string"}),
+    "transaction_fee_pct": NUMBER_OR_NULL,
+    "transaction_fee_card_ids": _array({"type": "string"}),
+    "processing_fee_pct": NUMBER_OR_NULL,
+    "processing_fee_fixed_usd": NUMBER_OR_NULL,
+    "processing_fee_card_ids": _array({"type": "string"}),
+    "offsite_ads": _array(_object({"label": {"type": "string"}, "rate_pct": NUMBER_OR_NULL,
+                                   "card_ids": _array({"type": "string"})})),
+    "offsite_ads_cap_usd": NUMBER_OR_NULL,
+    "offsite_ads_cap_card_ids": _array({"type": "string"}),
+    "target_price_usd": NUMBER_OR_NULL,
+    "shipping_cost_usd": NUMBER_OR_NULL,
+    "buyer_pays_shipping": {"type": ["boolean", "null"]},
+    "shipping_method": {"type": "string"},
+    "etsy_ads": _item(),
+})
+
+
+def requirements_schema():
+    return _array(_item({
+        "requirement": {"type": "string"},
+        "agency": {"type": "string"},
+        "fee_usd": NUMBER_OR_NULL,
+        "fee_card_ids": _array({"type": "string"}),
+    }))
+
+
+def startup_costs_schema(cost_lines):
+    return _array(_object({
+        "category": {"type": "string", "enum": list(cost_lines) + ["Other"]},
+        "item": {"type": "string"},
+        "low_usd": {"type": "number"},
+        "high_usd": NUMBER_OR_NULL,
+        "basis": {"type": "string", "enum": ["source", "founder"]},
+        "card_ids": _array({"type": "string"}),
+        "method": {"type": "string"},
+    }))
+
+
 def report_schema(feature, template_id="general"):
+    template = templates.get(template_id) or templates.TEMPLATES[templates.DEFAULT]
+    sections = templates.sections(template, feature)
     props = {
         "takeaway": _item(),
         "findings": _array(_item({"title": {"type": "string"}})),
@@ -435,8 +498,10 @@ def report_schema(feature, template_id="general"):
                         "card_ids": _array({"type": "string"}),
                         "price_usd": NUMBER_OR_NULL,
                         "price_high_usd": NUMBER_OR_NULL,
+                        **({"price_unit": {"type": "string"}} if "local_benchmarks" in sections else {}),
                     },
-                    "required": ["cells", "kind", "card_ids", "price_usd", "price_high_usd"],
+                    "required": ["cells", "kind", "card_ids", "price_usd", "price_high_usd"]
+                                + (["price_unit"] if "local_benchmarks" in sections else []),
                     "additionalProperties": False,
                 }),
             },
@@ -469,9 +534,16 @@ def report_schema(feature, template_id="general"):
     if feature == "market_check":
         props["themes"] = _array(_object({"label": {"type": "string"}, "card_ids": _array({"type": "string"})}))
     if feature == "launch_checklist":
-        props["checklist"] = _array(_item({"step": {"type": "string"}}))
-    if template_id == "ebay" and feature == "marketing_plan":
+        if "official_requirements" in sections:
+            props["requirements"] = requirements_schema()
+        else:
+            props["checklist"] = _array(_item({"step": {"type": "string"}}))
+    if "ebay_fees" in sections:
         props["ebay_fees"] = EBAY_FEES_SCHEMA
+    if "startup_costs" in sections:
+        props["startup_costs"] = startup_costs_schema(template["cost_lines"])
+    if "etsy_fees" in sections:
+        props["etsy_fees"] = ETSY_FEES_SCHEMA
     return {"type": "object", "properties": props, "required": list(props), "additionalProperties": False}
 
 
@@ -511,7 +583,7 @@ TOOL_INSTRUCTIONS = {
 }
 
 
-def report_problems(feature, doc):
+def report_problems(feature, doc, sections=()):
     """Returns what is missing from a writer answer; an empty list means the report is complete."""
     problems = []
     findings = doc.get("findings") or []
@@ -527,7 +599,10 @@ def report_problems(feature, doc):
         problems.append("the price comparison table with at least one row")
     if feature == "marketing_plan" and (len(doc.get("plan") or []) < 3 or len(doc.get("budget") or []) < 2):
         problems.append("the marketing plan sections and a budget with 3-6 lines")
-    if feature == "launch_checklist" and len(doc.get("checklist") or []) < 4:
+    if feature == "launch_checklist" and "official_requirements" in sections:
+        if len(doc.get("requirements") or []) < 4:
+            problems.append("a list of 5-9 requirements")
+    elif feature == "launch_checklist" and len(doc.get("checklist") or []) < 4:
         problems.append("a launch checklist of 5-9 steps")
     return problems
 
@@ -543,7 +618,9 @@ Every new claim still needs one of the new checked fact cards."""
 
 def write_report(usage, brief, cards, directions, effort="medium", project_context=None):
     feature = feature_of(brief)
-    schema = report_schema(feature, templates.of(brief)["id"])
+    template = templates.of(brief)
+    sections = templates.sections(template, feature)
+    schema = report_schema(feature, template["id"])
     card_lines = [
         {"id": c["card_id"], "direction": c["direction"], "claim": c["claim"], "quote": c["quote"],
          "source": f"{c['label']}: {c['source_title']}" if c.get("label") else c["source_title"], "url": c["url"]}
@@ -555,17 +632,17 @@ def write_report(usage, brief, cards, directions, effort="medium", project_conte
         f"{brief_text(brief)}\n\nTool: {spec['name']} ({spec['question']})\n"
         f"Research directions: {', '.join(d['name'] for d in directions)}\n\n"
         f"Checked fact cards (JSON):\n{json.dumps(card_lines, ensure_ascii=False)}\n\n"
-        f"{TOOL_INSTRUCTIONS[feature]}"
+        f"{(template.get('instructions') or {}).get(feature) or TOOL_INSTRUCTIONS[feature]}"
     ) + template_notes(brief, "writer") + (PROJECT_WRITER_NOTE.format(context=project_context) if project_context else "")
     doc = claude.json_call(usage, system=WRITER_SYSTEM, prompt=prompt, schema=schema, effort=effort, max_tokens=32000)
-    problems = report_problems(feature, doc)
+    problems = report_problems(feature, doc, sections)
     if problems:
         print(json.dumps({"writer_retry": problems}))
         doc = claude.json_call(
             usage, system=WRITER_SYSTEM, schema=schema, effort=effort, max_tokens=32000,
             prompt=prompt + "\n\nA previous draft was incomplete. Make sure the report includes: " + "; ".join(problems) + ".",
         )
-        problems = report_problems(feature, doc)
+        problems = report_problems(feature, doc, sections)
         if problems:
             raise RuntimeError("The report came back incomplete (" + "; ".join(problems) + "). Please run it again.")
     return doc
@@ -608,6 +685,11 @@ def _items(doc):
     priority = (doc.get("ebay_fees") or {}).get("priority")
     if isinstance(priority, dict):
         yield "e-priority", priority, priority.get("text", "")
+    for j, requirement in enumerate(doc.get("requirements") or []):
+        yield f"q{j}", requirement, f"{requirement.get('requirement', '')} ({requirement.get('agency', '')}): {requirement.get('text', '')}"
+    etsy_ads = (doc.get("etsy_fees") or {}).get("etsy_ads")
+    if isinstance(etsy_ads, dict):
+        yield "y-etsy-ads", etsy_ads, etsy_ads.get("text", "")
 
 
 def check(usage, doc, cards):
@@ -659,6 +741,45 @@ def mark_official(doc, cards):
         step["step"] = re.sub(r"^\s*(step\s*)?\d+\s*[.):-]\s*", "", step.get("step") or "", flags=re.I)
         hosts = [urllib.parse.urlsplit(by_id[cid]["url"]).netloc.lower() for cid in step.get("card_ids") or [] if cid in by_id]
         step["official"] = any(h.endswith(OFFICIAL_SUFFIXES) or h in OFFICIAL_HOSTS for h in hosts)
+
+
+SECTION_FIELDS = {"official_requirements": "requirements", "local_benchmarks": "benchmarks",
+                  "etsy_listings": "benchmarks", "startup_costs": "startup_costs", "etsy_fees": "etsy_fees"}
+
+
+def template_sections(template, feature, doc, fresh, known, brief):
+    """Result fields, extra charts, missing-evidence lines and the price-band noun for the local-business and Etsy
+    sections of one tool (SPEC v4.1). `fresh` are this run's cards with this run's quote check (a requirement or an
+    Etsy fee counts only from a page fetched in this run); `known` adds earlier project cards (benchmarks and
+    startup costs may cite them). Every field the template can produce is present, None when this tool has none."""
+    fields = {SECTION_FIELDS[section]: None for sections in (template.get("sections") or {}).values()
+              for section in sections if section in SECTION_FIELDS}
+    extra, missing, compare = [], [], None
+    sections = templates.sections(template, feature)
+    sourced = {card["card_id"]: card for card in known if card.get("type") == "sourced"}
+    answers = brief.get(next(iter(template["brief_fields"]), "")) or {}
+    if "official_requirements" in sections:
+        section, notes = local_report.requirements(doc.get("requirements"), fresh)
+        fields["requirements"], missing = section, missing + notes
+        extra.append(charts.requirements_chart(section))
+    if "local_benchmarks" in sections or "etsy_listings" in sections:
+        etsy = "etsy_listings" in sections
+        pool = ({card["card_id"]: card for card in fresh if card.get("type") == "sourced" and is_etsy_listing(card["url"])}
+                if etsy else sourced)
+        section, notes = local_report.benchmarks(doc, pool, template["benchmark"], privacy=template.get("privacy") == "children")
+        fields["benchmarks"], missing = section, missing + notes
+        extra.append(charts.price_benchmarks_chart(section))
+        if section:
+            compare = "asking prices of Etsy listings" if etsy else f"{section['what']} nearby"
+    if "startup_costs" in sections:
+        section, notes = local_report.startup_costs(doc.get("startup_costs"), template["cost_lines"], sourced, answers)
+        fields["startup_costs"], missing = section, missing + notes
+        extra.append(charts.startup_costs_chart(section))
+    if "etsy_fees" in sections:
+        fees, notes = etsy_report.fee_breakdown(doc.get("etsy_fees"), fresh, brief)
+        fields["etsy_fees"], missing = fees, missing + notes
+        extra.append(charts.etsy_costs_chart(fees))
+    return fields, [chart for chart in extra if chart], missing, compare
 
 
 WRITER_NAMES = {
@@ -732,6 +853,8 @@ def run(run_id):
             raw_cards += make_cards(direction, findings, {**pages, **evidence})
         tightened = tighten_claims(usage, [c for c in raw_cards if c.get("source_kind") != "ebay_api"])
         cards = store.put_cards(sub, raw_cards, run_id) if raw_cards else []
+        # put_cards returns the stored card for each raw card, in order: this run's check and capture time.
+        fresh = [{**card, "type": raw["type"], "captured_at": raw["captured_at"]} for card, raw in zip(cards, raw_cards)]
         sourced = sum(1 for c in cards if c["type"] == "sourced")
         set_agent("Quote checker", "done",
                   f"{sourced} of {len(cards)} quotes found on the page; {tightened} claims narrowed to their quote",
@@ -744,7 +867,7 @@ def run(run_id):
         t0 = time.time()
         set_agent(writer, "running", "Writing the report")
         doc = write_report(usage, brief, cards, directions, settings["writer_effort"], context and context["text"])
-        if template["id"] == "ebay":
+        if template["id"] in ("ebay", "etsy"):
             doc = ebay_report.asking_wording(doc)
         set_agent(writer, "done", "Report written", time.time() - t0)
 
@@ -767,7 +890,7 @@ def run(run_id):
             "claims_narrowed": tightened,
             "relabelled": relabelled,
         }
-        extra_charts, template_fields, missing = [], {}, list(doc["missing_evidence"])
+        extra_charts, template_fields, missing, compare = [], {}, list(doc["missing_evidence"]), None
         if template["id"] == "ebay":
             listings = ebay_report.cited_listings(cards, evidence)
             fees, ad_budget, notes = (ebay_report.fee_breakdown(doc.get("ebay_fees"), cards, brief, listings)
@@ -779,8 +902,11 @@ def run(run_id):
             extra_charts = [charts.asking_prices_chart(listings) if feature == "competitor_scan" else None,
                             charts.ebay_costs_chart(fees)]
             coverage["ebay_searches"] = toolbox.context.counts.get("ebay_snapshots", 0) if toolbox else 0
+        elif template["id"] != templates.DEFAULT:
+            template_fields, extra_charts, notes, compare = template_sections(template, feature, doc, fresh, known, brief)
+            missing += [note for note in notes if note not in missing]
         result = {
-            "version": 4 if template["id"] == "ebay" else 3,
+            "version": 3 if template["id"] == templates.DEFAULT else 4,
             "template": template["id"],
             "feature": feature,
             "mode": mode,
@@ -798,7 +924,8 @@ def run(run_id):
             "missing_evidence": missing,
             "coverage": coverage,
             "charts": charts.build_charts(feature, doc, known, coverage, extra=extra_charts,
-                                          asking=template["id"] == "ebay" and feature == "competitor_scan"),
+                                          asking=template["id"] == "ebay" and feature == "competitor_scan",
+                                          compare=compare),
             **template_fields,
             "cards": cards + [card for card in earlier if card["card_id"] in cited_ids(doc)],
             "cost": usage.as_dict(),

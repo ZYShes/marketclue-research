@@ -17,7 +17,10 @@ def test_templates_require_a_session(aws):
 def test_templates_list_shows_ebay_unavailable_until_connected(aws):
     session = signed_in()
     listed = body(request("/api/templates", session=session))
-    assert listed == [
+    # General and eBay seller come first, exactly as before; the v4.1 templates follow (tests/test_templates_more.py).
+    assert [template["id"] for template in listed] == ["general", "ebay", "food_truck", "restaurant", "daycare", "etsy"]
+    assert all(template["available"] for template in listed[2:])
+    assert listed[:2] == [
         {"id": "general", "name": "General", "description": templates.TEMPLATES["general"]["description"],
          "tools": ["market_check", "competitor_scan", "launch_checklist", "marketing_plan"], "capabilities": [],
          "available": True, "unavailable_reason": None},

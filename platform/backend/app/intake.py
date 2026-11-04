@@ -99,6 +99,7 @@ def system_prompt(spec, template, project_context=None):
     if template["intake_needs"]:
         prompt += TEMPLATE_SYSTEM.format(name=template["name"], needs=template["intake_needs"],
                                          field=" and ".join(template["brief_fields"]) or "extra")
+        prompt += "".join(f"\n{rule}" for rule in template.get("intake_rules") or [])
     if project_context:
         prompt += PROJECT_SYSTEM.format(context=project_context)
     return prompt

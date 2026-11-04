@@ -66,12 +66,13 @@ def price_series(doc, cards):
     return sorted(series, key=lambda item: item["value"])
 
 
-def price_charts(doc, cards, asking=False):
+def price_charts(doc, cards, asking=False, noun=None):
     """The price bar chart and the suggested price band; with asking=True (eBay listings) only the band, whose
-    comparison says asking prices, because the asking_prices chart shows the listings."""
+    comparison says asking prices, because the asking_prices chart shows the listings. A template's `noun` (its
+    benchmark chart shows the prices) also keeps only the band, compared against "<noun> of $x to $y"."""
     series = price_series(doc, cards)
     charts = []
-    if series and not asking:
+    if series and not asking and not noun:
         has_range = any(item["high"] > item["low"] for item in series)
         values = sorted(item["value"] for item in series)
         middle = values[len(values) // 2] if len(values) % 2 else (values[len(values) // 2 - 1] + values[len(values) // 2]) / 2
@@ -93,7 +94,7 @@ def price_charts(doc, cards, asking=False):
             floor, top = series[0]["value"], max(item["high"] for item in series)
             ids = list(dict.fromkeys(cid for item in series for cid in item["card_ids"]))
             items.append({"label": "Competitor prices", "value": floor, "low": floor, "high": top, "card_ids": ids})
-            noun = "asking prices of active eBay listings" if asking else "quoted prices"
+            noun = "asking prices of active eBay listings" if asking else noun or "quoted prices"
             caption = f"A suggested price of {_money(low)} to {_money(high)}, against {noun} of {_money(floor)} to {_money(top)}."
         items.append({"label": "Your suggested price", "value": low, "low": low, "high": high, "card_ids": []})
         charts.append(_chart("price_band", "range", "Suggested price band", caption, "USD", "estimate", items,
@@ -275,18 +276,134 @@ def ebay_costs_chart(fees):
     )
 
 
-def build_charts(feature, doc, cards, coverage, extra=(), asking=False):
+def _median(values):
+    values = sorted(values)
+    half = len(values) // 2
+    return values[half] if len(values) % 2 else (values[half - 1] + values[half]) / 2
+
+
+def price_benchmarks_chart(section):
+    """Prices of nearby businesses (or asking prices of Etsy listings) from sourced cards, cheapest first. Only the
+    most common price unit is drawn, so weekly and monthly tuition are never mixed on one scale."""
+    items = [item for item in (section or {}).get("items") or [] if _number(item.get("price"))]
+    if not items:
+        return None
+    counts = {}
+    for item in items:
+        counts[item.get("unit")] = counts.get(item.get("unit"), 0) + 1
+    unit = max(counts, key=counts.get)
+    chosen = sorted((item for item in items if item.get("unit") == unit), key=lambda item: item["price"])
+    has_range = any(item.get("price_high") for item in chosen)
+    series = []
+    for item in chosen:
+        label = " · ".join(part for part in (_clean(item.get("business"), 30), _clean(item.get("item"), 30)) if part)
+        entry = {"label": label or "Price", "value": item["price"], "card_ids": list(item.get("card_ids") or [])}
+        if has_range:
+            entry.update(low=item["price"], high=item.get("price_high") or item["price"])
+        series.append(entry)
+    low, high = chosen[0]["price"], max(item.get("price_high") or item["price"] for item in chosen)
+    middle = round(_median([item["price"] for item in chosen]), 2)
+    dates = _dates(chosen)
+    if section.get("asking"):
+        title = "Asking prices of comparable Etsy listings"
+        caption = (f"Asking prices of Etsy listings on {dates}, not sold prices: {len(chosen)} comparable listings ask "
+                   f"{_money(low)} to {_money(high)}; the middle asking price is {_money(middle)}.")
+        method = ("Asking prices as each etsy.com listing page stated them on the day it was fetched; only prices whose "
+                  "quote was found word for word on the page are drawn. Etsy does not show sold prices.")
+    else:
+        what = section.get("what") or "prices"
+        title = f"{what[0].upper()}{what[1:]} nearby"
+        caption = (f"{what[0].upper()}{what[1:]}{' ' + unit if unit else ''} from {section.get('source') or 'nearby businesses'}, "
+                   f"retrieved {dates}: {len(chosen)} prices from {_money(low)} to {_money(high)}; the middle is {_money(middle)}.")
+        method = ("Prices as each business's own page or listing stated them on the day it was fetched; only prices whose "
+                  "quote was found word for word on the page are drawn.")
+    if len(chosen) < len(items):
+        other = len(items) - len(chosen)
+        caption += f" {other} price{'s' if other > 1 else ''} for another unit {'are' if other > 1 else 'is'} in the table only."
+    return _chart("price_benchmarks", "range" if has_range else "bar", title, caption, "USD", "sourced", series, method)
+
+
+def startup_costs_chart(section):
+    """Startup cost lines as ranked ranges (largest first) with the total as a rounded range, never one number."""
+    lines = (section or {}).get("lines") or []
+    if not lines:
+        return None
+    ranked = sorted(lines, key=lambda line: (-line["high"], -line["low"]))
+    has_range = any(line["high"] > line["low"] for line in ranked)
+    series = []
+    for line in ranked:
+        entry = {"label": _clean(line["item"], 40), "value": line["low"], "card_ids": list(line.get("card_ids") or [])}
+        if has_range:
+            entry.update(low=line["low"], high=line["high"])
+        series.append(entry)
+    top = ranked[0]
+    span = _money(top["low"]) if top["high"] == top["low"] else f"{_money(top['low'])} to {_money(top['high'])}"
+    caption = (f"The checked lines add up to about {_money(section['total_low'])} to {_money(section['total_high'])}; "
+               f"the largest is {_clean(top['item'], 40).lower()} ({span}).")
+    if section.get("missing_lines"):
+        caption += " Not included: " + ", ".join(line[0].lower() + line[1:] for line in section["missing_lines"]) + "."
+    return _chart("startup_costs", "range" if has_range else "bar", "Startup costs by line", caption, "USD",
+                  "estimate", series, section.get("method") or "")
+
+
+def requirements_chart(section):
+    items = (section or {}).get("items") or []
+    if not items:
+        return None
+    official = [item for item in items if item.get("official")]
+    others = [item for item in items if not item.get("official")]
+    return _chart(
+        "requirements", "stacked_bar", "Requirements by evidence",
+        f"{len(official)} of {len(items)} requirements were confirmed on an official page in this run; check the others with the agency.",
+        "count", "sourced",
+        [{"label": "Confirmed on an official page", "value": len(official),
+          "card_ids": list(dict.fromkeys(cid for item in official for cid in item.get("card_ids") or []))},
+         {"label": "Check with the agency", "value": len(others), "card_ids": []}],
+        "Official means a government page (.gov or a state- or city-run site) fetched in this run states the requirement.",
+    )
+
+
+def etsy_costs_chart(fees):
+    """Where an Etsy sale total goes, without and with an Offsite Ads fee: fees, shipping, ad fee and what is left."""
+    if not fees or not fees.get("complete") or not fees.get("scenarios"):
+        return None
+    amounts = {line["item"]: line["amount"] for line in fees["lines"]}
+    series = []
+    for scenario in fees["scenarios"]:
+        segments = [{"label": label, "value": amounts[item]} for label, item in
+                    (("Listing fee", "Listing fee"), ("Transaction fee", "Transaction fee"),
+                     ("Processing fee", "Payment processing fee"), ("Shipping", "Shipping label")) if item in amounts]
+        segments += [{"label": "Offsite Ads fee", "value": scenario["ad_fee"]},
+                     {"label": "What is left", "value": max(scenario["left"], 0)}]
+        label = _clean(scenario["label"], 48) + (f" (loss of ${-scenario['left']:,.2f})" if scenario["left"] < 0 else "")
+        series.append({"label": label, "value": fees["sale_total"], "card_ids": list(scenario.get("card_ids") or []),
+                       "segments": segments})
+    base, worst = fees["scenarios"][0], max(fees["scenarios"], key=lambda scenario: scenario["ad_fee"])
+    text = lambda left: f"${left:,.2f}" if left >= 0 else f"a loss of ${-left:,.2f}"  # noqa: E731
+    return _chart(
+        "etsy_costs", "stacked_bar", "Where an Etsy sale goes, with and without Offsite Ads",
+        (f"Of the ${fees['sale_total']:,.2f} sale total, {text(base['left'])} is left before your own cost of the item; "
+         f"an order from an Offsite Ad at {worst['ad_rate_pct']:g}% leaves {text(worst['left'])}."),
+        "USD", "estimate", series, fees["method"],
+    )
+
+
+def build_charts(feature, doc, cards, coverage, extra=(), asking=False, compare=None):
     """Chart specs for result.charts; a chart that cannot be built is left out instead of failing the run.
-    `extra` charts (a template's) go after the tool's charts, or first with `asking` (eBay listings, which the
-    suggested price band is then compared against)."""
+    `extra` charts (a template's) go after the tool's charts, or first with `asking` (eBay listings) or `compare`
+    (a template's benchmark chart, named by that noun), which the suggested price band is then compared against."""
     extra = [chart for chart in extra if chart]
-    charts = list(extra) if asking else []
+    first = asking or bool(compare)
+    charts = list(extra) if first else []
     for build in FEATURE_CHARTS.get(feature, []):
         try:
-            charts += build(doc, cards, asking=True) if asking and build is price_charts else build(doc, cards)
+            if build is price_charts and first:
+                charts += build(doc, cards, asking=True) if asking else build(doc, cards, noun=compare)
+            else:
+                charts += build(doc, cards)
         except Exception as exc:
             print(json.dumps({"chart_failed": build.__name__, "error": str(exc)[:200]}))
-    if not asking:
+    if not first:
         charts += extra
     charts.append(coverage_chart(coverage))
     return charts

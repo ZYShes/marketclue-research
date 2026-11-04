@@ -104,3 +104,5 @@ def available(capability_ids) -> tuple[bool, str | None]:
 
 
 from . import ebay  # noqa: E402,F401  (registers the eBay capabilities)
+from . import local  # noqa: E402,F401  (registers official_requirements, local_benchmarks, startup_costs)
+from . import etsy  # noqa: E402,F401  (registers etsy_fees)

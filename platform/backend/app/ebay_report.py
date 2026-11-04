@@ -43,12 +43,13 @@ def _states(value, quote):
     return value < 1 and "cent" in quote.lower() and stated(round(value * 100, 2), [quote])
 
 
-def checked(value, card_ids, by_id):
-    """(value, ids of ebay.com help-page cards that state it), or (None, []) when no such card states it."""
+def checked(value, card_ids, by_id, official=_official):
+    """(value, ids of ebay.com help-page cards that state it), or (None, []) when no such card states it.
+    `official` decides which cards count (the Etsy template passes its etsy.com help-page test)."""
     value = _number(value)
     if value is None:
         return None, []
-    ids = [cid for cid in dict.fromkeys(card_ids or []) if cid in by_id and _official(by_id[cid])
+    ids = [cid for cid in dict.fromkeys(card_ids or []) if cid in by_id and official(by_id[cid])
            and _states(value, by_id[cid]["quote"])]
     return (value, ids) if ids else (None, [])
 
