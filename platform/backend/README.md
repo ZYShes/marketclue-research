@@ -127,3 +127,30 @@ run one real search with production keys and compare `itemSummaries` fields (`pr
 `shippingOptions[].shippingCost`, `itemWebUrl`, `seller.feedbackScore`) and the filter syntax
 (`price:[10..50],priceCurrency:USD`, `conditions:{NEW}`) with a live answer; also confirm the US fee and
 Promoted Listings help page URLs in `app/templates.py`.
+
+## v5 additions: projects (see `../SPEC.md` v5)
+
+- `app/store.py` adds projects (`PROJECT#<id>/META`, list rows under `USER#<owner>` or `TEAM#<team_id>`,
+  run rows `PROJECT#<id>/RUN#<created_at>#<run_id>` written by `create_run`, mirrored by `update_run` for
+  status, title and takeaway, and moved by `file_run`) and membership rows `USER#<sub>/TEAMMEMBER#<team_id>`,
+  which replace `PROFILE.team_id` (no code reads it any more). `projects_created` on the profile enforces the
+  50-project limit atomically; the 10-team limit is checked against the membership rows.
+- `app/projects.py` holds the rules: `role()` (owner, team_owner, member or none), the list and detail
+  shapes, and the AI context: `intake_context()` (brief + one line per finished report) and
+  `research_context()` (brief, latest takeaway per stage, up to 30 project cards: sourced first, then
+  most-cited, then newest, cut at 14,000 characters ≈ 4,000 tokens).
+- `app/router.py`: a done run is readable by its author or by anyone who can see its project (`access:
+  "project"`); unfiled runs are private. `/api/teams/{id}/...` routes take an explicit team; the legacy
+  `/api/team/...` routes act on the first team joined. A ready intake brief fills only empty project brief
+  fields. A conversation filed in a project the user can no longer see starts its run unfiled.
+- `app/pipeline.py`: with a project, the planner prompt gets the context and its schema a `reused` field; the
+  writer prompt gets the context with earlier card ids; earlier sourced cards join the reviewer's and the
+  charts' known cards; cited ones are added to `result.cards` (`earlier: true`, label "from an earlier report in
+  this project", original `captured_at`). `result.project` is set. Without a project nothing changes (tested
+  by comparing prompts and schemas). The takeaway (≤300 chars) is stored on run META when a run finishes.
+- `infra/migrate_projects.py`: see SPEC "Migration". It imports `app.store`, so its rows have exactly the
+  formats the code reads. Run it with `--dry-run` first, then for real before deploying v5 (the v3 code
+  ignores the new rows) and once more right after deploying (it files done runs created in between).
+  `--drop-profile-team-id` removes the legacy attribute once v5 is live.
+- Errors: `project_not_found` 404, `project_owner_only` 403, `project_limit` 429, `team_limit` 429,
+  `no_team` 404. `already_in_team` is no longer returned.

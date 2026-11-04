@@ -513,7 +513,7 @@ Fact cards tabs. Not built: folders, nested projects, file uploads, instructions
 |---|---|---|
 | `PROJECT#<id>` | `META` | project_id, name (≤80), owner_sub, team_id or null, brief {business, customer, location, stage, budget_usd} (each may be null), default_template, created_at, updated_at, archived |
 | `USER#<owner>` or `TEAM#<team_id>` | `PROJECT#<id>` | list row: project_id, name, owner_sub, team_id, archived, created_at, updated_at (personal projects under the owner, team projects under the team) |
-| `PROJECT#<id>` | `RUN#<created_at>#<run_id>` | run row: run_id, user_sub, title, status, feature, mode, template, created_at, takeaway (≤300 chars, set when done) |
+| `PROJECT#<id>` | `RUN#<created_at>#<run_id>` | run row: run_id, user_sub, title, status, feature, mode, template, created_at, takeaway (≤300 chars, set when done; also kept on run META so a later move carries it) |
 | `USER#<sub>` | `TEAMMEMBER#<team_id>` | team_id, role owner/member, joined_at (replaces PROFILE.team_id; `TEAM#<id>/MEMBER#<sub>` stays) |
 | `USER#<sub>` | `PROFILE` | + projects_created (counts toward the 50-project limit; archiving does not free a slot) |
 
@@ -552,7 +552,10 @@ row; `result.project` is set for runs with a project. Limits: 10 teams per perso
   "owner"|"team_owner"|"member", can_manage, archived, default_template, stages: {market_check: n,
   competitor_scan: n, launch_checklist: n, marketing_plan: n} (done runs), last_run_at, updated_at}`.
 - `POST /api/projects {name, team_id?, brief?, default_template?}` → 201 project detail. `PATCH
-  /api/projects/{id} {name?, brief?, team_id?|null, archived?, default_template?}` → project detail. No delete.
+  /api/projects/{id} {name?, brief?, team_id?|null, archived?, default_template?}` → project detail (a `brief`
+  patch changes only the fields it names); when the change leaves the caller unable to see the project (a team
+  owner moving a member's project to that member's personal space) → `{project: {project_id, moved: true},
+  stages: {}, runs: [], conversations: []}`. No delete.
 - `GET /api/projects/{id}` → `{project: {project_id, name, owner_sub, team, brief, default_template, archived,
   created_at, updated_at, role, can_manage}, stages: {<feature>: {count, latest: {run_id, title, takeaway,
   created_at, mode, template}|null}}, runs: [{run_id, title, status, feature, mode, template, created_at,
