@@ -66,8 +66,8 @@ def lambda_client(monkeypatch):
     return client
 
 
-def done_run(sub="founder", title="Mug prices", result=None, conv_id="conversation"):
-    run = store.create_run(sub, conv_id, title, copy.deepcopy(BRIEF))
+def done_run(sub="founder", title="Mug prices", result=None, conv_id="conversation", project_id=None):
+    run = store.create_run(sub, conv_id, title, copy.deepcopy(BRIEF), project_id=project_id)
     store.save_result(run["run_id"], result or {"version": 3, "title": title, "brief": BRIEF, "cards": []})
     store.update_run(run["run_id"], status="done", stage="done")
     return store.get_run(run["run_id"])

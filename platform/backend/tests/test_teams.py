@@ -4,7 +4,7 @@ from itertools import count
 import boto3
 import pytest
 
-from app import settings, store
+from app import projects, settings, store
 from helpers import BRIEF, body, done_run, lambda_client, ready_conversation, request, signed_in
 
 
@@ -17,7 +17,10 @@ def team(aws):
     member = signed_in("member-sub", "Member@Example.com", "Max Member")
     token = body(request("/api/team/invites", "POST", {"email": "member@example.com"}, owner))["token"]
     assert request("/api/team/join", "POST", {"token": token}, member)["statusCode"] == 200
-    return {"owner": owner, "member": member, "team_id": store.get_user("owner-sub")["team_id"], "token": token}
+    team_id = body(created)["team"]["team_id"]
+    project = body(request("/api/projects", "POST", {"name": "Clay planters", "team_id": team_id}, owner))
+    return {"owner": owner, "member": member, "team_id": team_id, "token": token,
+            "project_id": project["project"]["project_id"]}
 
 
 def card(url, quote="Mugs sell for $40.", **fields):
@@ -34,19 +37,30 @@ def test_team_routes_require_session(aws, path, method):
     assert request(path, method, {})["statusCode"] == 401
 
 
-def test_create_team_once(aws):
+def test_create_several_teams_up_to_the_limit(aws, monkeypatch):
     session = signed_in("owner-sub", "lead@example.com", "Lena Lead")
-    assert body(request("/api/team", session=session)) == {"team": None, "role": None, "members": [], "invites": []}
+    assert body(request("/api/team", session=session)) == {"team": None, "role": None, "members": [], "invites": [], "projects": []}
     assert request("/api/team", "POST", {"name": "  "}, session)["statusCode"] == 400
     state = body(request("/api/team", "POST", {"name": "Clay \n Collective"}, session))
     assert state["team"]["name"] == "Clay Collective" and state["team"]["owner_sub"] == "owner-sub"
-    assert state["role"] == "owner" and state["invites"] == []
+    assert state["role"] == "owner" and state["invites"] == [] and state["projects"] == []
     assert [(m["sub"], m["role"], m["email"], m["name"]) for m in state["members"]] == [
         ("owner-sub", "owner", "lead@example.com", "Lena Lead")]
-    assert store.get_user("owner-sub")["team_id"] == state["team"]["team_id"]
-    again = request("/api/team", "POST", {"name": "Second"}, session)
-    assert again["statusCode"] == 403 and body(again)["error"]["code"] == "already_in_team"
+    assert [(m["team_id"], m["role"]) for m in store.list_memberships("owner-sub")] == [(state["team"]["team_id"], "owner")]
+    assert "team_id" not in store.get_user("owner-sub")
+    monkeypatch.setattr(projects, "MAX_TEAMS", 2)
+    second = request("/api/teams", "POST", {"name": "Second"}, session)
+    assert second["statusCode"] == 201
+    third = request("/api/team", "POST", {"name": "Third"}, session)
+    assert third["statusCode"] == 429 and body(third)["error"]["code"] == "team_limit"
     assert body(request("/api/team", session=session)) == state
+    teams = body(request("/api/teams", session=session))
+    assert [(t["name"], t["role"], t["member_count"]) for t in teams] == [("Clay Collective", "owner", 1), ("Second", "owner", 1)]
+    second_id = body(second)["team"]["team_id"]
+    assert body(request(f"/api/teams/{second_id}", session=session))["team"]["name"] == "Second"
+    stranger = signed_in("stranger", "stranger@example.com")
+    missing = request(f"/api/teams/{second_id}", session=stranger)
+    assert missing["statusCode"] == 404 and body(missing)["error"]["code"] == "no_team"
 
 
 def test_invites_are_owner_only_and_listed_for_the_owner(team):
@@ -103,7 +117,7 @@ def test_join_requires_the_invited_google_email(team):
     stranger = signed_in("stranger", "stranger@example.com")
     response = request("/api/team/join", "POST", {"token": invite["token"]}, stranger)
     assert response["statusCode"] == 403 and body(response)["error"]["code"] == "invite_email_mismatch"
-    assert store.get_user("stranger").get("team_id") is None
+    assert store.list_memberships("stranger") == []
     guest = signed_in("guest", "GUEST@example.com", "Gita Guest")
     joined = body(request("/api/team/join", "POST", {"token": invite["token"]}, guest))
     assert joined["role"] == "member" and joined["team"]["team_id"] == team["team_id"]
@@ -139,14 +153,15 @@ def test_expired_revoked_and_other_team_invites(team, monkeypatch):
 
 def test_removed_member_loses_team_access_at_once(team):
     owner, member = team["owner"], team["member"]
-    run = done_run("owner-sub")
+    run = done_run("owner-sub", project_id=team["project_id"])
     assert request(f"/api/runs/{run['run_id']}", session=member)["statusCode"] == 200
     assert request("/api/team/members/member-sub", "DELETE", session=member)["statusCode"] == 403
     response = request("/api/team/members/owner-sub", "DELETE", session=owner)
     assert response["statusCode"] == 400 and body(response)["error"]["code"] == "cannot_remove_owner"
     assert body(request("/api/team/members/member-sub", "DELETE", session=owner)) == {"ok": True}
     assert request(f"/api/runs/{run['run_id']}", session=member)["statusCode"] == 404
-    assert store.get_user("member-sub").get("team_id") is None
+    assert store.list_memberships("member-sub") == []
+    assert request(f"/api/projects/{team['project_id']}", session=member)["statusCode"] == 404
     assert body(request("/api/team", session=member))["team"] is None
     assert body(request("/api/team/runs", session=member)) == {"runs": []}
     assert [m["sub"] for m in body(request("/api/team", session=owner))["members"]] == ["owner-sub"]
@@ -162,28 +177,35 @@ def test_members_leave_but_owners_cannot(team):
     assert body(request("/api/team", "POST", {"name": "My own"}, team["member"]))["role"] == "owner"
 
 
-def test_team_runs_list_finished_runs_of_current_members(team, monkeypatch):
-    owner, member = team["owner"], team["member"]
+def test_team_runs_list_finished_runs_of_the_teams_projects(team, monkeypatch):
+    owner, member, project_id = team["owner"], team["member"], team["project_id"]
     ticks, start = count(), datetime(2026, 11, 3, 12, tzinfo=timezone.utc)
     monkeypatch.setattr(store, "_now", lambda: start + timedelta(seconds=next(ticks)))
-    first = done_run("owner-sub", "Owner report")
-    second = done_run("member-sub", "Member report")
-    store.create_run("member-sub", "conversation", "Still running", BRIEF)
+    first = done_run("owner-sub", "Owner report", project_id=project_id)
+    second = done_run("member-sub", "Member report", project_id=project_id)
+    unfiled = done_run("member-sub", "Private report")
+    store.create_run("member-sub", "conversation", "Still running", BRIEF, project_id=project_id)
     outsider = done_run("outsider", "Outsider report")
     monkeypatch.undo()
     runs = body(request("/api/team/runs", session=owner))["runs"]
     assert [(r["run_id"], r["owner_name"], r["owner_sub"]) for r in runs] == [
         (second["run_id"], "Max Member", "member-sub"), (first["run_id"], "Lena Lead", "owner-sub")]
     assert all(r["status"] == "done" for r in runs)
-    assert outsider["run_id"] not in {r["run_id"] for r in runs}
+    assert {outsider["run_id"], unfiled["run_id"]}.isdisjoint(r["run_id"] for r in runs)
+    assert request(f"/api/runs/{unfiled['run_id']}", session=owner)["statusCode"] == 404
+    assert body(request(f"/api/teams/{team['team_id']}/runs", session=member))["runs"] == runs
     assert len(body(request("/api/team/runs", session=member, rawQueryString="limit=1"))["runs"]) == 1
     loner = signed_in("loner", "loner@example.com")
     assert body(request("/api/team/runs", session=loner)) == {"runs": []}
 
 
-def test_team_cards_are_deduped_with_added_by(team):
-    store.put_cards("owner-sub", [card("https://a.example/1"), card("https://a.example/2", type="unverified")], "r1")
-    store.put_cards("member-sub", [card("https://a.example/1/"), card("https://b.example/3", direction="Buyers")], "r2")
+def test_team_cards_come_from_the_teams_projects_deduped_with_added_by(team):
+    r1 = done_run("owner-sub", project_id=team["project_id"])["run_id"]
+    r2 = done_run("member-sub", project_id=team["project_id"])["run_id"]
+    private = done_run("member-sub")["run_id"]
+    store.put_cards("owner-sub", [card("https://a.example/1"), card("https://a.example/2", type="unverified")], r1)
+    store.put_cards("member-sub", [card("https://a.example/1/"), card("https://b.example/3", direction="Buyers")], r2)
+    store.put_cards("member-sub", [card("https://private.example/9")], private)
     store.put_cards("outsider", [card("https://c.example/4")], "r3")
     owner_view = body(request("/api/team/cards", session=team["owner"]))["cards"]
     assert sorted((c["url"], c["added_by"]) for c in owner_view) == [
@@ -196,15 +218,17 @@ def test_team_cards_are_deduped_with_added_by(team):
     assert [c["url"] for c in filtered] == ["https://b.example/3"]
     assert all(isinstance(c["stale"], bool) for c in owner_view)
     assert len(body(request("/api/cards", session=team["owner"]))["cards"]) == 2
+    assert "https://private.example/9" not in {c["url"] for c in owner_view}
 
 
 def test_team_members_read_finished_reports_but_nothing_private(team, monkeypatch):
     owner, member = team["owner"], team["member"]
     conv_id = ready_conversation("owner-sub")
-    run = done_run("owner-sub", conv_id=conv_id)
+    run = done_run("owner-sub", conv_id=conv_id, project_id=team["project_id"])
     store.create_share(run["run_id"])
     loaded = body(request(f"/api/runs/{run['run_id']}", session=member))
-    assert loaded["access"] == "team" and loaded["run"]["owner_name"] == "Lena Lead"
+    assert loaded["access"] == "project" and loaded["run"]["owner_name"] == "Lena Lead"
+    assert loaded["project"] == {"project_id": team["project_id"], "name": "Clay planters", "team_id": team["team_id"]}
     assert "conv_id" not in loaded["run"] and "share_token" not in loaded["run"]
     assert loaded["result"]["title"] == "Mug prices"
     assert body(request(f"/api/runs/{run['run_id']}", session=owner))["access"] == "owner"
@@ -215,7 +239,7 @@ def test_team_members_read_finished_reports_but_nothing_private(team, monkeypatc
     assert body(request("/api/conversations", session=member))["conversations"] == []
     lambda_client(monkeypatch)
     assert request("/api/runs", "POST", {"conv_id": conv_id}, member)["statusCode"] == 404
-    running = store.create_run("owner-sub", conv_id, "Running", BRIEF)
+    running = store.create_run("owner-sub", conv_id, "Running", BRIEF, project_id=team["project_id"])
     assert request(f"/api/runs/{running['run_id']}", session=member)["statusCode"] == 404
     assert body(request("/api/runs", session=member))["runs"] == []
     stranger = signed_in("stranger", "stranger@example.com")
@@ -225,8 +249,8 @@ def test_team_members_read_finished_reports_but_nothing_private(team, monkeypatc
 
 def test_public_invite_preview_needs_no_sign_in(aws):
     owner = store.upsert_user("owner", "owner@example.com", "Olive Owner", "")
-    store.create_team(owner, "Clay Studio")
-    invite = store.create_invite(store.get_user("owner")["team_id"], "yuki@gmail.com", "owner")
+    team = store.create_team(owner, "Clay Studio")
+    invite = store.create_invite(team["team_id"], "yuki@gmail.com", "owner")
     response = request(f"/api/invites/{invite['token']}")
     assert response["statusCode"] == 200
     assert body(response) == {"team_name": "Clay Studio", "inviter_name": "Olive Owner", "email_hint": "y\u2022\u2022\u2022@gmail.com",
