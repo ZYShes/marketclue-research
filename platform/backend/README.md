@@ -54,7 +54,8 @@ prototype scope; run quotas use atomic DynamoDB transactions.
 - Run modes live in `pipeline.MODES`; runs without `mode` run as quick.
   `RESEARCH_MODEL` only applies to callers that pass no model.
 - `app/mockups.py` calls the OpenAI Images API (`OPENAI_IMAGE_MODEL`, default
-  `gpt-image-1`, 1024x1024 JPEG). The key is read from SSM
+  `gpt-image-2`; `OPENAI_IMAGE_SIZE` 1024x1024 and `OPENAI_IMAGE_QUALITY` low by
+  default, capped to 1536 px and low/medium; JPEG). The key is read from SSM
   `/marketclue/openai_api_key` on each request until it exists, so adding it
   needs no redeploy. Images are stored at `mockups/<run_id>/<id>.jpg` and served
   through the API (`GET /api/runs/{id}/mockups/{mockup_id}`, cookie-protected,

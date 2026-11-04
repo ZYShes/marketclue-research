@@ -329,7 +329,7 @@ Charts are built in code from structured writer fields wherever possible, not fr
 ## Mock pictures (optional)
 
 - `POST /api/runs/{id}/mockup` body `{prompt_kind: "product"|"listing"|"ad"}` → generates one image with
-  the OpenAI Images API (model from env `OPENAI_IMAGE_MODEL`, default `gpt-image-1`), stores it in S3, returns
+  the OpenAI Images API (model from env `OPENAI_IMAGE_MODEL`, default `gpt-image-2`; size 1024x1024 and quality low by default, never above 1536 px or medium quality), stores it in S3, returns
   `{url, prompt, created_at}`; `GET /api/runs/{id}/mockups` lists them. Requires SSM `/marketclue/openai_api_key`;
   when missing the endpoint returns 503 `mockups_disabled` and the UI hides the button. Owner-only for now;
   max 3 per run. Every image is labelled "AI mock-up — not a real product photo".
@@ -383,3 +383,11 @@ but in the new visual language. Footer credit "Built by Yuexizi Zhang".
   email the invite is for and offers to sign in with another account. Expired/revoked invites say so.
 - Mock-up images: provider chain in this order — `MOCKUP_PROVIDER=openai` (OpenAI Images API, key in SSM
   `/marketclue/openai_api_key`); a second provider slot `creatorhub` is reserved but not implemented now.
+
+## v4: templates (planned 2026-11-04)
+
+A template is a ready-made setup picked before a tool runs: extra intake questions, capabilities (tools the
+research agents may call besides web search/fetch), extra report sections and source rules. First template:
+"eBay seller" (comparable active eBay listings via the Browse API, eBay fee and Promoted Listings ad-cost
+scenarios for cost control). "General" stays the default. Full brief: `tasks/templates-ebay.md`.
+

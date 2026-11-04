@@ -41,11 +41,13 @@ def _content_type(image):
 
 
 def generate(api_key, prompt):
-    """Returns (image bytes, content type) for one 1024x1024 picture."""
+    """Returns (image bytes, content type) for one picture at the capped size and quality
+    (default 1024x1024, low quality; see settings.IMAGE_SIZES and IMAGE_QUALITIES)."""
+    settings = get_settings()
     client = openai.OpenAI(api_key=api_key, max_retries=1, timeout=120)
     response = client.images.generate(
-        model=get_settings().openai_image_model, prompt=prompt, n=1, size="1024x1024",
-        quality="medium", output_format="jpeg",
+        model=settings.openai_image_model, prompt=prompt, n=1, size=settings.openai_image_size,
+        quality=settings.openai_image_quality, output_format="jpeg", output_compression=80,
     )
     data = response.data[0].b64_json if response.data else None
     if not data:

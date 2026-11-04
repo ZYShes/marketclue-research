@@ -123,17 +123,34 @@ def test_generate_uses_the_openai_images_api(aws, monkeypatch):
     assert constructor.call_args.kwargs["api_key"] == "secret"
     arguments = client.images.generate.call_args.kwargs
     assert arguments["model"] == "gpt-image-test" and arguments["prompt"] == "A mug"
-    assert arguments["n"] == 1 and arguments["size"] == "1024x1024"
+    assert arguments["n"] == 1 and arguments["size"] == "1024x1024" and arguments["quality"] == "low"
     client.images.generate.return_value = SimpleNamespace(data=[SimpleNamespace(b64_json=None)])
     with pytest.raises(RuntimeError):
         mockups.generate("secret", "A mug")
 
 
 def test_default_image_model_and_prompts(aws):
-    assert settings.get_settings().openai_image_model == "gpt-image-1"
+    assert settings.get_settings().openai_image_model == "gpt-image-2"
     run = {"title": "Fallback title", "brief": {}}
     for kind in mockups.KINDS:
         prompt = mockups.build_prompt(kind, run, None)
         assert "Fallback title" in prompt and "not a real product" in prompt
     prompt = mockups.build_prompt("ad", run, {"brief": {"business": "Tea\n  cups", "customer": "Students"}})
     assert "Tea cups" in prompt and "Students" in prompt
+
+
+@pytest.mark.parametrize(("size", "quality", "expected"), [
+    ("1536x1024", "medium", ("1536x1024", "medium")),
+    ("4096x4096", "high", ("1024x1024", "low")),
+    ("auto", "HIGH", ("1024x1024", "low")),
+    ("", "", ("1024x1024", "low")),
+])
+def test_image_size_and_quality_are_capped(aws, monkeypatch, size, quality, expected):
+    monkeypatch.setenv("OPENAI_IMAGE_SIZE", size)
+    monkeypatch.setenv("OPENAI_IMAGE_QUALITY", quality)
+    settings.get_settings.cache_clear()
+    try:
+        current = settings.get_settings()
+        assert (current.openai_image_size, current.openai_image_quality) == expected
+    finally:
+        settings.get_settings.cache_clear()

@@ -32,6 +32,8 @@ class Settings:
     site_origin: str
     region: str
     openai_image_model: str
+    openai_image_size: str
+    openai_image_quality: str
     ses_from: str
 
     @property
@@ -53,6 +55,17 @@ class Settings:
             if exc.response["Error"]["Code"] == "ParameterNotFound":
                 return None
             raise
+
+
+# Mock-up pictures are capped to keep cost down: no sizes above 1536 px and no "high" quality.
+IMAGE_SIZES = ("1024x1024", "1024x1536", "1536x1024")
+IMAGE_QUALITIES = ("low", "medium")
+
+
+def _allowed(name: str, allowed: tuple[str, ...], default: str) -> str:
+    """An env value from a fixed list; anything else (including larger sizes) falls back to the default."""
+    value = os.environ.get(name, "").strip().lower()
+    return value if value in allowed else default
 
 
 def _nonnegative_int(name: str, default: int) -> int:
@@ -81,6 +94,8 @@ def get_settings() -> Settings:
         stale_days=_nonnegative_int("STALE_DAYS", 90),
         site_origin=os.environ.get("SITE_ORIGIN", "").rstrip("/"),
         region=os.environ.get("AWS_REGION", os.environ.get("AWS_DEFAULT_REGION", "us-west-2")),
-        openai_image_model=os.environ.get("OPENAI_IMAGE_MODEL", "").strip() or "gpt-image-1",
+        openai_image_model=os.environ.get("OPENAI_IMAGE_MODEL", "").strip() or "gpt-image-2",
+        openai_image_size=_allowed("OPENAI_IMAGE_SIZE", IMAGE_SIZES, "1024x1024"),
+        openai_image_quality=_allowed("OPENAI_IMAGE_QUALITY", IMAGE_QUALITIES, "low"),
         ses_from=os.environ.get("SES_FROM", "").strip(),
     )

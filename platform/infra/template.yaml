@@ -30,8 +30,16 @@ Parameters:
     Default: claude-opus-5-5
   OpenAIImageModel:
     Type: String
-    Default: gpt-image-1
+    Default: gpt-image-2
     Description: OpenAI image model for report mock-ups (key in SSM /marketclue/openai_api_key)
+  OpenAIImageSize:
+    Type: String
+    Default: 1024x1024
+    AllowedValues: [1024x1024, 1024x1536, 1536x1024]
+  OpenAIImageQuality:
+    Type: String
+    Default: low
+    AllowedValues: [low, medium]
   SesFrom:
     Type: String
     Default: ""
@@ -107,6 +115,8 @@ Resources:
           PLAN_MODEL: !Ref PlanModel
           RESEARCH_MODEL: !Ref ResearchModel
           OPENAI_IMAGE_MODEL: !Ref OpenAIImageModel
+          OPENAI_IMAGE_SIZE: !Ref OpenAIImageSize
+          OPENAI_IMAGE_QUALITY: !Ref OpenAIImageQuality
           SES_FROM: !If [SendsInviteEmail, !Ref SesFrom, ""]
       Policies:
         - DynamoDBCrudPolicy: { TableName: !Ref Table }
