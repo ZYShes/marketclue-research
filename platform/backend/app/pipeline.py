@@ -15,7 +15,8 @@ from datetime import datetime, timezone
 import requests
 from bs4 import BeautifulSoup
 
-from . import charts, claude, intake, store
+from . import capabilities, charts, claude, ebay_report, intake, store, templates
+from .capabilities import ebay
 
 MAX_DIRECTIONS = 4
 # Effort modes: research agent model, directions, page fetches per direction, writer effort.
@@ -53,7 +54,20 @@ def brief_text(brief):
         "Founder's questions:",
     ]
     lines += [f"- {q}" for q in brief.get("questions") or []]
+    answers = brief.get("ebay") or {}
+    if answers:
+        lines.append("About selling on eBay:")
+        lines += [f"- {key.replace('_', ' ')}: {value}" for key, value in answers.items() if value is not None]
     return "\n".join(lines)
+
+
+def template_notes(brief, part):
+    """Extra prompt text for the brief's template (source rules and per-tool guidance); empty for general."""
+    template = templates.of(brief)
+    lines = list(template["source_rules"])
+    if template[part].get(feature_of(brief)):
+        lines.append(template[part][feature_of(brief)])
+    return f"\n\nTemplate: {template['name']}\n" + "\n".join(f"- {line}" for line in lines) if lines else ""
 
 
 # ---------- 1. The super agent splits the work ----------
@@ -96,6 +110,7 @@ def plan_directions(usage, brief, max_directions=MAX_DIRECTIONS):
             f"Split this into 2 to {max_directions} research directions that public web pages can answer, "
             f"covering {spec['research']}. Give each a short name (2-4 words), one research "
             "question, and 2-3 search hints. Also give the report a short title (max 8 words)."
+            + template_notes(brief, "research")
         ),
         schema=DIRECTIONS_SCHEMA,
         effort="medium",
@@ -114,6 +129,12 @@ FINDING | <one-sentence claim in plain English> | "<exact quote copied character
 
 The quote must appear word for word in the page you fetched; do not paraphrase, merge or fix it.
 Prefer concrete facts: prices, product details, what customers say, numbers with dates."""
+
+LISTING_SYSTEM = """
+
+You can also call ebay_search_listings to search active eBay listings. Its prices are asking prices of
+active listings on the retrieval date, never sold prices. A FINDING may cite a listing: use the listing's url
+as the URL and copy its quote_text exactly as the quote. Say a listing "asks" a price; never "sells for"."""
 
 FINDINGS_SCHEMA = {
     "type": "object",
@@ -137,17 +158,18 @@ FINDINGS_SCHEMA = {
 }
 
 
-def research(usage, brief, direction, mode="quick"):
+def research(usage, brief, direction, mode="quick", toolbox=None):
     prompt = (
         f"{brief_text(brief)}\n\nYour research direction: {direction['name']}\n"
         f"Question: {direction['question']}\nSearch hints: {', '.join(direction.get('search_hints') or [])}"
-    )
+    ) + template_notes(brief, "research")
     if feature_of(brief) == "launch_checklist":
         prompt += ("\n\nPrefer official pages: government sites (.gov) for the founder's city and state, "
                    "the U.S. Small Business Administration, and the selling platform's own help pages.")
     settings = MODES[mode]
     blocks = claude.research_call(
-        usage, system=RESEARCH_SYSTEM, prompt=prompt, model=settings["research_model"], max_fetches=settings["fetches"],
+        usage, system=RESEARCH_SYSTEM + (LISTING_SYSTEM if toolbox else ""), prompt=prompt,
+        model=settings["research_model"], max_fetches=settings["fetches"], **({"toolbox": toolbox} if toolbox else {}),
     )
     pages = claude.fetched_pages(blocks)
     report = "\n".join(b.text for b in blocks if b.type == "text")
@@ -174,10 +196,25 @@ def normalize_text(value):
     return re.sub(r"\s+", " ", value).strip().lower()
 
 
+def is_ebay_item(url):
+    parts = urllib.parse.urlsplit((url or "").strip())
+    host = parts.netloc.lower()
+    return (host == "ebay.com" or host.endswith(".ebay.com")) and parts.path.startswith("/itm/")
+
+
 def normalize_url(url):
+    """Lower-cased scheme and host, no trailing slash or fragment; eBay item links also lose tracking queries."""
     parts = urllib.parse.urlsplit((url or "").strip())
     path = parts.path.rstrip("/") or "/"
-    return urllib.parse.urlunsplit((parts.scheme.lower(), parts.netloc.lower(), path, parts.query, ""))
+    query = "" if is_ebay_item(url) else parts.query
+    return urllib.parse.urlunsplit((parts.scheme.lower(), parts.netloc.lower(), path, query, ""))
+
+
+def listing_claim(page):
+    item = page["item"]
+    price = f"${item['price']:,.2f}" if item["currency"] == "USD" else f"{item['price']:,.2f} {item['currency']}"
+    day = ebay.day_text(page["retrieved_at"])
+    return f"An active eBay listing asks {price} for \"{item['title']}\" (asking price on {day})."
 
 
 def quote_found(quote, text):
@@ -217,11 +254,21 @@ def make_cards(direction, findings, pages):
     cards = []
     for f in findings:
         page = by_url.get(normalize_url(f["url"]))
-        if not page or not quote_found(f["quote"], page["text"]):
+        if (not page or not quote_found(f["quote"], page["text"])) and not is_ebay_item(f["url"]):
             fallback = fetch_page(f["url"])
             if fallback and quote_found(f["quote"], fallback["text"]):
                 page = fallback
         sourced = bool(page) and quote_found(f["quote"], page["text"])
+        if page and page.get("source_kind") == "ebay_api":
+            if sourced:
+                cards.append({
+                    "claim": listing_claim(page), "quote": f["quote"].strip().strip('"'), "url": page["url"],
+                    "source_title": page["title"], "captured_at": page["retrieved_at"], "type": "sourced",
+                    "direction": direction["name"], "tags": [direction["name"], "eBay listing"],
+                    **{key: page[key] for key in store.CARD_EXTRA_FIELDS},
+                })
+                continue
+            page = None
         if page:
             store.save_snapshot(page["url"], page["text"][:200_000])
         cards.append({
@@ -307,7 +354,24 @@ def _nullable(schema):
 NUMBER_OR_NULL = {"type": ["number", "null"]}
 
 
-def report_schema(feature):
+EBAY_FEES_SCHEMA = _object({
+    "final_value_fee_pct": NUMBER_OR_NULL,
+    "final_value_fee_card_ids": _array({"type": "string"}),
+    "per_order_fee_usd": NUMBER_OR_NULL,
+    "per_order_fee_card_ids": _array({"type": "string"}),
+    "target_price_usd": NUMBER_OR_NULL,
+    "shipping_cost_usd": NUMBER_OR_NULL,
+    "buyer_pays_shipping": {"type": ["boolean", "null"]},
+    "shipping_method": {"type": "string"},
+    "ad_rates_pct": _array({"type": "number"}),
+    "ad_rate_min_pct": NUMBER_OR_NULL,
+    "ad_rate_max_pct": NUMBER_OR_NULL,
+    "ad_rate_card_ids": _array({"type": "string"}),
+    "priority": _item(),
+})
+
+
+def report_schema(feature, template_id="general"):
     props = {
         "takeaway": _item(),
         "findings": _array(_item({"title": {"type": "string"}})),
@@ -368,6 +432,8 @@ def report_schema(feature):
         props["themes"] = _array(_object({"label": {"type": "string"}, "card_ids": _array({"type": "string"})}))
     if feature == "launch_checklist":
         props["checklist"] = _array(_item({"step": {"type": "string"}}))
+    if template_id == "ebay" and feature == "marketing_plan":
+        props["ebay_fees"] = EBAY_FEES_SCHEMA
     return {"type": "object", "properties": props, "required": list(props), "additionalProperties": False}
 
 
@@ -430,8 +496,10 @@ def report_problems(feature, doc):
 
 def write_report(usage, brief, cards, directions, effort="medium"):
     feature = feature_of(brief)
+    schema = report_schema(feature, templates.of(brief)["id"])
     card_lines = [
-        {"id": c["card_id"], "direction": c["direction"], "claim": c["claim"], "quote": c["quote"], "source": c["source_title"], "url": c["url"]}
+        {"id": c["card_id"], "direction": c["direction"], "claim": c["claim"], "quote": c["quote"],
+         "source": f"{c['label']}: {c['source_title']}" if c.get("label") else c["source_title"], "url": c["url"]}
         for c in cards
         if c["type"] == "sourced"
     ]
@@ -441,13 +509,13 @@ def write_report(usage, brief, cards, directions, effort="medium"):
         f"Research directions: {', '.join(d['name'] for d in directions)}\n\n"
         f"Checked fact cards (JSON):\n{json.dumps(card_lines, ensure_ascii=False)}\n\n"
         f"{TOOL_INSTRUCTIONS[feature]}"
-    )
-    doc = claude.json_call(usage, system=WRITER_SYSTEM, prompt=prompt, schema=report_schema(feature), effort=effort, max_tokens=32000)
+    ) + template_notes(brief, "writer")
+    doc = claude.json_call(usage, system=WRITER_SYSTEM, prompt=prompt, schema=schema, effort=effort, max_tokens=32000)
     problems = report_problems(feature, doc)
     if problems:
         print(json.dumps({"writer_retry": problems}))
         doc = claude.json_call(
-            usage, system=WRITER_SYSTEM, schema=report_schema(feature), effort=effort, max_tokens=32000,
+            usage, system=WRITER_SYSTEM, schema=schema, effort=effort, max_tokens=32000,
             prompt=prompt + "\n\nA previous draft was incomplete. Make sure the report includes: " + "; ".join(problems) + ".",
         )
         problems = report_problems(feature, doc)
@@ -490,6 +558,9 @@ def _items(doc):
         yield f"b{j}", line, f"{line.get('item')}: ${line.get('amount')}"
     for j, step in enumerate(doc.get("checklist") or []):
         yield f"c{j}", step, f"{step.get('step', '')}: {step.get('text', '')}"
+    priority = (doc.get("ebay_fees") or {}).get("priority")
+    if isinstance(priority, dict):
+        yield "e-priority", priority, priority.get("text", "")
 
 
 def check(usage, doc, cards):
@@ -565,6 +636,9 @@ def run(run_id):
         feature = feature_of(brief)
         mode = mode_of(meta)
         settings = MODES[mode]
+        template = templates.of(brief)
+        toolbox = capabilities.Toolbox(template["capabilities"], run_id) if template["capabilities"] else None
+        toolbox = toolbox or None
         sub = meta["user_sub"]
         store.update_run(run_id, status="running", stage="planning")
         t0 = time.time()
@@ -581,7 +655,7 @@ def run(run_id):
         def work(direction):
             t = time.time()
             try:
-                findings, pages, hits = research(usage, brief, direction, mode)
+                findings, pages, hits = research(usage, brief, direction, mode, toolbox)
                 set_agent(direction["name"], "done", f"{len(pages)} pages read, {len(findings)} findings", time.time() - t)
                 return direction, findings, pages
             except Exception as exc:
@@ -594,9 +668,10 @@ def run(run_id):
         store.update_run(run_id, stage="verifying")
         t0 = time.time()
         raw_cards = []
+        evidence = toolbox.context.evidence if toolbox else {}
         for direction, findings, pages in results:
-            raw_cards += make_cards(direction, findings, pages)
-        tightened = tighten_claims(usage, raw_cards)
+            raw_cards += make_cards(direction, findings, {**pages, **evidence})
+        tightened = tighten_claims(usage, [c for c in raw_cards if c.get("source_kind") != "ebay_api"])
         cards = store.put_cards(sub, raw_cards, run_id) if raw_cards else []
         sourced = sum(1 for c in cards if c["type"] == "sourced")
         set_agent("Quote checker", "done",
@@ -610,6 +685,8 @@ def run(run_id):
         t0 = time.time()
         set_agent(writer, "running", "Writing the report")
         doc = write_report(usage, brief, cards, directions, settings["writer_effort"])
+        if template["id"] == "ebay":
+            doc = ebay_report.asking_wording(doc)
         set_agent(writer, "done", "Report written", time.time() - t0)
 
         store.update_run(run_id, stage="checking")
@@ -629,8 +706,21 @@ def run(run_id):
             "claims_narrowed": tightened,
             "relabelled": relabelled,
         }
+        extra_charts, template_fields, missing = [], {}, list(doc["missing_evidence"])
+        if template["id"] == "ebay":
+            listings = ebay_report.cited_listings(cards, evidence)
+            fees, ad_budget, notes = (ebay_report.fee_breakdown(doc.get("ebay_fees"), cards, brief, listings)
+                                      if feature == "marketing_plan" else (None, None, []))
+            if not toolbox:
+                notes.append("eBay listings could not be searched for this report (eBay is not connected).")
+            missing += [note for note in notes if note not in missing]
+            template_fields = {"listings": listings if feature == "competitor_scan" else [], "fees": fees, "ad_budget": ad_budget}
+            extra_charts = [charts.asking_prices_chart(listings) if feature == "competitor_scan" else None,
+                            charts.ebay_costs_chart(fees)]
+            coverage["ebay_searches"] = toolbox.context.counts.get("ebay_snapshots", 0) if toolbox else 0
         result = {
-            "version": 3,
+            "version": 4 if template["id"] == "ebay" else 3,
+            "template": template["id"],
             "feature": feature,
             "mode": mode,
             "title": title,
@@ -644,9 +734,11 @@ def run(run_id):
                        if feature == "marketing_plan" else None),
             "checklist": doc.get("checklist") or [],
             "next_steps": doc["next_steps"],
-            "missing_evidence": doc["missing_evidence"],
+            "missing_evidence": missing,
             "coverage": coverage,
-            "charts": charts.build_charts(feature, doc, cards, coverage),
+            "charts": charts.build_charts(feature, doc, cards, coverage, extra=extra_charts,
+                                          asking=template["id"] == "ebay" and feature == "competitor_scan"),
+            **template_fields,
             "cards": cards,
             "cost": usage.as_dict(),
             "agents": timings,

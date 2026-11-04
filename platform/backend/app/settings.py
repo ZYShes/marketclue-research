@@ -35,6 +35,7 @@ class Settings:
     openai_image_size: str
     openai_image_quality: str
     ses_from: str
+    max_ebay_calls_per_day: int
 
     @property
     def session_secret(self) -> str:
@@ -47,14 +48,26 @@ class Settings:
     @property
     def openai_api_key(self) -> str | None:
         """None when the optional mock-up key is not configured."""
-        try:
-            return _ssm_parameter(f"{self.ssm_prefix}/openai_api_key")
-        except ValueError:
+        return _optional_parameter(f"{self.ssm_prefix}/openai_api_key")
+
+    @property
+    def ebay_credentials(self) -> tuple[str, str] | None:
+        """(client id, client secret) of the eBay app, or None until both are in SSM."""
+        client_id = _optional_parameter(f"{self.ssm_prefix}/ebay_client_id")
+        secret = _optional_parameter(f"{self.ssm_prefix}/ebay_client_secret") if client_id else None
+        return (client_id, secret) if client_id and secret else None
+
+
+def _optional_parameter(name: str) -> str | None:
+    """An optional SSM value; a missing one is looked up again next time, so adding it needs no redeploy."""
+    try:
+        return _ssm_parameter(name)
+    except ValueError:
+        return None
+    except ClientError as exc:
+        if exc.response["Error"]["Code"] == "ParameterNotFound":
             return None
-        except ClientError as exc:
-            if exc.response["Error"]["Code"] == "ParameterNotFound":
-                return None
-            raise
+        raise
 
 
 # Mock-up pictures are capped to keep cost down: no sizes above 1536 px and no "high" quality.
@@ -98,4 +111,5 @@ def get_settings() -> Settings:
         openai_image_size=_allowed("OPENAI_IMAGE_SIZE", IMAGE_SIZES, "1024x1024"),
         openai_image_quality=_allowed("OPENAI_IMAGE_QUALITY", IMAGE_QUALITIES, "low"),
         ses_from=os.environ.get("SES_FROM", "").strip(),
+        max_ebay_calls_per_day=_nonnegative_int("MAX_EBAY_CALLS_PER_DAY", 1000),
     )

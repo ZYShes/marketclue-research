@@ -128,12 +128,12 @@ def save_conversation(sub, conv: dict) -> None:
         Key={"PK": f"USER#{sub}", "SK": f"CONV#{conv['conv_id']}"},
         UpdateExpression=(
             "SET conv_id = :id, messages = :messages, brief = :brief, ready = :ready, feature = :feature, "
-            "created_at = if_not_exists(created_at, :created), updated_at = :now"
+            "template = :template, created_at = if_not_exists(created_at, :created), updated_at = :now"
         ),
         ExpressionAttributeValues=_to_dynamo({
             ":id": conv["conv_id"], ":messages": conv["messages"], ":brief": conv.get("brief"),
             ":ready": conv.get("ready", False), ":feature": conv.get("feature") or "marketing_plan",
-            ":created": conv.get("created_at", now), ":now": now,
+            ":template": conv.get("template") or "general", ":created": conv.get("created_at", now), ":now": now,
         }),
     )
 
@@ -157,7 +157,7 @@ def list_conversations(sub, limit=50) -> list[dict]:
         conv = _public(item)
         rows.append({
             "conv_id": conv["conv_id"], "feature": conv.get("feature") or "marketing_plan",
-            "title": conversation_title(conv), "ready": bool(conv.get("ready")),
+            "template": conv.get("template") or "general", "title": conversation_title(conv), "ready": bool(conv.get("ready")),
             "run_id": conv.get("run_id"), "run_status": conv.get("run_status"),
             "updated_at": conv.get("updated_at") or conv.get("created_at"),
         })
@@ -188,11 +188,11 @@ def create_run(sub, conv_id, title, brief, mode="quick") -> dict:
     run_id, now = uuid4().hex[:12], _timestamp()
     run = {
         "run_id": run_id, "user_sub": sub, "conv_id": conv_id, "title": title,
-        "brief": brief, "mode": mode, "status": "queued", "stage": "planning", "agents": {},
+        "brief": brief, "mode": mode, "template": (brief or {}).get("template") or "general", "status": "queued", "stage": "planning", "agents": {},
         "cost_usd": 0, "error": None, "share_token": None, "created_at": now,
         "updated_at": now, "result_key": None,
     }
-    index = {key: run[key] for key in ("run_id", "title", "status", "created_at", "cost_usd", "mode")}
+    index = {key: run[key] for key in ("run_id", "title", "status", "created_at", "cost_usd", "mode", "template")}
     index["feature"] = (brief or {}).get("feature") or "marketing_plan"
     _transaction([
         {"Put": {"Item": {"PK": f"RUN#{run_id}", "SK": "META", **run},
@@ -309,14 +309,17 @@ def _dedupe_key(url, quote):
     return hashlib.sha1(f"{normalized_url}\n{normalized_quote}".encode("utf-8")).hexdigest()
 
 
-def _append_run(sub, card_id, run_id):
+def _append_run(sub, card_id, run_id, refresh=None):
+    """Adds run_id to a card; `refresh` fields (a re-checked eBay listing's date) are updated with it."""
     key = {"PK": f"USER#{sub}", "SK": f"CARD#{card_id}"}
+    refresh = refresh or {}
     try:
         response = _table().update_item(
             Key=key,
-            UpdateExpression="SET run_ids = list_append(run_ids, :run)",
+            UpdateExpression="SET run_ids = list_append(run_ids, :run)" + "".join(f", #r{i} = :r{i}" for i in range(len(refresh))),
             ConditionExpression="attribute_exists(PK) AND NOT contains(run_ids, :id)",
-            ExpressionAttributeValues={":run": [run_id], ":id": run_id},
+            ExpressionAttributeValues={":run": [run_id], ":id": run_id, **{f":r{i}": v for i, v in enumerate(refresh.values())}},
+            **({"ExpressionAttributeNames": {f"#r{i}": k for i, k in enumerate(refresh)}} if refresh else {}),
             ReturnValues="ALL_NEW",
         )
         return _public(response["Attributes"])
@@ -329,20 +332,26 @@ def _append_run(sub, card_id, run_id):
         return _public(item)
 
 
+# Optional card fields: listing cards from the eBay Browse API carry where and when they were checked.
+CARD_EXTRA_FIELDS = ("source_kind", "retrieved_at", "label", "snapshot_key")
+
+
 def put_cards(sub, cards: list[dict], run_id) -> list[dict]:
     existing = {item["dedupe_key"]: _public(item) for item in _query(sub, "CARD#")}
     stored = []
     for source in cards:
         dedupe = _dedupe_key(source["url"], source["quote"])
+        extra = {field: source[field] for field in CARD_EXTRA_FIELDS if source.get(field) is not None}
         if dedupe in existing:
-            card = _append_run(sub, existing[dedupe]["card_id"], run_id)
+            refresh = {"captured_at": source["captured_at"], **extra} if extra.get("source_kind") == "ebay_api" else None
+            card = _append_run(sub, existing[dedupe]["card_id"], run_id, refresh)
         else:
             card = {
                 "card_id": uuid4().hex[:12], "claim": source["claim"], "quote": source["quote"],
                 "url": source["url"], "source_title": source.get("source_title", ""),
                 "captured_at": source.get("captured_at", _timestamp()),
                 "type": source.get("type", "unverified"), "direction": source.get("direction", ""),
-                "tags": source.get("tags", []), "run_ids": [run_id], "dedupe_key": dedupe,
+                "tags": source.get("tags", []), "run_ids": [run_id], "dedupe_key": dedupe, **extra,
             }
             _table().put_item(
                 Item=_to_dynamo({"PK": f"USER#{sub}", "SK": f"CARD#{card['card_id']}", **card}),
@@ -646,3 +655,55 @@ def list_mockups(run_id) -> list[dict]:
 def load_mockup_image(mockup) -> bytes:
     response = _s3().get_object(Bucket=get_settings().data_bucket, Key=mockup["key"])
     return response["Body"].read()
+
+
+# ---------- eBay Browse API cache, daily cap and evidence snapshots ----------
+
+EBAY_CACHE_SECONDS = 24 * 60 * 60
+
+
+def get_ebay_cache(key) -> dict | None:
+    """A cached search answer younger than 24 hours ({raw, retrieved_at}), else None."""
+    item = _public(_get(f"EBAY#{key}", "SEARCH"))
+    if not item:
+        return None
+    retrieved = datetime.fromisoformat(item["retrieved_at"].replace("Z", "+00:00"))
+    return item if (_now() - retrieved).total_seconds() < EBAY_CACHE_SECONDS else None
+
+
+def put_ebay_cache(key, raw, retrieved_at) -> None:
+    if len(raw.encode("utf-8")) > 350_000:
+        return
+    _table().put_item(Item={
+        "PK": f"EBAY#{key}", "SK": "SEARCH", "raw": raw, "retrieved_at": retrieved_at,
+        "ttl": int((_now() + timedelta(seconds=EBAY_CACHE_SECONDS + 3600)).timestamp()),
+    })
+
+
+def reserve_ebay_call(limit) -> bool:
+    """Counts one Browse API call against the site-wide daily cap; False when today's calls are used up."""
+    if limit < 1:
+        return False
+    now = _now()
+    try:
+        _table().update_item(
+            Key={"PK": f"DAY#{now.date().isoformat()}", "SK": "EBAY_CALLS"},
+            UpdateExpression="SET #ttl = if_not_exists(#ttl, :ttl) ADD calls :one",
+            ConditionExpression="attribute_not_exists(calls) OR calls < :limit",
+            ExpressionAttributeNames={"#ttl": "ttl"},
+            ExpressionAttributeValues={":ttl": int((now + timedelta(days=2)).timestamp()), ":one": 1, ":limit": limit},
+        )
+    except ClientError as exc:
+        if _condition_failed(exc):
+            return False
+        raise
+    return True
+
+
+def save_ebay_snapshot(run_id, number, raw, retrieved_at) -> str:
+    key = f"runs/{run_id}/ebay/{number}.json"
+    _s3().put_object(
+        Bucket=get_settings().data_bucket, Key=key, Body=raw.encode("utf-8"),
+        ContentType="application/json", Metadata={"retrieved-at": retrieved_at},
+    )
+    return key

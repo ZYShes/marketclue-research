@@ -133,8 +133,10 @@ def json_call(usage, *, system, prompt, schema, effort="low", max_tokens=16000, 
     return json.loads(text_of(response))
 
 
-def research_call(usage, *, system, prompt, model=None, max_searches=4, max_fetches=3, fetch_tokens=6000, effort="medium"):
-    """Runs a web research turn, continuing paused server-tool turns. Returns all content blocks."""
+def research_call(usage, *, system, prompt, model=None, max_searches=4, max_fetches=3, fetch_tokens=6000, effort="medium",
+                  toolbox=None, max_turns=12):
+    """Runs a web research turn and returns all content blocks. Paused server-tool turns are continued; with a
+    toolbox, the agent's client tool calls are run and their results sent back until the agent ends its turn."""
     model = model or RESEARCH_MODEL
     dynamic = model in DYNAMIC_WEB_TOOLS
     tools = [
@@ -142,9 +144,11 @@ def research_call(usage, *, system, prompt, model=None, max_searches=4, max_fetc
         {"type": "web_fetch_20260209" if dynamic else "web_fetch_20250910", "name": "web_fetch",
          "max_uses": max_fetches, "max_content_tokens": fetch_tokens},
     ]
+    if toolbox:
+        tools += toolbox.tools
     messages = [{"role": "user", "content": prompt}]
     blocks = []
-    for _ in range(4):
+    for _ in range(max_turns if toolbox else 4):
         response = create(
             usage,
             model=model,
@@ -155,9 +159,14 @@ def research_call(usage, *, system, prompt, model=None, max_searches=4, max_fetc
             output_config={"effort": effort},
         )
         blocks.extend(response.content)
-        if response.stop_reason != "pause_turn":
+        calls = [block for block in response.content if block.type == "tool_use"] if toolbox else []
+        if response.stop_reason == "pause_turn":
+            messages.append({"role": "assistant", "content": response.content})
+        elif response.stop_reason == "tool_use" and calls:
+            messages.append({"role": "assistant", "content": response.content})
+            messages.append({"role": "user", "content": [toolbox.result_block(block) for block in calls]})
+        else:
             break
-        messages.append({"role": "assistant", "content": response.content})
     return blocks
 
 

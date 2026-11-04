@@ -35,7 +35,7 @@ def test_conversation_list_is_newest_first_with_titles(aws, monkeypatch, clock):
     listed = body(request("/api/conversations", session=session))["conversations"]
     assert [item["conv_id"] for item in listed] == [second["conv_id"], first["conv_id"]]
     assert listed[0] == {
-        "conv_id": second["conv_id"], "feature": "competitor_scan", "title": BRIEF["business"], "ready": True,
+        "conv_id": second["conv_id"], "feature": "competitor_scan", "template": "general", "title": BRIEF["business"], "ready": True,
         "run_id": None, "run_status": None, "updated_at": "2026-11-03T12:01:00Z",
     }
     title = listed[1]["title"]

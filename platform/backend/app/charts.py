@@ -26,7 +26,7 @@ def _count(value):
     return f"{value:,.0f}" if value >= 10 or float(value).is_integer() else f"{value:.1f}"
 
 
-def _stated(value, quotes):
+def stated(value, quotes):
     """True when one of the quotes states this number (commas ignored)."""
     numbers = re.findall(r"\d+(?:\.\d+)?", " ".join(quotes).replace(",", ""))
     return any(abs(float(number) - value) < 0.005 for number in numbers)
@@ -55,10 +55,10 @@ def price_series(doc, cards):
         if row.get("kind") != "sourced" or not ids or not low:
             continue
         quotes = [by_id[cid]["quote"] for cid in ids]
-        if not _stated(low, quotes):
+        if not stated(low, quotes):
             continue
         high = _number(row.get("price_high_usd"))
-        if not high or high <= low or not _stated(high, quotes):
+        if not high or high <= low or not stated(high, quotes):
             high = low
         cells = [_clean(cell, 40) for cell in (row.get("cells") or [])[:2] if _clean(cell)]
         series.append({"label": " · ".join(cells) or "Seller", "value": round(low, 2),
@@ -66,10 +66,12 @@ def price_series(doc, cards):
     return sorted(series, key=lambda item: item["value"])
 
 
-def price_charts(doc, cards):
+def price_charts(doc, cards, asking=False):
+    """The price bar chart and the suggested price band; with asking=True (eBay listings) only the band, whose
+    comparison says asking prices, because the asking_prices chart shows the listings."""
     series = price_series(doc, cards)
     charts = []
-    if series:
+    if series and not asking:
         has_range = any(item["high"] > item["low"] for item in series)
         values = sorted(item["value"] for item in series)
         middle = values[len(values) // 2] if len(values) % 2 else (values[len(values) // 2 - 1] + values[len(values) // 2]) / 2
@@ -91,7 +93,8 @@ def price_charts(doc, cards):
             floor, top = series[0]["value"], max(item["high"] for item in series)
             ids = list(dict.fromkeys(cid for item in series for cid in item["card_ids"]))
             items.append({"label": "Competitor prices", "value": floor, "low": floor, "high": top, "card_ids": ids})
-            caption = f"A suggested price of {_money(low)} to {_money(high)}, against quoted prices of {_money(floor)} to {_money(top)}."
+            noun = "asking prices of active eBay listings" if asking else "quoted prices"
+            caption = f"A suggested price of {_money(low)} to {_money(high)}, against {noun} of {_money(floor)} to {_money(top)}."
         items.append({"label": "Your suggested price", "value": low, "low": low, "high": high, "card_ids": []})
         charts.append(_chart("price_band", "range", "Suggested price band", caption, "USD", "estimate", items,
                              _clean(band.get("method"), 400)))
@@ -220,13 +223,70 @@ FEATURE_CHARTS = {
 }
 
 
-def build_charts(feature, doc, cards, coverage):
-    """Chart specs for result.charts; a chart that cannot be built is left out instead of failing the run."""
-    charts = []
+def _dates(items):
+    days = sorted({item["retrieved_at"][:10] for item in items if item.get("retrieved_at")})
+    return " and ".join(_day(day) for day in days) or "the retrieval date"
+
+
+def _day(iso_date):
+    year, month, day = (int(part) for part in iso_date.split("-"))
+    return f"{['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][month - 1]} {day}, {year}"
+
+
+def asking_prices_chart(listings):
+    """Asking prices of the comparable active eBay listings, cheapest first. Never sold prices."""
+    usd = [item for item in listings if item.get("currency") == "USD" and _number(item.get("price"))]
+    if not usd:
+        return None
+    usd = sorted(usd, key=lambda item: item["price"])
+    values = [item["price"] for item in usd]
+    middle = values[len(values) // 2] if len(values) % 2 else (values[len(values) // 2 - 1] + values[len(values) // 2]) / 2
+    return _chart(
+        "asking_prices", "bar", "Asking prices of comparable eBay listings",
+        (f"Asking prices of active listings on {_dates(usd)}, not sold prices: {len(usd)} comparable eBay listings "
+         f"ask {_money(values[0])} to {_money(values[-1])}; the middle asking price is {_money(round(middle, 2))}."),
+        "USD", "sourced",
+        [{"label": _clean(item["title"], 40), "value": item["price"], "card_ids": [item["card_id"]]} for item in usd],
+        "Asking prices from the eBay Browse API, without shipping (shown in the listings table). eBay does not give us sold prices.",
+    )
+
+
+def ebay_costs_chart(fees):
+    """Where the sale total goes at each ad-rate scenario: fees, shipping, ad fee and what is left."""
+    if not fees or not fees.get("complete") or not fees.get("scenarios"):
+        return None
+    amounts = {line["item"]: line["amount"] for line in fees["lines"]}
+    series = []
+    for scenario in fees["scenarios"]:
+        segments = [{"label": label, "value": amounts[item]} for label, item in
+                    (("Final value fee", "Final value fee"), ("Per-order fee", "Per-order fee"), ("Shipping", "Shipping label"))
+                    if item in amounts]
+        segments += [{"label": "Ad fee", "value": scenario["ad_fee"]},
+                     {"label": "What is left", "value": max(scenario["left"], 0)}]
+        label = f"Ad rate {scenario['ad_rate_pct']:g}%" + (f" (loss of ${-scenario['left']:,.2f})" if scenario["left"] < 0 else "")
+        series.append({"label": label, "value": fees["sale_total"], "card_ids": [], "segments": segments})
+    middle = fees["scenarios"][len(fees["scenarios"]) // 2]
+    left = middle["left"]
+    left_text = f"${left:,.2f}" if left >= 0 else f"a loss of ${-left:,.2f}"
+    return _chart(
+        "ebay_costs", "stacked_bar", "Where an eBay sale goes, by ad rate",
+        f"At a {middle['ad_rate_pct']:g}% ad rate, {left_text} of the ${fees['sale_total']:,.2f} sale total is left before your own cost of the item.",
+        "USD", "estimate", series, fees["method"],
+    )
+
+
+def build_charts(feature, doc, cards, coverage, extra=(), asking=False):
+    """Chart specs for result.charts; a chart that cannot be built is left out instead of failing the run.
+    `extra` charts (a template's) go after the tool's charts, or first with `asking` (eBay listings, which the
+    suggested price band is then compared against)."""
+    extra = [chart for chart in extra if chart]
+    charts = list(extra) if asking else []
     for build in FEATURE_CHARTS.get(feature, []):
         try:
-            charts += build(doc, cards)
+            charts += build(doc, cards, asking=True) if asking and build is price_charts else build(doc, cards)
         except Exception as exc:
             print(json.dumps({"chart_failed": build.__name__, "error": str(exc)[:200]}))
+    if not asking:
+        charts += extra
     charts.append(coverage_chart(coverage))
     return charts
