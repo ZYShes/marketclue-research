@@ -4,10 +4,9 @@ import {
 } from "./ui.js";
 import { api, friendlyError } from "./api.js";
 import { state, main, page, loadingBlock, announce, isOwner, rerender } from "./core.js";
-import { featureById, stageLabel, MODES, templateName, isGeneralTemplate } from "./features.js";
+import { featureById, stageLabel, MODES, templateName, isGeneralTemplate, toolIcon } from "./features.js";
 import { renderReport } from "./report.js";
 import { refreshHistory } from "./shell.js";
-import { toolIcon } from "./research.js";
 import { projectCrumb, openMoveDialog } from "./projects.js";
 
 const STAGES = [

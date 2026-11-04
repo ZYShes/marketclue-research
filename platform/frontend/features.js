@@ -1,3 +1,5 @@
+import { svg } from "./ui.js";
+
 // The four research tools in journey order (SPEC v3: Discover → Compare → Prepare → Grow).
 export const FEATURES = [
   {
@@ -61,4 +63,16 @@ export function templateName(id) {
 
 export function isGeneralTemplate(id) {
   return !id || id === DEFAULT_TEMPLATE;
+}
+
+// Tool icons (used by the landing page, run pages, projects and New research).
+const TOOL_ICONS = {
+  market_check: '<circle cx="10" cy="10" r="6.5"/><path d="m15 15 6 6M7.5 10h5m-2.5-2.5v5"/>',
+  competitor_scan: '<path d="M4 20V11m5 9V5m6 15v-7m5 7V8M2.5 21h19"/>',
+  launch_checklist: '<rect x="4.5" y="3" width="15" height="18.5" rx="2"/><path d="m8 9 1.6 1.6L12.5 7.5M8 15.5l1.6 1.6 2.9-3.1M14.5 9.5h2m-2 6.5h2"/>',
+  marketing_plan: '<path d="M3.5 10.5 17 5v14L3.5 13.5z"/><path d="M7 14.5 8.5 20h3.5l-1.5-4.8M20 10v4"/>',
+};
+
+export function toolIcon(id, size = 22) {
+  return svg(`<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${TOOL_ICONS[id]}</svg>`);
 }

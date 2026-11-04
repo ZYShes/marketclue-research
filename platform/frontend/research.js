@@ -8,7 +8,7 @@ import {
   setOpenConv, openConvId,
 } from "./core.js";
 import {
-  FEATURES, MODES, DEFAULT_FEATURE, featureById, stageLabel,
+  FEATURES, MODES, DEFAULT_FEATURE, featureById, stageLabel, toolIcon,
   DEFAULT_TEMPLATE, templateName, isGeneralTemplate,
 } from "./features.js";
 import { depthPicker } from "./depth.js";
@@ -21,16 +21,8 @@ import {
   briefLine, newProjectForm, projectCrumb,
 } from "./projects.js";
 
-const TOOL_ICONS = {
-  market_check: '<circle cx="10" cy="10" r="6.5"/><path d="m15 15 6 6M7.5 10h5m-2.5-2.5v5"/>',
-  competitor_scan: '<path d="M4 20V11m5 9V5m6 15v-7m5 7V8M2.5 21h19"/>',
-  launch_checklist: '<rect x="4.5" y="3" width="15" height="18.5" rx="2"/><path d="m8 9 1.6 1.6L12.5 7.5M8 15.5l1.6 1.6 2.9-3.1M14.5 9.5h2m-2 6.5h2"/>',
-  marketing_plan: '<path d="M3.5 10.5 17 5v14L3.5 13.5z"/><path d="M7 14.5 8.5 20h3.5l-1.5-4.8M20 10v4"/>',
-};
-
-export function toolIcon(id, size = 22) {
-  return svg(`<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${TOOL_ICONS[id]}</svg>`);
-}
+// toolIcon moved to features.js so small modules can use it without loading this page.
+export { toolIcon };
 
 // What the research lead adds to the intake for a template (mirrors the template's intake_needs).
 const TEMPLATE_HINTS = {
@@ -677,11 +669,11 @@ function renderConversation(initial, isCurrent) {
         h("p", { class: "field-hint", id: "start-help" }, help),
         h("p", { class: "form-error", role: "alert", id: "start-error" }));
     }
-    panel.replaceChildren(
-      h("div", { class: "brief-panel-inner" },
-        h("div", { class: "panel-head" },
-          h("h2", { id: "brief-title", tabindex: "-1" }, "Research brief"),
-          statusChip(conv.run_id ? "done" : conv.ready ? "ready" : "draft")),
+    // Header, scrollable details and the action stay separate so that on wide screens the panel fits the
+    // window: the details scroll inside it and Start research is always visible at the bottom.
+    const oldBody = panel.querySelector(".panel-body");
+    const keepScroll = oldBody ? oldBody.scrollTop : 0;
+    const body = h("div", { class: "panel-body", role: "region", "aria-labelledby": "brief-title" },
         b
           ? h("dl", { class: "brief-fields" },
               briefField("Business", b.business),
@@ -697,9 +689,28 @@ function renderConversation(initial, isCurrent) {
               h("h3", {}, "Questions to research"),
               h("ol", {}, questions.map((q) => h("li", {}, q))))
           : null,
-        b && !conv.run_id ? h("p", { class: "field-hint" }, "Ask in the chat to change anything in the brief.") : null,
+        b && !conv.run_id ? h("p", { class: "field-hint" }, "Ask in the chat to change anything in the brief.") : null);
+    panel.replaceChildren(
+      h("div", { class: "brief-panel-inner" },
+        h("div", { class: "panel-head" },
+          h("h2", { id: "brief-title", tabindex: "-1" }, "Research brief"),
+          statusChip(conv.run_id ? "done" : conv.ready ? "ready" : "draft")),
+        body,
         action));
+    body.scrollTop = keepScroll;
+    syncBriefScroll();
   }
+
+  // The details only take a tab stop when they actually scroll (so keyboard users can scroll them).
+  function syncBriefScroll() {
+    const body = panel.querySelector(".panel-body");
+    if (!body) return;
+    const scrolls = body.scrollHeight > body.clientHeight + 1;
+    body.classList.toggle("is-scrollable", scrolls);
+    if (scrolls) body.setAttribute("tabindex", "0");
+    else body.removeAttribute("tabindex");
+  }
+  if (typeof ResizeObserver === "function") new ResizeObserver(syncBriefScroll).observe(panel);
 
   function renderAll() {
     renderTitle();

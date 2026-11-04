@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-04T04:31:22.481Z",
+  "generated_at": "2026-11-04T07:20:28.150Z",
   "axe_source": "local npm copy (CDN blocked)",
   "pages": [
     {
@@ -131,7 +131,7 @@
     {
       "name": "09-run-progress",
       "file": "09-run-progress-1280.jpg",
-      "url": "?mock=1#/runs/4b48e3102842",
+      "url": "?mock=1#/runs/f2ada1c4ffb6",
       "axe": [],
       "layout": {
         "scrollWidth": 1280,
@@ -313,7 +313,7 @@
     {
       "name": "22-reports-team",
       "file": "22-reports-team-1280.jpg",
-      "url": "?mock=1#/runs?scope=team",
+      "url": "?mock=1#/runs?scope=team%3Ateam-clay",
       "axe": [],
       "layout": {
         "scrollWidth": 1280,
@@ -341,7 +341,7 @@
     {
       "name": "24-library-team",
       "file": "24-library-team-1280.jpg",
-      "url": "?mock=1#/library?scope=team",
+      "url": "?mock=1#/library?scope=team%3Ateam-clay",
       "axe": [],
       "layout": {
         "scrollWidth": 1280,
@@ -495,7 +495,7 @@
     {
       "name": "33-reports-team-none",
       "file": "33-reports-team-none-1280.jpg",
-      "url": "?mock=1#/runs?scope=team",
+      "url": "?mock=1#/runs",
       "axe": [],
       "layout": {
         "scrollWidth": 1280,
@@ -523,7 +523,7 @@
     {
       "name": "35-team-member",
       "file": "35-team-member-1280.jpg",
-      "url": "?mock=1#/team",
+      "url": "?mock=1#/team?team=team-clay",
       "axe": [],
       "layout": {
         "scrollWidth": 1280,
@@ -719,7 +719,7 @@
     {
       "name": "09-run-progress",
       "file": "09-run-progress-375.jpg",
-      "url": "?mock=1#/runs/07890e3f99a0",
+      "url": "?mock=1#/runs/273bd0b4572c",
       "axe": [],
       "layout": {
         "scrollWidth": 375,
@@ -887,7 +887,7 @@
     {
       "name": "22-reports-team",
       "file": "22-reports-team-375.jpg",
-      "url": "?mock=1#/runs?scope=team",
+      "url": "?mock=1#/runs?scope=team%3Ateam-clay",
       "axe": [],
       "layout": {
         "scrollWidth": 375,
@@ -915,7 +915,7 @@
     {
       "name": "24-library-team",
       "file": "24-library-team-375.jpg",
-      "url": "?mock=1#/library?scope=team",
+      "url": "?mock=1#/library?scope=team%3Ateam-clay",
       "axe": [],
       "layout": {
         "scrollWidth": 375,
@@ -1083,7 +1083,7 @@
     {
       "name": "33-reports-team-none",
       "file": "33-reports-team-none-375.jpg",
-      "url": "?mock=1#/runs?scope=team",
+      "url": "?mock=1#/runs",
       "axe": [],
       "layout": {
         "scrollWidth": 375,
@@ -1111,7 +1111,7 @@
     {
       "name": "35-team-member",
       "file": "35-team-member-375.jpg",
-      "url": "?mock=1#/team",
+      "url": "?mock=1#/team?team=team-clay",
       "axe": [],
       "layout": {
         "scrollWidth": 375,

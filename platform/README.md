@@ -53,6 +53,13 @@ when you own the team or projects in it, "Who takes over?" picks another member 
 Removing a member says their projects in the team move to the team owner. A person may own 10 live (not
 archived) projects: creating or restoring one at the limit shows the server's message and a hint to archive one.
 
+Loading: `app.js` imports only the shell (`ui`, `api`, `core`, `shell`, `features`, `projects`); each page module
+is loaded with `import()` when its route first opens and the rest are prefetched once the first page has
+settled. An inline script at the top of `index.html` starts `GET /api/me` (and, for someone signed in last time,
+the opening conversation or report) and adds `modulepreload` hints for the opening page, so those requests do
+not wait for the module graph; `api.js` reuses those answers once, within 15 seconds. Keep page modules out of
+`app.js`'s static imports, and shared helpers (like `toolIcon`) in small modules.
+
 Mock mode: open the site with `?mock=1`. It answers every API call from `mock.js` with invented sample data
 and offers two demo accounts — an owner (unlimited reports and mock-ups, owns the team "Clay & Leaf
 Studio") and a member (free reports, with a pending invite at `#/join/sample-invite`). Anyone may pick any
