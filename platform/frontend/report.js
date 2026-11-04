@@ -270,7 +270,7 @@ export function cardTile(card, n) {
 
 function renderPriceTable(table, richText) {
   const columns = list(table.columns);
-  return h("div", { class: "table-scroll", role: "region", "aria-label": table.title || "Price comparison", tabindex: "0" },
+  return h("div", { class: "table-scroll", role: "region", "aria-label": `${table.title || "Price comparison"} table`, tabindex: "0" },
     h("table", { class: "data-table" },
       h("caption", { class: "visually-hidden" }, table.title || "Price comparison"),
       h("thead", {}, h("tr", {}, columns.map((column) => h("th", { scope: "col" }, column)), h("th", { scope: "col" }, "Sources"))),
@@ -386,20 +386,26 @@ function renderAbout(result) {
 let hoverTimer = null;
 let hideTimer = null;
 let hoverAnchor = null;
+let escWired = false;
 const canHover = () => window.matchMedia("(hover: hover) and (pointer: fine)").matches;
 
+// The card lives inside <main> (so it is inside a landmark) and is positioned absolutely
+// against it; <main> is a size container, which would also capture position: fixed.
 function hovercardEl() {
-  const el = document.getElementById("hovercard");
-  if (el && !el.dataset.wired) {
-    el.dataset.wired = "1";
+  const mainEl = document.getElementById("main");
+  let el = document.getElementById("hovercard");
+  if (!el) {
+    el = h("div", { id: "hovercard", class: "hovercard", role: "tooltip", hidden: true });
     el.addEventListener("mouseenter", () => clearTimeout(hideTimer));
     el.addEventListener("mouseleave", () => scheduleHide());
+  }
+  if (el.parentElement !== mainEl) mainEl.append(el);
+  if (!escWired) {
+    escWired = true;
     document.addEventListener("keydown", (ev) => {
-      if (ev.key === "Escape" && !el.hidden) {
-        hideHovercard();
-      }
+      const card = document.getElementById("hovercard");
+      if (ev.key === "Escape" && card && !card.hidden) hideHovercard();
     });
-    window.addEventListener("scroll", () => { if (!el.hidden) hideHovercard(); }, { passive: true });
   }
   return el;
 }
@@ -425,25 +431,28 @@ function showHovercard(anchor, card, n) {
   if (hoverAnchor && hoverAnchor !== anchor) hoverAnchor.removeAttribute("aria-describedby");
   hoverAnchor = anchor;
   const quote = String(card.quote || "");
-  el.replaceChildren(
+  const parts = [
     h("div", { class: "hovercard-head" },
       h("span", { class: "source-n" }, String(n)),
       h("span", { class: "source-domain" }, domainOf(card.url) || "Source"),
       typeBadge(card.type), isStale(card) ? staleBadge() : null),
     card.source_title ? h("p", { class: "hovercard-title" }, card.source_title) : null,
     quote ? h("p", { class: "hovercard-quote" }, `“${quote.length > 220 ? `${quote.slice(0, 217)}…` : quote}”`) : null,
-    h("p", { class: "hovercard-foot" }, `Captured ${fmtDate(card.captured_at) || "date unknown"} · Select for the full fact card`));
+    h("p", { class: "hovercard-foot" }, `Captured ${fmtDate(card.captured_at) || "date unknown"} · Select for the full fact card`),
+  ];
+  el.replaceChildren(...parts.filter(Boolean));
   el.hidden = false;
   anchor.setAttribute("aria-describedby", "hovercard");
-  const r = anchor.getBoundingClientRect();
+  // Rects are in zoomed pixels; offsets inside <main> are in CSS pixels.
   const zoom = Number(document.documentElement.style.zoom || 1) || 1;
-  const vw = window.innerWidth / zoom;
-  const vh = window.innerHeight / zoom;
+  const r = anchor.getBoundingClientRect();
+  const m = el.parentElement.getBoundingClientRect();
   const cw = el.offsetWidth;
   const ch = el.offsetHeight;
-  const left = Math.max(8, Math.min(vw - cw - 8, r.left / zoom + r.width / zoom / 2 - cw / 2));
-  const below = r.bottom / zoom + 8;
-  const top = below + ch > vh - 8 ? Math.max(8, r.top / zoom - ch - 8) : below;
+  const maxLeft = m.width / zoom - cw - 8;
+  const left = Math.max(8, Math.min(maxLeft, (r.left - m.left + r.width / 2) / zoom - cw / 2));
+  const fitsBelow = r.bottom + (ch + 16) * zoom < window.innerHeight;
+  const top = fitsBelow ? (r.bottom - m.top) / zoom + 8 : Math.max(8, (r.top - m.top) / zoom - ch - 8);
   el.style.left = `${left}px`;
   el.style.top = `${top}px`;
 }

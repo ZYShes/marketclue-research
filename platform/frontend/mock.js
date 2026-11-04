@@ -372,7 +372,7 @@ function intakeReply(feature, count) {
   }
   return {
     reply: count === 3
-      ? "Your brief is ready. Check it on the right, choose Quick or Smarter, then press Start research to see a simulated report."
+      ? "Your brief is ready. Check it in the Research brief panel, choose Quick or Smarter, then press Start research to see a simulated report."
       : "The demo brief is unchanged. Press Start research when you are ready.",
     ready: true, brief,
   };

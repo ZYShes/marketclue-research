@@ -165,7 +165,7 @@ export function viewNew(isCurrent, featureArg) {
       return;
     }
     listEl.replaceChildren(...groupHistory(filtered).map(([label, list]) => h("section", { class: "history-group", "aria-label": label },
-      h("h3", { class: "group-title" }, label),
+      h("h2", { class: "group-title" }, label),
       h("ul", { class: "history-list" }, list.map((item) => h("li", {},
         historyRow(item),
         h("span", { class: "history-when" }, fmtAgo(item.at))))))));

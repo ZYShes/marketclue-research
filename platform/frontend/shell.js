@@ -274,7 +274,8 @@ function renderRecent(container) {
         : null,
     ];
   }
-  container.replaceChildren(h("h2", { class: "sb-heading", id: "recent-h" }, "Recent"), body);
+  container.replaceChildren(h("h2", { class: "sb-heading", id: "recent-h" }, "Recent"),
+    ...[body].flat(Infinity).filter(Boolean));
 }
 
 let recentEl = null;

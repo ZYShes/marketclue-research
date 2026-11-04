@@ -90,7 +90,7 @@ dl, dd { margin: 0; }
 
 .shell { min-height: 100vh; }
 .content { min-width: 0; display: flex; flex-direction: column; min-height: 100vh; }
-main#main { flex: 1 0 auto; container: main / inline-size; }
+main#main { flex: 1 0 auto; container: main / inline-size; position: relative; }
 
 .topbar {
   position: sticky; top: 0; z-index: 30;
@@ -115,7 +115,12 @@ main#main { flex: 1 0 auto; container: main / inline-size; }
 .wordmark:hover { color: var(--ink); }
 .wordmark .mark { flex: none; }
 
-.shell-app { display: grid; grid-template-columns: var(--sidebar-w) minmax(0, 1fr); }
+.shell-app {
+  display: grid; grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
+  /* Keeps the sidebar tint down the full page height behind the sticky sidebar. */
+  background: linear-gradient(90deg, var(--sidebar) 0 calc(var(--sidebar-w) - 1px), var(--rule) calc(var(--sidebar-w) - 1px) var(--sidebar-w), var(--bg) var(--sidebar-w));
+}
+html.is-narrow .shell-app { background: var(--bg); }
 .shell-app .topbar { display: none; }
 .shell-app .sidebar {
   grid-column: 1; grid-row: 1;
@@ -142,11 +147,11 @@ html.is-narrow .shell-app.drawer-open .sidebar {
   transition: transform 0.22s var(--ease), visibility 0s;
 }
 .sidebar-backdrop { position: fixed; inset: 0; z-index: 45; background: rgba(28, 32, 40, 0.42); }
-.sb-close { display: none; }
-html.is-narrow .sb-close { display: inline-flex; }
+.sidebar .sb-close { display: none; }
+html.is-narrow .sidebar .sb-close { display: inline-flex; }
 
 .sb-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 2px 0; }
-.sb-new { width: 100%; justify-content: flex-start; padding-left: 14px; }
+.sidebar .sb-new { width: 100%; justify-content: flex-start; padding-left: 14px; }
 .sb-recent { flex: 1 1 auto; min-height: 140px; overflow-y: auto; margin: 4px -4px 0; padding: 0 4px; }
 .sb-heading {
   font-size: 0.75rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
@@ -169,7 +174,7 @@ html.is-narrow .sb-close { display: inline-flex; }
 .sb-link:hover { background: rgba(255, 255, 255, 0.7); color: var(--ink); }
 .sb-link[aria-current="page"] { background: var(--surface); color: var(--ink); font-weight: 650; box-shadow: var(--shadow-soft), inset 0 0 0 1px var(--rule); }
 .sb-bottom { display: grid; gap: 4px; border-top: 1px solid var(--rule); padding-top: 8px; }
-.sb-reading { justify-content: flex-start; width: 100%; padding: 0 10px; }
+.sidebar .sb-reading { justify-content: flex-start; width: 100%; padding: 0 10px; }
 
 .history-row {
   display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 6px 10px;
@@ -272,6 +277,8 @@ html.is-narrow .sb-close { display: inline-flex; }
 .btn-block { width: 100%; }
 .btn:disabled, .btn[aria-disabled="true"] { background: #E9E6DE; color: #5E6058; border-color: transparent; cursor: not-allowed; }
 .btn-reading span { white-space: nowrap; }
+html.is-narrow .btn-reading { padding: 0 10px; }
+html.is-narrow .btn-reading span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
 .icon-btn {
   display: inline-flex; align-items: center; justify-content: center; flex: none;
@@ -634,13 +641,13 @@ html.reading-reduced-motion *, html.reading-reduced-motion *::before, html.readi
 .fact { padding: 18px; display: grid; gap: 10px; align-content: start; height: 100%; }
 .fact.is-stale { border-style: dashed; }
 .fact-claim { font-size: 1rem; font-weight: 650; line-height: 1.35; }
-.fact-claim .link-btn { min-height: 0; padding: 0; font-weight: inherit; }
+.fact-claim .link-btn { min-height: 44px; padding: 6px 0; font-weight: inherit; }
 .fact-source { font-size: 0.875rem; overflow-wrap: anywhere; }
 .fact-added { font-size: 0.8125rem; }
 .fact-used { border-top: 1px solid var(--rule); padding-top: 10px; }
 .fact-used-label { font-size: 0.78125rem; font-weight: 650; color: var(--muted); margin-bottom: 4px; }
 .used-list { list-style: none; display: grid; gap: 2px; font-size: 0.875rem; }
-.used-list a { display: inline-block; padding: 4px 0; }
+.used-list a { display: inline-flex; align-items: center; min-height: 44px; padding: 4px 0; }
 .quote {
   font-family: var(--font-serif); font-style: italic; font-size: 1rem; line-height: 1.55; color: var(--ink-2);
   border-left: 2px solid var(--rule-strong); padding-left: 12px; overflow-wrap: anywhere;

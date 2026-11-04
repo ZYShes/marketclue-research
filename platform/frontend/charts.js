@@ -157,7 +157,8 @@ function drawBars({ series, unit, width, fs, font, id, kind, type, title, desc }
   const height = series.length * rowH - rowGap + axisH + 4;
   const x = (v) => Math.max(0, Math.min(plotW, (num(v) / maxVal) * plotW));
   const root = svgRoot(width, height, id, title, desc);
-  const fill = kind === "estimate" ? `url(#${id}-hatch)` : null;
+  // Inline style so the hatch wins over the stylesheet fill (presentation attributes would not).
+  const style = kind === "estimate" ? `fill: url(#${id}-hatch)` : null;
 
   if (type === "range") {
     // Light gridlines with tick labels so range positions can be read.
@@ -184,15 +185,22 @@ function drawBars({ series, unit, width, fs, font, id, kind, type, title, desc }
       const x1 = x(Math.min(num(s.low), num(s.high)));
       const x2 = x(Math.max(num(s.low), num(s.high)));
       const w = Math.max(4, x2 - x1);
-      root.append(el("rect", { x: x1, y: barY, width: w, height: barH, rx: barH / 2, class: "chart-bar", fill }));
+      root.append(el("rect", { x: x1, y: barY, width: w, height: barH, rx: barH / 2, class: "chart-bar", style }));
       endX = x1 + w;
       if (finite(s.value)) {
         const vx = Math.min(Math.max(x(s.value), x1 + 3), x1 + w - 3);
         root.append(el("circle", { cx: vx, cy: barY + barH / 2, r: Math.max(4, barH * 0.28), class: "chart-point" }));
       }
+    } else if (type === "range") {
+      // A single value in a range chart is a point, not a bar from zero.
+      const vx = x(s.value);
+      const r = Math.max(6, barH * 0.38);
+      root.append(el("line", { x1: 0, x2: vx, y1: barY + barH / 2, y2: barY + barH / 2, class: "chart-track" }));
+      root.append(el("circle", { cx: vx, cy: barY + barH / 2, r, class: "chart-dot" }));
+      endX = vx + r;
     } else {
       const w = Math.max(3, x(s.value));
-      root.append(el("rect", { x: 0, y: barY, width: w, height: barH, rx: 3, class: "chart-bar", fill }));
+      root.append(el("rect", { x: 0, y: barY, width: w, height: barH, rx: 3, class: "chart-bar", style }));
       endX = w;
     }
     root.append(el("text", {

@@ -123,21 +123,20 @@ export function viewRun(runId, isCurrent) {
     if (mine && run.conv_id) {
       actions.push(h("a", { class: "btn btn-ghost btn-sm", href: `#/c/${encodeURIComponent(run.conv_id)}` }, icon("chat"), "Conversation"));
     }
-    actions.push(shareSlot);
+    const mockupReason = h("p", { class: "field-hint", id: "mockup-reason", hidden: true });
+    actions.push(mockupReason, shareSlot);
     const mockupSection = h("div", { class: "mockups" });
-    const mockupsWrap = h("div", { hidden: true }, mockupSection);
-    const article = renderReport(result, { run, actions, mockups: mockupsWrap });
+    const article = renderReport(result, { run, actions, mockups: mockupSection });
     main.replaceChildren(page(article));
-    // The Mock-ups section stays hidden until the endpoint answers.
-    const sectionEl = mockupsWrap.closest("section");
-    if (sectionEl) sectionEl.hidden = true;
-    const tocLink = main.querySelector('.report-toc a[href="#r-mockups"]');
-    if (tocLink) tocLink.parentElement.hidden = true;
-    if (mine) setupMockups(run, mockupBtn, mockupSection, () => {
-      mockupsWrap.hidden = false;
-      if (sectionEl) sectionEl.hidden = false;
-      if (tocLink) tocLink.parentElement.hidden = false;
-    });
+    // The Mock-ups section (and its contents link) appear only once an image exists.
+    const sectionEl = mockupSection.closest("section");
+    const tocItem = main.querySelector('.report-toc a[href="#r-mockups"]')?.parentElement;
+    const showSection = (on) => {
+      if (sectionEl) sectionEl.hidden = !on;
+      if (tocItem) tocItem.hidden = !on;
+    };
+    showSection(false);
+    if (mine) setupMockups(run, { button: mockupBtn, reason: mockupReason, container: mockupSection, showSection });
   }
 
   async function tick() {
@@ -249,37 +248,35 @@ function mockupFigure(m) {
       h("span", { class: "muted" }, ` ${kind ? kind[1] : "Image"} · ${fmtDate(m.created_at)}`)));
 }
 
-async function setupMockups(run, button, container, reveal) {
+// Hidden entirely when the endpoint answers 503 (no OpenAI key) or 404.
+async function setupMockups(run, { button, reason, container, showSection }) {
   let items;
   try {
     const data = await api(`/runs/${encodeURIComponent(run.run_id)}/mockups`);
     items = Array.isArray(data.mockups) ? data.mockups : [];
   } catch (err) {
-    if (err.status === 503 || err.status === 404) return; // feature off: keep everything hidden
     if (err.status !== 403) return;
     items = [];
   }
   if (!button.isConnected) return;
   const owner = isOwner();
-  const reason = h("p", { class: "field-hint", id: "mockup-reason" });
+  const count = h("p", { class: "field-hint", id: "mockup-count" });
   const grid = h("div", { class: "mockup-grid" });
   function render() {
     grid.replaceChildren(...items.map(mockupFigure));
     const full = items.length >= MAX_MOCKUPS;
     button.disabled = !owner || full;
-    if (!owner) {
-      reason.textContent = "Mock-ups are limited to owner accounts for now.";
-      button.setAttribute("aria-describedby", "mockup-reason");
-    } else {
-      reason.textContent = full
-        ? `This report has the maximum of ${MAX_MOCKUPS} mock-ups.`
-        : `${items.length} of ${MAX_MOCKUPS} mock-ups used. Images are illustrations made by an AI model, not photos of a real product.`;
-      button.setAttribute("aria-describedby", "mockup-reason");
-    }
+    reason.hidden = owner && !full;
+    reason.textContent = !owner
+      ? "Mock-ups are limited to owner accounts for now."
+      : full ? `This report has the maximum of ${MAX_MOCKUPS} mock-ups.` : "";
+    count.textContent = `${items.length} of ${MAX_MOCKUPS} mock-ups used. Each image is an illustration made by an AI model from your brief.`;
+    if (reason.hidden) button.removeAttribute("aria-describedby");
+    else button.setAttribute("aria-describedby", "mockup-reason");
+    showSection(items.length > 0);
   }
-  container.replaceChildren(reason, grid);
+  container.replaceChildren(count, grid);
   button.hidden = false;
-  reveal();
   render();
   button.addEventListener("click", () => openMockupDialog(run, (m) => {
     items.push(m);
