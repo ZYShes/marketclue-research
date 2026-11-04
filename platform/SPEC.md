@@ -496,11 +496,99 @@ data → put the keys in SSM as SecureStrings `/marketclue/ebay_client_id` and `
 (or as files `ebay_client_id` / `ebay_client_secret` in `~/.config/marketclue/` for `deploy.sh`). Until then
 `GET /api/templates` reports eBay seller as unavailable ("eBay is not connected yet").
 
-## v5: projects (planned 2026-11-04)
+# v5 (2026-11-04): projects
 
-Every conversation and run can belong to a project (one business idea). A project holds many runs across
-Discover → Compare → Prepare → Grow, is personal or belongs to one team; a team has many projects and a
-person can be in several teams. The AI reads the project's brief, latest reports and fact cards when it
-researches. Kept simple: a sidebar list, one project page with a journey strip, Reports and Fact cards tabs.
-Full brief: `tasks/projects.md`.
+Author: Yuexizi Zhang. Full brief: `tasks/projects.md`. Supersedes earlier sections where they differ (in
+particular the one-team rule of "Teams" and "v3 decisions": team sharing is now per project).
 
+Every conversation and run can belong to a **project** (one business idea or product). A project holds many
+runs across Discover → Compare → Prepare → Grow, is personal or belongs to one team; a team has many projects
+and a person can be in several teams (at most 10). The AI reads the project's brief, latest reports and fact
+cards when it researches. Kept simple: a sidebar list, one project page with a journey strip, Reports and
+Fact cards tabs. Not built: folders, nested projects, file uploads, instructions editor, per-project roles.
+
+## Data model (single table)
+
+| PK | SK | Fields |
+|---|---|---|
+| `PROJECT#<id>` | `META` | project_id, name (≤80), owner_sub, team_id or null, brief {business, customer, location, stage, budget_usd} (each may be null), default_template, created_at, updated_at, archived |
+| `USER#<owner>` or `TEAM#<team_id>` | `PROJECT#<id>` | list row: project_id, name, owner_sub, team_id, archived, created_at, updated_at (personal projects under the owner, team projects under the team) |
+| `PROJECT#<id>` | `RUN#<created_at>#<run_id>` | run row: run_id, user_sub, title, status, feature, mode, template, created_at, takeaway (≤300 chars, set when done) |
+| `USER#<sub>` | `TEAMMEMBER#<team_id>` | team_id, role owner/member, joined_at (replaces PROFILE.team_id; `TEAM#<id>/MEMBER#<sub>` stays) |
+| `USER#<sub>` | `PROFILE` | + projects_created (counts toward the 50-project limit; archiving does not free a slot) |
+
+`project_id` (or null) is stored on conversations, run META, the user's run index row, and the project run
+row; `result.project` is set for runs with a project. Limits: 10 teams per person (`team_limit` 429),
+50 projects created per person (`project_limit` 429).
+
+## Visibility
+
+- Personal project: its owner only. Team project: every current member of the team (sees the project, its
+  done reports read-only and its fact cards, may start research in it). If the project's creator leaves the
+  team, the project stays with the team.
+- Runs that are not done and all conversations stay private to their author, inside a project too.
+- A done run is readable by its author and by everyone who can see the run's project. Unfiled runs are private;
+  team sharing is per project.
+- Manage (rename, edit brief, move, archive): the project owner, or the owner of the project's team. Moving
+  to a team needs membership of that team; moving to "personal" makes it the project owner's personal project.
+  Visibility of all reports follows the project.
+
+## AI reads the project
+
+- Intake: the research lead gets the project brief and one line per finished report (stage, title,
+  takeaway) and does not ask for what the brief already says. When the brief becomes ready, its facts fill
+  only the project brief's empty fields.
+- Planner and writer get a compact project context (about 4,000 tokens): the brief, the latest done report's
+  takeaway per stage, and up to 30 of the project's fact cards (id, claim, type, source title, date; sourced
+  first, then most-cited, then newest). The planner skips questions the project already answers and says so
+  in `result.project.reused`. The writer may cite earlier sourced cards by id; they keep their original
+  capture date, are added to `result.cards` with `earlier: true` and `label: "from an earlier report in this
+  project"`, and the reviewer checks them like new cards. New claims still need new checked cards.
+- A run without a project sends exactly the same prompts and schemas as before.
+
+## API
+
+- `GET /api/projects[?archived=1]` → array of `{project_id, name, team: {team_id, name}|null, role:
+  "owner"|"team_owner"|"member", can_manage, archived, default_template, stages: {market_check: n,
+  competitor_scan: n, launch_checklist: n, marketing_plan: n} (done runs), last_run_at, updated_at}`.
+- `POST /api/projects {name, team_id?, brief?, default_template?}` → 201 project detail. `PATCH
+  /api/projects/{id} {name?, brief?, team_id?|null, archived?, default_template?}` → project detail. No delete.
+- `GET /api/projects/{id}` → `{project: {project_id, name, owner_sub, team, brief, default_template, archived,
+  created_at, updated_at, role, can_manage}, stages: {<feature>: {count, latest: {run_id, title, takeaway,
+  created_at, mode, template}|null}}, runs: [{run_id, title, status, feature, mode, template, created_at,
+  takeaway, user_sub, owner_name, mine}] (done runs + the viewer's own unfinished ones, newest first),
+  conversations: [the viewer's own, same rows as GET /api/conversations]}`.
+- `GET /api/projects/{id}/cards?q=&type=&direction=` → `{cards: [card + added_by, added_by_sub]}`: cards of the
+  project's done runs, deduped on dedupe_key.
+- `POST /api/chat` (new conversation) accepts `project_id` (visible project, else 404 `project_not_found`);
+  without `template` it uses the project's `default_template`. Runs inherit the conversation's project.
+  `PATCH /api/conversations/{id} {project_id|null}` → conversation; `PATCH /api/runs/{id} {project_id|null}`
+  (author only) → `{run}`. Conversation and run list rows include `project_id`.
+- `GET /api/runs/{id}` adds `project: {project_id, name, team_id}|null`; `access` is `"owner"` or `"project"`
+  (a teammate reading a done run of a team project).
+- Teams: `GET /api/teams` → array of `{team_id, name, role, owner_sub, joined_at, member_count}`;
+  `POST /api/teams {name}`; `GET /api/teams/{id}` → `{team, role, members, invites (owner only), projects}`;
+  `POST /api/teams/{id}/invites`, `DELETE /api/teams/{id}/invites/{token}`, `DELETE /api/teams/{id}/members/{sub}`,
+  `POST /api/teams/{id}/leave`, `GET /api/teams/{id}/runs`, `GET /api/teams/{id}/cards` (runs and cards of that
+  team's projects only). `POST /api/team/join {token}` joins any number of teams up to the limit. The old
+  `/api/team...` routes keep working on the first team joined.
+- Errors: `project_not_found` 404, `project_owner_only` 403, `project_limit` 429, `team_limit` 429, `no_team`
+  404 (a team you are not in).
+
+## Migration (`infra/migrate_projects.py`, idempotent, `--dry-run`)
+
+For each team: membership rows for its current members; one team project named after the team (id derived
+from the team id, so a rerun finds it); every done run of every current member that has no project is filed
+into it (run META, index row, project run row with the takeaway read from the stored result). Other runs and
+all conversations stay unfiled; stored result JSON is not rewritten. PROFILE.team_id is left in place unless
+`--drop-profile-team-id` is given (run that only after the new code is live).
+
+## Frontend
+
+Sidebar "Projects" above Recent (name + team tag, "+ New project"); Recent rows show the project name in muted
+text. Project page `#/p/<id>`: name, team or "Personal", "New research in this project", a journey strip of
+four stage cards (latest report or "Not started" + Start), tabs Reports (filter by stage) and Fact cards
+(search), and a "Project brief" box with Edit. New research has a "Project" select (default: the project you
+came from, else the last used, else "No project"; "+ New project" asks only for a name and Personal/Team) and
+"We already know: …" when the project has a brief. Report and run pages: breadcrumb `Project › Compare` and
+"Move to project" (author only). Team page: team picker for several teams and the team's projects.
