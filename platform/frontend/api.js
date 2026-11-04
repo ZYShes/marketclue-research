@@ -88,6 +88,11 @@ export function friendlyError(err) {
   }
   if (err.code === "smarter_owner_only") return "Smarter research is not available for your account yet. Choose a lighter depth.";
   if (err.code === "invalid_mode") return "This research depth is not available right now. Choose Quick.";
+  if (err.code === "template_unavailable") {
+    const reason = String(err.message || "").trim().replace(/\.$/, "");
+    return `This template is not available right now${reason ? ` (${reason})` : ""}. Choose General to continue.`;
+  }
+  if (err.code === "invalid_template") return "This template cannot be used with the chosen tool. Choose General or another tool.";
   if (err.code === "mockups_disabled") return "Mock-ups are not available on this site.";
   if (err.code === "mockup_limit") return "This report already has the maximum of 3 mock-ups.";
   if (err.code === "invite_email_mismatch") {

@@ -502,6 +502,29 @@ html.reading-reduced-motion *, html.reading-reduced-motion *::before, html.readi
 .tool-name { font-weight: 650; font-size: 1rem; line-height: 1.3; }
 .tool-question { font-size: 0.875rem; color: var(--muted); }
 @container main (max-width: 480px) { .tool-card { min-height: 0; } }
+.tool-card.is-disabled { cursor: not-allowed; background: var(--surface-2); border-style: dashed; }
+.tool-card.is-disabled:hover { border-color: var(--rule-strong); }
+.tool-card.is-disabled .tool-icon { color: var(--muted); }
+.tool-note { margin-top: -4px; }
+
+/* Templates (SPEC v4): same radio-card behaviour as the tools, two wide cards. */
+.template-slot:empty { display: none; }
+.template-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+@container main (max-width: 640px) { .template-grid { grid-template-columns: 1fr; } }
+.template-card { min-height: 0; gap: 8px; padding-right: 44px; }
+.template-head { display: inline-flex; align-items: center; gap: 10px; }
+.template-head .tool-icon { margin: 0; }
+.cap-badges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
+.badge-cap { background: var(--surface-2); color: var(--ink-2); box-shadow: inset 0 0 0 1px var(--rule-strong); }
+.template-card:has(input:checked) .badge-cap { background: var(--surface); }
+.badge-cap-plain { font-weight: 550; }
+.template-reason { display: inline-flex; align-items: center; gap: 6px; font-size: 0.875rem; font-weight: 600; color: var(--amber-ink); }
+.template-reason svg { flex: none; }
+.badge-template { background: var(--night); color: #fff; margin-left: 8px; }
+.run-mode .badge-template { margin-left: 0; }
+.conv-template { margin-top: 4px; }
+.brief-ebay { display: grid; gap: 10px; padding-top: 4px; border-top: 1px solid var(--rule); }
+.brief-ebay h3 { font-size: 0.875rem; padding-top: 12px; }
 
 .first-message { display: grid; gap: 8px; }
 .composer-box {
