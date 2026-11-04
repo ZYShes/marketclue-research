@@ -366,3 +366,19 @@ but in the new visual language. Footer credit "Built by Yuexizi Zhang".
 - UI: "Team" page (owner: name, members list with Remove, pending invites with Copy link / Revoke, invite
   form; member: members list and Leave). Library gets "Mine | Team" toggle; My reports gets "Mine | Team".
   `#/join/<token>` page explains the invite and joins after sign-in.
+
+## v3 decisions (owner, 2026-11-03)
+
+- Effort belongs to whoever starts the task: any signed-in user picks Quick or Smarter for their own run
+  (no owner-only rule). Guard: at most `MAX_SMARTER_PER_DAY` (default 10) Smarter runs site-wide per day →
+  429 `smarter_daily_limit`; the UI then offers Quick. A free user's single free report may be either mode.
+- Privacy: conversations and runs that are not finished are visible only to the person who started them.
+  Teams share only finished output: done reports (read-only) and fact cards. Members cannot change or
+  delete another member's report.
+- Invites must work for people who have never signed in: `GET /api/invites/{token}` (public, no auth) →
+  `{team_name, inviter_name, email_hint (e.g. "y•••@gmail.com"), status, expires_at}`. `#/join/<token>` shows
+  "<inviter> invited you to <team>" with a Google sign-in button when signed out; after sign-in (which
+  creates the account) it joins automatically when the Google email matches, otherwise explains which
+  email the invite is for and offers to sign in with another account. Expired/revoked invites say so.
+- Mock-up images: provider chain in this order — `MOCKUP_PROVIDER=openai` (OpenAI Images API, key in SSM
+  `/marketclue/openai_api_key`); a second provider slot `creatorhub` is reserved but not implemented now.

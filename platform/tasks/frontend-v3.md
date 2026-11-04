@@ -11,12 +11,13 @@ Earlier mixing drafts, running and finished reports with status chips; Fact libr
 on mobile; `#/new` with tabs New (tool picker with the four v3 tool names and the stage names Discover →
 Compare → Prepare → Grow) and Existing (searchable history); resume a conversation from history and after
 a reload (localStorage keeps the open conversation id); Quick ↔ Smarter control next to Start research
-with time/cost hints (Smarter disabled for non-owners with a one-line reason); report page keeps the
+with time/cost hints (anyone can choose; on 429 smarter_daily_limit fall back to Quick with a one-line note); report page keeps the
 classic structure (brief at a glance, numbered findings with sources, tool section, next steps & missing
 evidence, coverage) and adds charts from `result.charts` as accessible inline SVG (title, caption, data
 labels, "Show data" table toggle, kind badge Sourced/Estimate, method for estimates) and source hover
 cards; "Show a mock-up" button that calls the mock-up endpoint when available (hide on 503), images
-labelled "AI mock-up — not a real product photo"; Team page and `#/join/<token>`; Library and My reports
+labelled "AI mock-up — not a real product photo"; Team page and `#/join/<token>` that works for people who have never signed in (public invite lookup, then
+Google sign-in, auto-join on matching email, clear message on a different email, expired or revoked invite); Library and My reports
 get Mine | Team toggles; landing keeps the slogan "See the market differently." in the new visual
 language; reading preferences (larger text, spacing, reduced motion, zoom) and the Reading & motion
 dialog stay. WCAG 2.2 AA throughout (contrast 4.5:1, visible focus, keyboard everything, landmarks,

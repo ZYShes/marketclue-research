@@ -2,13 +2,13 @@
 
 Implement the v3 backend in platform/backend/ exactly as platform/SPEC.md v3 describes (read the whole
 spec; v3 and Teams sections at the end win): conversation history list + resume + run↔conversation
-link; Quick/Smarter modes (per-run research model, directions, fetches, writer effort; Smarter
-owner-only); `result.charts` built in code from structured writer fields (add the needed fields to the
+link; Quick/Smarter modes (per-run research model, directions, fetches, writer effort; chosen by whoever
+starts the run, with the MAX_SMARTER_PER_DAY guard in the v3 decisions section); `result.charts` built in code from structured writer fields (add the needed fields to the
 writer schemas in app/pipeline.py: e.g. numeric price fields for competitor rows, a suggested price band,
 budget projection inputs with method) plus coverage chart; mock-up endpoints using the OpenAI Images API
 behind SSM `/marketclue/openai_api_key` (503 `mockups_disabled` when absent; use the official `openai`
 Python SDK, add it to requirements.txt); Teams (create, invite links + optional SES email via env
-`SES_FROM`, join with matching Google email, remove member, leave, team runs, team cards, team access to
+`SES_FROM`, public invite lookup `GET /api/invites/{token}` for people who never signed in, join with matching Google email, remove member, leave, team runs, team cards, team access to
 done runs; conversations stay private). Keep every existing route and contract working.
 
 Code style: match the existing modules (plain, small functions, sparse comments). Tests: extend
