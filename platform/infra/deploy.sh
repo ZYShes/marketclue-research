@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Build and deploy the MarketClue platform to AWS (profile "marketclue", us-west-2).
-# Usage: infra/deploy.sh [--frontend-only]
+# Usage: infra/deploy.sh [--frontend-only | --backend-only | --staging]
+#   --staging uploads only the frontend, to /staging/ on the live site, for checks before release.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -23,7 +24,8 @@ put_secret() { # name file-or-generator
   fi
 }
 
-if [[ "${1:-}" != "--frontend-only" ]]; then
+MODE=${1:-}
+if [[ "$MODE" != "--frontend-only" && "$MODE" != "--staging" ]]; then
   put_secret anthropic_api_key "$(cat "$CONF/anthropic.key")"
   put_secret session_secret "$(python3 -c 'import secrets; print(secrets.token_urlsafe(48))')"
 
@@ -64,11 +66,14 @@ out() { $AWS cloudformation describe-stacks --stack-name $STACK --query "Stacks[
 SITE_BUCKET=$(out SiteBucketName)
 DIST=$(out DistributionId)
 
+if [[ "$MODE" == "--backend-only" ]]; then echo "Backend deployed; frontend unchanged."; exit 0; fi
 if [[ ! -d frontend ]]; then echo "No frontend yet; skipped upload."; echo "Site: $(out SiteUrl)"; exit 0; fi
+PREFIX=""
+[[ "$MODE" == "--staging" ]] && PREFIX="staging/"
 STAGE=$(mktemp -d)
 cp -r frontend/. "$STAGE/"
 printf 'window.MC_CONFIG = {googleClientId: "%s", apiBase: "/api", mock: false};\n' "$GOOGLE_CLIENT_ID" > "$STAGE/config.js"
-$AWS s3 sync "$STAGE/" "s3://$SITE_BUCKET/" --delete --cache-control "no-cache" >/dev/null
+$AWS s3 sync "$STAGE/" "s3://$SITE_BUCKET/$PREFIX" --delete --cache-control "no-cache" >/dev/null
 rm -rf "$STAGE"
-$AWS cloudfront create-invalidation --distribution-id "$DIST" --paths "/*" >/dev/null
-echo "Site: $(out SiteUrl)"
+$AWS cloudfront create-invalidation --distribution-id "$DIST" --paths "/${PREFIX}*" >/dev/null
+echo "Site: $(out SiteUrl)/$PREFIX"
