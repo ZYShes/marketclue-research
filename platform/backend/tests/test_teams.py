@@ -202,9 +202,11 @@ def test_team_members_read_finished_reports_but_nothing_private(team, monkeypatc
     owner, member = team["owner"], team["member"]
     conv_id = ready_conversation("owner-sub")
     run = done_run("owner-sub", conv_id=conv_id)
+    store.create_share(run["run_id"])
     loaded = body(request(f"/api/runs/{run['run_id']}", session=member))
     assert loaded["access"] == "team" and loaded["run"]["owner_name"] == "Lena Lead"
-    assert "conv_id" not in loaded["run"] and loaded["result"]["title"] == "Mug prices"
+    assert "conv_id" not in loaded["run"] and "share_token" not in loaded["run"]
+    assert loaded["result"]["title"] == "Mug prices"
     assert body(request(f"/api/runs/{run['run_id']}", session=owner))["access"] == "owner"
     assert request(f"/api/runs/{run['run_id']}/mockups", session=member)["statusCode"] == 200
     assert request(f"/api/runs/{run['run_id']}/share", "POST", session=member)["statusCode"] == 404

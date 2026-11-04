@@ -133,7 +133,7 @@ def _readable_run(user: dict, run_id: str) -> tuple[dict, str]:
     if run and run.get("status") == "done" and user.get("team_id"):
         author = store.get_user(run["user_sub"])
         if author and author.get("team_id") == user["team_id"]:
-            view = {key: value for key, value in run.items() if key != "conv_id"}
+            view = {key: value for key, value in run.items() if key not in {"conv_id", "share_token"}}
             view["owner_name"] = author.get("name") or author.get("email", "")
             return view, "team"
     raise HTTPError(404, "not_found", "Run not found")
