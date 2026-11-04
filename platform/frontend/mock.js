@@ -376,7 +376,7 @@ function intakeReply(feature, count) {
   }
   return {
     reply: count === 3
-      ? "Your brief is ready. Check it in the Research brief panel, choose Quick or Smarter, then press Start research to see a simulated report."
+      ? "Your brief is ready. Check it in the Research brief panel, choose a research depth, then press Start research to see a simulated report."
       : "The demo brief is unchanged. Press Start research when you are ready.",
     ready: true, brief,
   };
@@ -604,6 +604,10 @@ function route(method, segments, query, body) {
     const { meta, result } = snapshot(run);
     const { user_sub: _drop, ...publicMeta } = meta;
     return ok({ run: publicMeta, result });
+  }
+  if (a === "invites" && b && method === "GET") {
+    return ok({ team_name: "Clay & Leaf Studio", inviter_name: "Demo Owner", email_hint: "d\u2022\u2022\u2022@example.com",
+      status: "pending", expires_at: new Date(Date.now() + 6 * 864e5).toISOString() });
   }
   if (!state.signedIn) return fail(401, "unauthorized", "Sign in to continue.");
   const user = me();

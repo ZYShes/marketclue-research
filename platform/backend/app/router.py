@@ -351,6 +351,30 @@ def _invite(user: dict, data: dict) -> dict:
     }
 
 
+def _email_hint(email: str) -> str:
+    local, _, domain = email.partition("@")
+    return f"{local[:1]}\u2022\u2022\u2022@{domain}" if domain else "\u2022\u2022\u2022"
+
+
+def _invite_preview(token: str) -> dict:
+    """Public (no sign-in) summary of an invite, so a new user knows who invited them before signing in."""
+    invite = store.get_invite(token)
+    if invite is None:
+        raise HTTPError(404, "invite_not_found", "This invite link is not valid")
+    team = store.get_team(invite["team_id"]) or {}
+    inviter = store.get_user(invite.get("invited_by") or "") or {}
+    status = invite["status"]
+    if status == "pending" and store.invite_expired(invite):
+        status = "expired"
+    return {
+        "team_name": team.get("name") or "a MarketClue team",
+        "inviter_name": inviter.get("name") or "A MarketClue user",
+        "email_hint": _email_hint(invite["email"]),
+        "status": status,
+        "expires_at": invite["expires_at"],
+    }
+
+
 def _revoke_invite(user: dict, token: str) -> dict:
     _team_member(user, owner=True)
     invite = store.get_invite(token)
@@ -410,6 +434,8 @@ def _dispatch(event: dict) -> dict:
             claims["sub"], claims["email"], claims.get("name", ""), claims.get("picture", "")
         )
         return _response({"user": _public_user(user)}, cookies=[auth.session_cookie(user)])
+    if method == "GET" and len(parts) == 3 and parts[:2] == ["api", "invites"]:
+        return _response(_invite_preview(parts[2]))
     if method == "GET" and len(parts) == 3 and parts[:2] == ["api", "shared"]:
         run = store.resolve_share(parts[2])
         if run is None:

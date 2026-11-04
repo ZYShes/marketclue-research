@@ -87,7 +87,7 @@ export function friendlyError(err) {
     return "Smarter research has reached today's limit for the site. Choose a lighter depth, or try Smarter tomorrow.";
   }
   if (err.code === "smarter_owner_only") return "Smarter research is not available for your account yet. Choose a lighter depth.";
-  if (err.code === "invalid_mode") return "This research depth is not available on the server yet. Choose Quick or Smarter.";
+  if (err.code === "invalid_mode") return "This research depth is not available right now. Choose Quick.";
   if (err.code === "mockups_disabled") return "Mock-ups are not available on this site.";
   if (err.code === "mockup_limit") return "This report already has the maximum of 3 mock-ups.";
   if (err.code === "invite_email_mismatch") {

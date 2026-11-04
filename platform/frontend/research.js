@@ -331,7 +331,7 @@ function renderConversation(initial, isCurrent) {
       : "");
     readyNote.replaceChildren(!done && conv.ready
       ? h("div", { class: "callout callout-ready" },
-          h("p", {}, h("strong", {}, "Your brief is ready. "), "Check it, choose Quick or Smarter, then start research."),
+          h("p", {}, h("strong", {}, "Your brief is ready. "), "Check it, choose a research depth, then start research."),
           h("a", { class: "btn btn-secondary btn-sm only-narrow", href: "#brief", onclick: (ev) => { ev.preventDefault(); jumpToBrief(); } }, "Review brief", icon("arrow")))
       : "");
   }

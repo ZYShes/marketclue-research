@@ -220,3 +220,15 @@ def test_team_members_read_finished_reports_but_nothing_private(team, monkeypatc
     assert body(request("/api/runs", session=member))["runs"] == []
     stranger = signed_in("stranger", "stranger@example.com")
     assert request(f"/api/runs/{run['run_id']}", session=stranger)["statusCode"] == 404
+
+
+
+def test_public_invite_preview_needs_no_sign_in(aws):
+    owner = store.upsert_user("owner", "owner@example.com", "Olive Owner", "")
+    store.create_team(owner, "Clay Studio")
+    invite = store.create_invite(store.get_user("owner")["team_id"], "yuki@gmail.com", "owner")
+    response = request(f"/api/invites/{invite['token']}")
+    assert response["statusCode"] == 200
+    assert body(response) == {"team_name": "Clay Studio", "inviter_name": "Olive Owner", "email_hint": "y\u2022\u2022\u2022@gmail.com",
+                              "status": "pending", "expires_at": invite["expires_at"]}
+    assert request("/api/invites/nope")["statusCode"] == 404

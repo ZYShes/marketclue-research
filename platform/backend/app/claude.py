@@ -20,8 +20,10 @@ PRICES = {
 }
 PRICE_WEB_SEARCH = 0.01
 
-# Dynamic-filtering web tools need Opus/Sonnet 5.5-class models; Haiku uses the basic versions.
-DYNAMIC_WEB_TOOLS = {"claude-opus-5-5", "claude-sonnet-5-5"}
+# Dynamic-filtering web tools only for Opus. Sonnet with them ran searches inside code execution, used up
+# its search budget after one round and read almost no pages (2026-11-04 test: 1 page, 1 finding vs 3 pages,
+# 5 findings with the basic tools), so Sonnet and Haiku use the basic versions.
+DYNAMIC_WEB_TOOLS = {"claude-opus-5-5"}
 # Server-side refusal fallbacks are not available for Haiku.
 NO_FALLBACKS = {"claude-haiku-5-5"}
 
