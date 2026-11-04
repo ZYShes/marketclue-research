@@ -16,6 +16,8 @@ GOOGLE_CLIENT_ID=$(cat "$CONF/google_client_id")
 OWNER_EMAILS=$(cat "$CONF/owner_emails" 2>/dev/null || true)
 RESEARCH_MODEL=$(cat "$CONF/research_model" 2>/dev/null || echo claude-opus-5-5)
 BUDGET_EMAIL=$(cat "$CONF/budget_email")
+# Stack parameters keep their previous value unless passed, so pass the ones whose defaults change.
+IMAGE_MODEL=$(cat "$CONF/openai_image_model" 2>/dev/null || echo gpt-image-2)
 
 put_secret() { # name file-or-generator
   if ! $AWS ssm get-parameter --name "/marketclue/$1" >/dev/null 2>&1; then
@@ -50,7 +52,7 @@ if [[ "$MODE" != "--frontend-only" && "$MODE" != "--staging" ]]; then
   $AWS cloudformation deploy --template-file "$BUILD/packaged.yaml" --stack-name $STACK \
     --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND --no-fail-on-empty-changeset \
     --parameter-overrides GoogleClientId="$GOOGLE_CLIENT_ID" OwnerEmails="$OWNER_EMAILS" \
-      BudgetEmail="$BUDGET_EMAIL" SiteOrigin="$SITE_ORIGIN" ResearchModel="$RESEARCH_MODEL"
+      BudgetEmail="$BUDGET_EMAIL" SiteOrigin="$SITE_ORIGIN" ResearchModel="$RESEARCH_MODEL" OpenAIImageModel="$IMAGE_MODEL"
 
   NEW_ORIGIN=$($AWS cloudformation describe-stacks --stack-name $STACK \
     --query "Stacks[0].Outputs[?OutputKey=='SiteUrl'].OutputValue" --output text)
@@ -58,7 +60,7 @@ if [[ "$MODE" != "--frontend-only" && "$MODE" != "--staging" ]]; then
     $AWS cloudformation deploy --template-file "$BUILD/packaged.yaml" --stack-name $STACK \
       --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND --no-fail-on-empty-changeset \
       --parameter-overrides GoogleClientId="$GOOGLE_CLIENT_ID" OwnerEmails="$OWNER_EMAILS" \
-        BudgetEmail="$BUDGET_EMAIL" SiteOrigin="$NEW_ORIGIN" ResearchModel="$RESEARCH_MODEL"
+        BudgetEmail="$BUDGET_EMAIL" SiteOrigin="$NEW_ORIGIN" ResearchModel="$RESEARCH_MODEL" OpenAIImageModel="$IMAGE_MODEL"
   fi
 fi
 
