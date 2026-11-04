@@ -215,12 +215,13 @@ async function run(width) {
     await snap(page, "20-report-teammate", width);
     await go(page, "/runs");
     await snap(page, "21-reports-mine", width);
-    await page.click("button:has-text('Team')");
+    // v5: one scope picker (Mine, each team, each project); index 1 is the first team.
+    await page.selectOption("#reports-scope", { index: 1 });
     await wait(500);
     await snap(page, "22-reports-team", width);
     await go(page, "/library");
     await snap(page, "23-library-mine", width);
-    await page.click(".toggle-btn:has-text('Team')");
+    await page.selectOption("#lib-scope", { index: 1 });
     await wait(500);
     await snap(page, "24-library-team", width);
     await go(page, "/team");

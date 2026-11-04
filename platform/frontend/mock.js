@@ -18,9 +18,9 @@
 // a team project "Planters on eBay" in "Clay & Leaf Studio" (with a report by Riley), and an archived
 // personal project. The owner is in two teams: owns "Clay & Leaf Studio", member of "North Market Makers".
 
-const STORE_KEY = "mc_mock_state_v5";
-const STORE_VERSION = 5;
-const PROJECT_LIMIT = 50;
+const STORE_KEY = "mc_mock_state_v6";
+const STORE_VERSION = 6;
+const LIVE_PROJECT_LIMIT = 10;
 const TEAM_LIMIT = 10;
 const EARLIER_LABEL = "from an earlier report in this project";
 const TEMPLATES = [
@@ -84,7 +84,11 @@ const USERS = {
   "demo-owner": { sub: "demo-owner", email: "demo.founder@example.com", name: "Demo Founder", picture: null, is_owner: true },
   "demo-member": { sub: "demo-member", email: "sam.rivera@example.com", name: "Sam Rivera", picture: null, is_owner: false },
   "demo-riley": { sub: "demo-riley", email: "riley.chen@example.com", name: "Riley Chen", picture: null, is_owner: false },
+  "demo-jordan": { sub: "demo-jordan", email: "jordan.lee@example.com", name: "Jordan Lee", picture: null, is_owner: false },
 };
+// Mock flags: &projects=limit puts the signed-in person at 10 live projects (create and restore answer 429);
+// &limit=riley gives Riley Chen 10 live projects, so handing a team over to Riley answers 429.
+const LIVE_EXTRA = { me: pageQuery.get("projects") === "limit" ? 8 : 0, "demo-riley": pageQuery.get("limit") === "riley" ? 10 : 0 };
 const TOOL_NAMES = {
   market_check: "Find your customers",
   competitor_scan: "Check competitors & prices",
@@ -769,6 +773,7 @@ function initialState() {
     members: [
       { sub: "demo-riley", role: "owner", joined_at: daysAgo(40) },
       { sub: "demo-owner", role: "member", joined_at: daysAgo(15) },
+      { sub: "demo-jordan", role: "member", joined_at: daysAgo(12) },
     ],
     invites: [],
   };
@@ -782,6 +787,11 @@ function initialState() {
       project_id: "proj-ebay", name: "Planters on eBay", owner_sub: "demo-owner", team_id: "team-clay",
       brief: { business: "Handmade 6-inch stoneware planters with saucers", customer: "US plant owners shopping on eBay", location: "Ships from Seattle, WA", stage: null, budget_usd: 300 },
       default_template: "ebay", created_at: daysAgo(6), updated_at: hoursAgo(5), archived: false,
+    },
+    "proj-stall": {
+      project_id: "proj-stall", name: "Market stall planters", owner_sub: "demo-owner", team_id: "team-north",
+      brief: { business: "Small planters for the North Market stall", customer: "Weekend market shoppers", location: "Seattle, WA", stage: null, budget_usd: null },
+      default_template: "general", created_at: daysAgo(9), updated_at: daysAgo(9), archived: false,
     },
     "proj-classes": {
       project_id: "proj-classes", name: "Wheel-throwing classes", owner_sub: "demo-owner", team_id: null,
@@ -835,6 +845,12 @@ function projectRole(p, sub = me().sub) {
   if (p.team_id && state.teams[p.team_id]?.owner_sub === sub) return "team_owner";
   return "member";
 }
+// Live = not archived; a person may own at most 10 (SPEC v5). Mock flags add invisible ones (LIVE_EXTRA).
+function liveCount(sub) {
+  const own = Object.values(state.projects).filter((p) => p.owner_sub === sub && !p.archived).length;
+  return own + (sub === me().sub ? LIVE_EXTRA.me : 0) + (LIVE_EXTRA[sub] && sub !== me().sub ? LIVE_EXTRA[sub] : 0);
+}
+const liveLimitMessage = () => "You have 10 live projects, the most one person can have. Archive one to start another.";
 const teamRef = (p) => (p.team_id && state.teams[p.team_id] ? { team_id: p.team_id, name: state.teams[p.team_id].name } : null);
 const projectRuns = (p) => state.runs.filter((run) => run.project_id === p.project_id);
 const visibleInProject = (run) => run.owner === me().sub || runStatus(run) === "done";
@@ -1018,6 +1034,7 @@ function runRow(run) {
   return {
     run_id: meta.run_id, conv_id: meta.conv_id, feature: meta.feature, mode: meta.mode, template: meta.template, title: meta.title,
     status: meta.status, created_at: meta.created_at, cost_usd: meta.cost_usd, owner_name: meta.owner_name, project_id: run.project_id || null,
+    owner_sub: run.owner,
   };
 }
 
@@ -1053,7 +1070,12 @@ function filterCards(cards, query) {
 
 function teamView(team) {
   const role = team.owner_sub === me().sub ? "owner" : "member";
+  const mine = Object.values(state.projects).filter((p) => p.team_id === team.team_id && p.owner_sub === me().sub);
   return {
+    leaving: {
+      needs_new_owner: role === "owner" || mine.length > 0,
+      projects: mine.map((p) => ({ project_id: p.project_id, name: p.name, archived: !!p.archived })),
+    },
     team: { team_id: team.team_id, name: team.name, owner_sub: team.owner_sub, created_at: team.created_at },
     role,
     members: team.members.map((m) => ({ ...USERS[m.sub], ...m, email: USERS[m.sub]?.email, name: USERS[m.sub]?.name })),
@@ -1104,11 +1126,34 @@ function teamAction(team, method, b, c, query, body) {
   if (b === "members" && c && method === "DELETE") {
     if (!isOwner) return fail(403, "team_owner_only", "Only the team owner can remove members.");
     if (c === user.sub) return fail(400, "cannot_remove_owner", "The owner cannot remove themself.");
+    if (!memberOf(team, c)) return fail(404, "not_found", "Member not found.");
+    // Their projects in this team go to the team owner; any over the owner's 10 live are archived.
+    for (const p of Object.values(state.projects).filter((x) => x.team_id === team.team_id && x.owner_sub === c)) {
+      if (!p.archived && liveCount(user.sub) >= LIVE_PROJECT_LIMIT) p.archived = true;
+      p.owner_sub = user.sub;
+      p.updated_at = new Date().toISOString();
+    }
     team.members = team.members.filter((m) => m.sub !== c);
     return ok({ ok: true });
   }
   if (b === "leave" && method === "POST") {
-    if (isOwner) return fail(403, "owner_cannot_leave", "The owner cannot leave the team.");
+    const others = team.members.filter((m) => m.sub !== user.sub);
+    if (isOwner && !others.length) return fail(403, "owner_cannot_leave", "You are the only member, so you cannot leave this team.");
+    const mine = Object.values(state.projects).filter((p) => p.team_id === team.team_id && p.owner_sub === user.sub);
+    const next = body.new_owner_sub;
+    if ((isOwner || mine.length) && !next) return fail(400, "new_owner_required", "Choose who takes over before you leave.");
+    if (next && (next === user.sub || !memberOf(team, next))) return fail(400, "invalid_new_owner", "Choose another member of this team.");
+    if (next) {
+      const moving = mine.filter((p) => !p.archived).length;
+      if (moving && liveCount(next) + moving > LIVE_PROJECT_LIMIT) {
+        return fail(429, "project_limit", `${USERS[next]?.name || "That member"} already has 10 live projects.`);
+      }
+      for (const p of mine) { p.owner_sub = next; p.updated_at = new Date().toISOString(); }
+      if (isOwner) {
+        team.owner_sub = next;
+        team.members.forEach((m) => { if (m.sub === next) m.role = "owner"; });
+      }
+    }
     team.members = team.members.filter((m) => m.sub !== user.sub);
     return ok({ ok: true });
   }
@@ -1316,8 +1361,7 @@ function route(method, segments, query, body) {
     const name = String(body.name || "").trim().slice(0, 80);
     if (!name) return fail(400, "invalid_request", "Enter a project name.");
     if (body.team_id && !memberOf(state.teams[body.team_id], user.sub)) return fail(404, "no_team", "You are not in that team.");
-    const created = Object.values(state.projects).filter((p) => p.owner_sub === user.sub).length;
-    if (created >= PROJECT_LIMIT) return fail(429, "project_limit", "You have reached the limit of 50 projects.");
+    if (liveCount(user.sub) >= LIVE_PROJECT_LIMIT) return fail(429, "project_limit", liveLimitMessage());
     const now = new Date().toISOString();
     const brief = { business: null, customer: null, location: null, stage: null, budget_usd: null, ...(body.brief || {}) };
     const p = {
@@ -1345,12 +1389,19 @@ function route(method, segments, query, body) {
         if (body.team_id && !memberOf(state.teams[body.team_id], user.sub)) return fail(404, "no_team", "You are not in that team.");
         p.team_id = body.team_id || null;
       }
-      if ("archived" in body) p.archived = !!body.archived;
+      if ("archived" in body) {
+        if (p.archived && !body.archived && liveCount(p.owner_sub) >= LIVE_PROJECT_LIMIT) {
+          return fail(429, "project_limit", p.owner_sub === user.sub ? liveLimitMessage()
+            : `${USERS[p.owner_sub]?.name || "The project owner"} already has 10 live projects.`);
+        }
+        p.archived = !!body.archived;
+      }
       if (body.default_template) p.default_template = templateOf(body.default_template);
       p.updated_at = new Date().toISOString();
       return ok(projectDetailView(p));
     }
     if (c === "cards" && method === "GET") return ok({ cards: filterCards(projectCards(p), query) });
+    if (c === "runs" && method === "GET") return ok({ runs: projectDetailView(p).runs });
   }
 
   // Teams: a person can be in several (SPEC v5); the old /team routes act on the first team joined.

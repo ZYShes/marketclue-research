@@ -905,6 +905,10 @@ a.pager-link:hover { background: var(--surface-2); color: var(--ink); border-col
 }
 .form-actions-split { justify-content: space-between; align-items: center; }
 .team-picker { max-width: 360px; margin-top: 8px; }
+/* My reports and Fact library: one scope picker (Mine, a team, a project). */
+.scope-picker { width: min(100%, 420px); }
+/* Leave team: what moves to the member who takes over. */
+.leave-moves { margin: 2px 0 0; padding-left: 1.25em; display: grid; gap: 4px; font-size: 0.9375rem; overflow-wrap: anywhere; }
 .another-team > summary {
   display: flex; align-items: center; gap: 8px; min-height: 44px; cursor: pointer; font-weight: 650; list-style: none;
 }

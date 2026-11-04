@@ -15,7 +15,7 @@ Static files in `frontend/`, no build step (ES modules): `app.js` (boot, sign-in
 (sidebar with Recent history, mobile drawer), `research.js` (`#/new` tool picker and history, `#/c/<id>`
 conversation; `depth.js` holds the research depth control - a button in the bottom-right corner of each message box that opens a three-stop slider: Quick → Balanced → Smarter), `run.js` (live run, report actions, mock-ups, shared report),
 `report.js` (report, source hover cards, fact card sheet), `charts.js` (accessible SVG charts for
-`result.charts`), `library.js` (Fact library and My reports, Mine | Team), `team.js` (Team, `#/join/<token>`).
+`result.charts`), `library.js` (Fact library and My reports, each with a scope picker), `team.js` (Team, `#/join/<token>`).
 
 Templates (v4, SPEC "v4 templates"): `#/new` starts with "Choose a template" — General or eBay seller — as
 radio cards with capability badges, loaded from `GET /api/templates`. A template the server reports as
@@ -42,6 +42,17 @@ project are labelled "From an earlier report in this project" and keep their ori
 has a team picker when you are in several teams (`#/team?team=<id>`), lists the team's projects and offers
 "Create another team".
 
+My reports and the Fact library have one scope picker, "Show reports from" / "Show fact cards from": Mine,
+then each of your teams (`GET /api/teams/{id}/runs`, `/cards`: finished reports and cards in that team's
+projects) and each live project (`GET /api/projects/{id}/runs`, `/cards`). The choice is kept in the address
+(`?scope=team:<id>` or `?scope=project:<id>`; the old `?scope=team` means the first team) and remembered per
+page; a team or project that is gone falls back to Mine. Search and the type, direction and tool filters work
+inside the chosen scope. "Leave team" (members and, when someone else is in the team, owners) opens a dialog:
+when you own the team or projects in it, "Who takes over?" picks another member and lists what moves to them;
+429 `project_limit` (that member already has 10 live projects) keeps the dialog open to choose someone else.
+Removing a member says their projects in the team move to the team owner. A person may own 10 live (not
+archived) projects: creating or restoring one at the limit shows the server's message and a hint to archive one.
+
 Mock mode: open the site with `?mock=1`. It answers every API call from `mock.js` with invented sample data
 and offers two demo accounts — an owner (unlimited reports and mock-ups, owns the team "Clay & Leaf
 Studio") and a member (free reports, with a pending invite at `#/join/sample-invite`). Anyone may pick any
@@ -54,9 +65,13 @@ example.com. `&ebay=off` shows the eBay template as not connected (409 `template
 owner has a personal project "Handmade ceramic planters" (`#/p/proj-planters`, reports at Compare, Prepare
 and Grow, one still running, Discover not started; the unfiled Discover report `#/runs/b1c2d3e4f5a6` can be
 moved into it), a team project "Planters on eBay" in Clay & Leaf Studio (`#/p/proj-ebay`, default template
-eBay seller, includes a teammate's report) and an archived personal project. The owner is in two teams (owns
-Clay & Leaf Studio, member of North Market Makers). A project with a brief makes the demo intake ask one
-question fewer, and a report in a project cites one card from an earlier report in it.
+eBay seller, includes a teammate's report), a team project "Market stall planters" the owner owns in North
+Market Makers (so leaving that team asks who takes over) and an archived personal project. The owner is in two
+teams (owns Clay & Leaf Studio with Riley Chen; member of North Market Makers with Riley Chen as owner and
+Jordan Lee). A project with a brief makes the demo intake ask one question fewer, and a report in a project
+cites one card from an earlier report in it. `&projects=limit` puts the owner at 10 live projects (creating or
+restoring one answers 429 `project_limit`); `&limit=riley` gives Riley Chen 10 live projects, so handing a team
+or project over to Riley answers 429.
 
 QA (`qa/frontend-v3/`): serve `frontend/` with `python3 -m http.server 8765`, then run
 `node qa/frontend-v3/run-qa.js` (screenshots at 1280 and 375 px, axe-core WCAG 2.2 AA rules, horizontal
@@ -75,6 +90,8 @@ sidebar, checks the journey strip, the Reports stage filter, Fact cards search a
 stage from a team project (tool, project and default template preselected, "We already know", one question
 fewer) through to the report breadcrumb and the earlier-card label, creates a project inline, moves a report
 into a project, shows archived projects, switches teams with the picker, checks that a non-member cannot see
-a team project until they join, and covers keyboard paths. It then screenshots the new pages at 1280 and 375
+a team project until they join, covers keyboard paths, the My reports and Fact library scope picker (Mine,
+team, project, remembered, stale scope back to Mine), leaving a team with a handover (including the 429 path
+and a team owner handing over the team) and the 10-live-project limit on create and restore. It then screenshots the new pages at 1280 and 375
 px (and 200% zoom) with axe-core, horizontal-scroll and 44 px target checks into `qa/projects/screenshots/`
 and `qa-report.json`.
