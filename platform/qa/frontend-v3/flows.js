@@ -234,9 +234,9 @@ async function context(browser, width = 1280) {
     await page.goto(`${BASE}#/new`);
     await wait(900);
     const cardsOnNew = await page.locator(".template-card").count();
-    check(cardsOnNew <= 4, `#/new previews at most 4 templates (${cardsOnNew})`);
+    check(cardsOnNew === 6, `#/new previews the six templates (${cardsOnNew})`);
     const seeAll = page.locator(".see-all-link");
-    check((await seeAll.textContent()).includes("See all 15 templates"), "#/new has 'See all 15 templates'");
+    check((await seeAll.textContent()).includes("See all 16 templates"), "#/new has 'See all 16 templates'");
     await seeAll.click();
     await wait(900);
     check(page.url().endsWith("#/templates"), "See all opens #/templates");
@@ -254,14 +254,14 @@ async function context(browser, width = 1280) {
     check(!secondNames.some((n) => firstNames.includes(n)), "page 2 shows different templates");
     await page.goto(`${BASE}#/templates?page=3`);
     await wait(900);
-    check(await page.locator(".template-tile").count() === 3, "a direct link to page 3 shows the last 3");
+    check(await page.locator(".template-tile").count() === 4, "a direct link to page 3 shows the last 4");
     check(await page.locator(".pager .is-disabled", { hasText: "Next" }).count() === 1, "Next is disabled on the last page");
     await page.goto(`${BASE}#/templates?page=99`);
     await wait(900);
     check((await page.locator("#tpl-count").textContent()).includes("page 3 of 3"), "an out-of-range page falls back to the last page");
     await page.click(".toggle-btn:has-text('Available now')");
     await wait(300);
-    check(await page.locator(".template-tile").count() === 2 && await page.locator(".pager").count() === 0, "Available now shows 2 and no pager");
+    check(await page.locator(".template-tile").count() === 6 && await page.locator(".pager").count() === 0, "Available now shows 6 and no pager");
     await page.click(".toggle-btn:has-text('All')");
     await page.fill("#tpl-q", "etsy");
     await wait(500);
@@ -275,10 +275,10 @@ async function context(browser, width = 1280) {
     check(await page.locator("#template-ebay").isChecked(), "the chosen template is preselected on #/new");
     await page.goto(`${BASE}&templates=few#/new`);
     await wait(900);
-    check((await page.locator(".see-all-link").textContent()).includes("Browse templates"), "with only two templates the link reads 'Browse templates'");
+    check((await page.locator(".see-all-link").textContent()).includes("Browse templates"), "with only the six real templates the link reads 'Browse templates'");
     await page.goto(`${BASE}&templates=few#/templates`);
     await wait(900);
-    check(await page.locator(".template-tile").count() === 2 && await page.locator(".pager").count() === 0, "two templates: one page, no pager");
+    check(await page.locator(".template-tile").count() === 6 && await page.locator(".pager").count() === 0, "six templates: one page, no pager");
     await ctx.close();
   }
 

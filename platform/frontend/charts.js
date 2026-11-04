@@ -21,6 +21,8 @@ export function fmtValue(v, unit) {
 }
 
 function valueText(s, unit) {
+  // A range item whose low and high are equal is one value ("$62,000", not "$62,000–$62,000").
+  if (finite(s.low) && finite(s.high) && num(s.low) === num(s.high)) return fmtValue(s.low, unit);
   if (finite(s.low) && finite(s.high)) {
     const range = `${fmtValue(s.low, unit)}–${fmtValue(s.high, unit)}`;
     return finite(s.value) && num(s.value) !== num(s.low) && num(s.value) !== num(s.high)
@@ -265,8 +267,22 @@ function drawBars({ series, unit, width, fs, font, id, kind, type, title, desc }
   return root;
 }
 
+// Segment colours: "What is left" always keeps colour 4 (green), the other segments take colours 0-3 and 5 in
+// order, so a chart with six segments (Etsy costs, SPEC v4.1) never repeats a colour and eBay's five keep theirs.
+function segmentColours(labels) {
+  let next = 0;
+  return labels.map((label) => {
+    if (/^what is left$/i.test(String(label))) return 4;
+    if (next === 4) next += 1;
+    const colour = next % 6;
+    next += 1;
+    return colour;
+  });
+}
+
 // One horizontal stacked bar per series item, all on one scale, with one legend for the segments.
 function drawSegmented({ series, unit, width, fs, font, id, title, desc, segLabels }) {
+  const colours = segmentColours(segLabels);
   const segTotal = (s) => list(s.segments).reduce((sum, g) => sum + Math.max(0, num(g && g.value) || 0), 0);
   const maxTotal = Math.max(...series.map((s) => Math.max(segTotal(s), num(s.value) || 0))) || 1;
   const valueFont = `600 ${fs}px ${font}`;
@@ -305,7 +321,7 @@ function drawSegmented({ series, unit, width, fs, font, id, title, desc, segLabe
       const v = segmentValue(s, label);
       if (v == null || v <= 0) return;
       const w = Math.max(2, v * scale - gap);
-      root.append(el("rect", { x: cx, y: barY, width: w, height: barH, class: `chart-seg chart-seg-${i % 5}` }));
+      root.append(el("rect", { x: cx, y: barY, width: w, height: barH, class: `chart-seg chart-seg-${colours[i]}` }));
       const text = fmtValue(v, unit);
       if (measure(text, valueFont) + 10 < w) {
         root.append(el("text", { x: cx + w / 2, y: barY + barH / 2 + fs * 0.35, "text-anchor": "middle", class: "chart-seg-label", "font-size": fs }, text));
@@ -318,7 +334,7 @@ function drawSegmented({ series, unit, width, fs, font, id, title, desc, segLabe
     let lx = 0;
     const ly = barsH + 14 + ri * lineH;
     for (const it of r) {
-      root.append(el("rect", { x: lx, y: ly + (lineH - swatch) / 2 - 2, width: swatch, height: swatch, rx: 2, class: `chart-seg chart-seg-${it.i % 5}` }));
+      root.append(el("rect", { x: lx, y: ly + (lineH - swatch) / 2 - 2, width: swatch, height: swatch, rx: 2, class: `chart-seg chart-seg-${colours[it.i]}` }));
       root.append(el("text", { x: lx + swatch + 8, y: ly + lineH / 2 + fs * 0.3, class: "chart-legend", "font-size": fs }, it.text));
       lx += it.w;
     }

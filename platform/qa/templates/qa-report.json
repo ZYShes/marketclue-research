@@ -1,10 +1,38 @@
 {
-  "generated_at": "2026-11-04T07:16:17.735Z",
-  "axe_source": "local npm copy (CDN blocked)",
+  "generated_at": "2026-11-04T20:00:01.584Z",
+  "axe_source": "cdn",
   "checks": [
     {
       "ok": true,
-      "label": "#/new shows two template cards"
+      "label": "#/new shows six template cards"
+    },
+    {
+      "ok": true,
+      "label": "the six cards are General, eBay seller, Food truck, Restaurant / café, Daycare / childcare, Etsy seller"
+    },
+    {
+      "ok": true,
+      "label": "every card has an icon, a one-line description and capability badges"
+    },
+    {
+      "ok": true,
+      "label": "food_truck card shows its three capability badges"
+    },
+    {
+      "ok": true,
+      "label": "restaurant card shows its three capability badges"
+    },
+    {
+      "ok": true,
+      "label": "daycare card shows its three capability badges"
+    },
+    {
+      "ok": true,
+      "label": "Etsy card shows its capability badge"
+    },
+    {
+      "ok": true,
+      "label": "at 1280 px the six cards wrap into two rows of three"
     },
     {
       "ok": true,
@@ -156,11 +184,195 @@
     },
     {
       "ok": true,
-      "label": "arrow keys do not select the disabled template"
+      "label": "arrow keys skip the disabled template (ArrowRight goes from General to Food truck)"
     },
     {
       "ok": true,
       "label": "the reason is announced with the disabled card"
+    },
+    {
+      "ok": true,
+      "label": "phone: #/new shows the six template cards"
+    },
+    {
+      "ok": true,
+      "label": "phone: the cards wrap into one column"
+    },
+    {
+      "ok": true,
+      "label": "phone: no card runs past the screen edge"
+    },
+    {
+      "ok": true,
+      "label": "ArrowRight walks through all six cards to Etsy seller"
+    },
+    {
+      "ok": true,
+      "label": "composer hint names the Etsy questions"
+    },
+    {
+      "ok": true,
+      "label": "ArrowLeft goes back to Daycare / childcare"
+    },
+    {
+      "ok": true,
+      "label": "daycare hint says it never asks about specific children or families"
+    },
+    {
+      "ok": true,
+      "label": "#/templates lists all six on one page"
+    },
+    {
+      "ok": true,
+      "label": "#/templates names all six in order"
+    },
+    {
+      "ok": true,
+      "label": "all six are available"
+    },
+    {
+      "ok": true,
+      "label": "with sample templates, Available now shows the six real ones"
+    },
+    {
+      "ok": true,
+      "label": "Use this template preselects Restaurant / café on #/new"
+    },
+    {
+      "ok": true,
+      "label": "composer hint names the food truck questions"
+    },
+    {
+      "ok": true,
+      "label": "conversation shows the Food truck badge"
+    },
+    {
+      "ok": true,
+      "label": "food truck brief becomes Ready"
+    },
+    {
+      "ok": true,
+      "label": "brief panel lists the food truck details and the founder's own cost"
+    },
+    {
+      "ok": true,
+      "label": "run page shows the Food truck badge"
+    },
+    {
+      "ok": true,
+      "label": "report has the Startup costs section"
+    },
+    {
+      "ok": true,
+      "label": "startup lines say whether they come from a checked source or your figure"
+    },
+    {
+      "ok": true,
+      "label": "the total is a rounded range, not one number"
+    },
+    {
+      "ok": true,
+      "label": "the missing cost line is named"
+    },
+    {
+      "ok": true,
+      "label": "startup costs chart is an accessible SVG whose caption gives the total range"
+    },
+    {
+      "ok": true,
+      "label": "the marketing plan and 4-week budget stay"
+    },
+    {
+      "ok": true,
+      "label": "restaurant report has Prices nearby"
+    },
+    {
+      "ok": true,
+      "label": "no generic price table next to Prices nearby"
+    },
+    {
+      "ok": true,
+      "label": "Prices nearby lists the checked menu prices"
+    },
+    {
+      "ok": true,
+      "label": "the benchmark caption says what the prices are and when they were retrieved"
+    },
+    {
+      "ok": true,
+      "label": "the suggested price band sits with Prices nearby"
+    },
+    {
+      "ok": true,
+      "label": "an unchecked review count is not shown"
+    },
+    {
+      "ok": true,
+      "label": "daycare report has Requirements to check"
+    },
+    {
+      "ok": true,
+      "label": "the section carries the not-legal-advice line"
+    },
+    {
+      "ok": true,
+      "label": "no generic launch checklist next to the requirements"
+    },
+    {
+      "ok": true,
+      "label": "eight requirements"
+    },
+    {
+      "ok": true,
+      "label": "six are confirmed on an official page"
+    },
+    {
+      "ok": true,
+      "label": "assumptions say which agency to check with"
+    },
+    {
+      "ok": true,
+      "label": "Washington: DCYF licence and Working Connections Child Care"
+    },
+    {
+      "ok": true,
+      "label": "a fee is shown where a sourced card states it"
+    },
+    {
+      "ok": true,
+      "label": "requirements chart is an accessible SVG"
+    },
+    {
+      "ok": true,
+      "label": "Etsy report has Etsy fees & ad costs"
+    },
+    {
+      "ok": true,
+      "label": "Etsy fee breakdown lists rates and what is left"
+    },
+    {
+      "ok": true,
+      "label": "three Offsite Ads rows: none, 15% and 12%"
+    },
+    {
+      "ok": true,
+      "label": "Etsy costs chart draws one stacked bar per order type"
+    },
+    {
+      "ok": true,
+      "label": "Show data gives the Offsite Ads fee column"
+    },
+    {
+      "ok": true,
+      "label": "Etsy Ads box explains per-click costs"
+    },
+    {
+      "ok": true,
+      "label": "the Etsy report never says 'sells for'"
+    },
+    {
+      "ok": true,
+      "label": "keyboard: Enter on a fee source chip opens its fact card"
     },
     {
       "ok": true,
@@ -172,11 +384,19 @@
     },
     {
       "ok": true,
+      "label": "01-new-templates @1280: no targets under 44 px"
+    },
+    {
+      "ok": true,
       "label": "02-conversation-ebay-ready @1280: no axe violations"
     },
     {
       "ok": true,
       "label": "02-conversation-ebay-ready @1280: no horizontal scroll"
+    },
+    {
+      "ok": true,
+      "label": "02-conversation-ebay-ready @1280: no targets under 44 px"
     },
     {
       "ok": true,
@@ -188,11 +408,19 @@
     },
     {
       "ok": true,
+      "label": "03-report-ebay-listings @1280: no targets under 44 px"
+    },
+    {
+      "ok": true,
       "label": "04-report-ebay-fees @1280: no axe violations"
     },
     {
       "ok": true,
       "label": "04-report-ebay-fees @1280: no horizontal scroll"
+    },
+    {
+      "ok": true,
+      "label": "04-report-ebay-fees @1280: no targets under 44 px"
     },
     {
       "ok": true,
@@ -204,11 +432,19 @@
     },
     {
       "ok": true,
+      "label": "05-ebay-costs-show-data @1280: no targets under 44 px"
+    },
+    {
+      "ok": true,
       "label": "06-new-ebay-not-connected @1280: no axe violations"
     },
     {
       "ok": true,
       "label": "06-new-ebay-not-connected @1280: no horizontal scroll"
+    },
+    {
+      "ok": true,
+      "label": "06-new-ebay-not-connected @1280: no targets under 44 px"
     },
     {
       "ok": true,
@@ -220,11 +456,103 @@
     },
     {
       "ok": true,
+      "label": "07-report-ebay-fees-partial @1280: no targets under 44 px"
+    },
+    {
+      "ok": true,
+      "label": "10-templates-page-six @1280: no axe violations"
+    },
+    {
+      "ok": true,
+      "label": "10-templates-page-six @1280: no horizontal scroll"
+    },
+    {
+      "ok": true,
+      "label": "10-templates-page-six @1280: no targets under 44 px"
+    },
+    {
+      "ok": true,
+      "label": "11-conversation-food-truck-ready @1280: no axe violations"
+    },
+    {
+      "ok": true,
+      "label": "11-conversation-food-truck-ready @1280: no horizontal scroll"
+    },
+    {
+      "ok": true,
+      "label": "11-conversation-food-truck-ready @1280: no targets under 44 px"
+    },
+    {
+      "ok": true,
+      "label": "12-report-food-truck-startup-costs @1280: no axe violations"
+    },
+    {
+      "ok": true,
+      "label": "12-report-food-truck-startup-costs @1280: no horizontal scroll"
+    },
+    {
+      "ok": true,
+      "label": "12-report-food-truck-startup-costs @1280: no targets under 44 px"
+    },
+    {
+      "ok": true,
+      "label": "13-report-restaurant-prices-nearby @1280: no axe violations"
+    },
+    {
+      "ok": true,
+      "label": "13-report-restaurant-prices-nearby @1280: no horizontal scroll"
+    },
+    {
+      "ok": true,
+      "label": "13-report-restaurant-prices-nearby @1280: no targets under 44 px"
+    },
+    {
+      "ok": true,
+      "label": "14-report-daycare-requirements @1280: no axe violations"
+    },
+    {
+      "ok": true,
+      "label": "14-report-daycare-requirements @1280: no horizontal scroll"
+    },
+    {
+      "ok": true,
+      "label": "14-report-daycare-requirements @1280: no targets under 44 px"
+    },
+    {
+      "ok": true,
+      "label": "15-report-etsy-fees @1280: no axe violations"
+    },
+    {
+      "ok": true,
+      "label": "15-report-etsy-fees @1280: no horizontal scroll"
+    },
+    {
+      "ok": true,
+      "label": "15-report-etsy-fees @1280: no targets under 44 px"
+    },
+    {
+      "ok": true,
+      "label": "16-etsy-costs-show-data @1280: no axe violations"
+    },
+    {
+      "ok": true,
+      "label": "16-etsy-costs-show-data @1280: no horizontal scroll"
+    },
+    {
+      "ok": true,
+      "label": "16-etsy-costs-show-data @1280: no targets under 44 px"
+    },
+    {
+      "ok": true,
       "label": "01-new-templates @375: no axe violations"
     },
     {
       "ok": true,
       "label": "01-new-templates @375: no horizontal scroll"
+    },
+    {
+      "ok": true,
+      "label": "01-new-templates @375: no targets under 44 px"
     },
     {
       "ok": true,
@@ -236,11 +564,19 @@
     },
     {
       "ok": true,
+      "label": "02-conversation-ebay-ready @375: no targets under 44 px"
+    },
+    {
+      "ok": true,
       "label": "03-report-ebay-listings @375: no axe violations"
     },
     {
       "ok": true,
       "label": "03-report-ebay-listings @375: no horizontal scroll"
+    },
+    {
+      "ok": true,
+      "label": "03-report-ebay-listings @375: no targets under 44 px"
     },
     {
       "ok": true,
@@ -252,11 +588,19 @@
     },
     {
       "ok": true,
+      "label": "04-report-ebay-fees @375: no targets under 44 px"
+    },
+    {
+      "ok": true,
       "label": "05-ebay-costs-show-data @375: no axe violations"
     },
     {
       "ok": true,
       "label": "05-ebay-costs-show-data @375: no horizontal scroll"
+    },
+    {
+      "ok": true,
+      "label": "05-ebay-costs-show-data @375: no targets under 44 px"
     },
     {
       "ok": true,
@@ -268,11 +612,103 @@
     },
     {
       "ok": true,
+      "label": "06-new-ebay-not-connected @375: no targets under 44 px"
+    },
+    {
+      "ok": true,
       "label": "07-report-ebay-fees-partial @375: no axe violations"
     },
     {
       "ok": true,
       "label": "07-report-ebay-fees-partial @375: no horizontal scroll"
+    },
+    {
+      "ok": true,
+      "label": "07-report-ebay-fees-partial @375: no targets under 44 px"
+    },
+    {
+      "ok": true,
+      "label": "10-templates-page-six @375: no axe violations"
+    },
+    {
+      "ok": true,
+      "label": "10-templates-page-six @375: no horizontal scroll"
+    },
+    {
+      "ok": true,
+      "label": "10-templates-page-six @375: no targets under 44 px"
+    },
+    {
+      "ok": true,
+      "label": "11-conversation-food-truck-ready @375: no axe violations"
+    },
+    {
+      "ok": true,
+      "label": "11-conversation-food-truck-ready @375: no horizontal scroll"
+    },
+    {
+      "ok": true,
+      "label": "11-conversation-food-truck-ready @375: no targets under 44 px"
+    },
+    {
+      "ok": true,
+      "label": "12-report-food-truck-startup-costs @375: no axe violations"
+    },
+    {
+      "ok": true,
+      "label": "12-report-food-truck-startup-costs @375: no horizontal scroll"
+    },
+    {
+      "ok": true,
+      "label": "12-report-food-truck-startup-costs @375: no targets under 44 px"
+    },
+    {
+      "ok": true,
+      "label": "13-report-restaurant-prices-nearby @375: no axe violations"
+    },
+    {
+      "ok": true,
+      "label": "13-report-restaurant-prices-nearby @375: no horizontal scroll"
+    },
+    {
+      "ok": true,
+      "label": "13-report-restaurant-prices-nearby @375: no targets under 44 px"
+    },
+    {
+      "ok": true,
+      "label": "14-report-daycare-requirements @375: no axe violations"
+    },
+    {
+      "ok": true,
+      "label": "14-report-daycare-requirements @375: no horizontal scroll"
+    },
+    {
+      "ok": true,
+      "label": "14-report-daycare-requirements @375: no targets under 44 px"
+    },
+    {
+      "ok": true,
+      "label": "15-report-etsy-fees @375: no axe violations"
+    },
+    {
+      "ok": true,
+      "label": "15-report-etsy-fees @375: no horizontal scroll"
+    },
+    {
+      "ok": true,
+      "label": "15-report-etsy-fees @375: no targets under 44 px"
+    },
+    {
+      "ok": true,
+      "label": "16-etsy-costs-show-data @375: no axe violations"
+    },
+    {
+      "ok": true,
+      "label": "16-etsy-costs-show-data @375: no horizontal scroll"
+    },
+    {
+      "ok": true,
+      "label": "16-etsy-costs-show-data @375: no targets under 44 px"
     },
     {
       "ok": true,
@@ -284,11 +720,43 @@
     },
     {
       "ok": true,
+      "label": "08-new-templates-zoom-200 @1280: no targets under 44 px"
+    },
+    {
+      "ok": true,
       "label": "09-report-ebay-fees-zoom-200 @1280: no axe violations"
     },
     {
       "ok": true,
       "label": "09-report-ebay-fees-zoom-200 @1280: no horizontal scroll"
+    },
+    {
+      "ok": true,
+      "label": "09-report-ebay-fees-zoom-200 @1280: no targets under 44 px"
+    },
+    {
+      "ok": true,
+      "label": "17-report-daycare-requirements-zoom-200 @1280: no axe violations"
+    },
+    {
+      "ok": true,
+      "label": "17-report-daycare-requirements-zoom-200 @1280: no horizontal scroll"
+    },
+    {
+      "ok": true,
+      "label": "17-report-daycare-requirements-zoom-200 @1280: no targets under 44 px"
+    },
+    {
+      "ok": true,
+      "label": "18-report-food-truck-startup-zoom-200 @1280: no axe violations"
+    },
+    {
+      "ok": true,
+      "label": "18-report-food-truck-startup-zoom-200 @1280: no horizontal scroll"
+    },
+    {
+      "ok": true,
+      "label": "18-report-food-truck-startup-zoom-200 @1280: no targets under 44 px"
     }
   ],
   "pages": [
@@ -301,7 +769,8 @@
         "scrollWidth": 1280,
         "clientWidth": 1280,
         "horizontalScroll": false
-      }
+      },
+      "small_targets": []
     },
     {
       "name": "02-conversation-ebay-ready",
@@ -312,7 +781,8 @@
         "scrollWidth": 1280,
         "clientWidth": 1280,
         "horizontalScroll": false
-      }
+      },
+      "small_targets": []
     },
     {
       "name": "03-report-ebay-listings",
@@ -323,7 +793,8 @@
         "scrollWidth": 1280,
         "clientWidth": 1280,
         "horizontalScroll": false
-      }
+      },
+      "small_targets": []
     },
     {
       "name": "04-report-ebay-fees",
@@ -334,7 +805,8 @@
         "scrollWidth": 1280,
         "clientWidth": 1280,
         "horizontalScroll": false
-      }
+      },
+      "small_targets": []
     },
     {
       "name": "05-ebay-costs-show-data",
@@ -345,7 +817,8 @@
         "scrollWidth": 1280,
         "clientWidth": 1280,
         "horizontalScroll": false
-      }
+      },
+      "small_targets": []
     },
     {
       "name": "06-new-ebay-not-connected",
@@ -356,7 +829,8 @@
         "scrollWidth": 1280,
         "clientWidth": 1280,
         "horizontalScroll": false
-      }
+      },
+      "small_targets": []
     },
     {
       "name": "07-report-ebay-fees-partial",
@@ -367,7 +841,92 @@
         "scrollWidth": 1280,
         "clientWidth": 1280,
         "horizontalScroll": false
-      }
+      },
+      "small_targets": []
+    },
+    {
+      "name": "10-templates-page-six",
+      "file": "10-templates-page-six-1280.jpg",
+      "width": 1280,
+      "axe": [],
+      "layout": {
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "horizontalScroll": false
+      },
+      "small_targets": []
+    },
+    {
+      "name": "11-conversation-food-truck-ready",
+      "file": "11-conversation-food-truck-ready-1280.jpg",
+      "width": 1280,
+      "axe": [],
+      "layout": {
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "horizontalScroll": false
+      },
+      "small_targets": []
+    },
+    {
+      "name": "12-report-food-truck-startup-costs",
+      "file": "12-report-food-truck-startup-costs-1280.jpg",
+      "width": 1280,
+      "axe": [],
+      "layout": {
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "horizontalScroll": false
+      },
+      "small_targets": []
+    },
+    {
+      "name": "13-report-restaurant-prices-nearby",
+      "file": "13-report-restaurant-prices-nearby-1280.jpg",
+      "width": 1280,
+      "axe": [],
+      "layout": {
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "horizontalScroll": false
+      },
+      "small_targets": []
+    },
+    {
+      "name": "14-report-daycare-requirements",
+      "file": "14-report-daycare-requirements-1280.jpg",
+      "width": 1280,
+      "axe": [],
+      "layout": {
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "horizontalScroll": false
+      },
+      "small_targets": []
+    },
+    {
+      "name": "15-report-etsy-fees",
+      "file": "15-report-etsy-fees-1280.jpg",
+      "width": 1280,
+      "axe": [],
+      "layout": {
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "horizontalScroll": false
+      },
+      "small_targets": []
+    },
+    {
+      "name": "16-etsy-costs-show-data",
+      "file": "16-etsy-costs-show-data-1280.jpg",
+      "width": 1280,
+      "axe": [],
+      "layout": {
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "horizontalScroll": false
+      },
+      "small_targets": []
     },
     {
       "name": "01-new-templates",
@@ -378,7 +937,8 @@
         "scrollWidth": 375,
         "clientWidth": 375,
         "horizontalScroll": false
-      }
+      },
+      "small_targets": []
     },
     {
       "name": "02-conversation-ebay-ready",
@@ -389,7 +949,8 @@
         "scrollWidth": 375,
         "clientWidth": 375,
         "horizontalScroll": false
-      }
+      },
+      "small_targets": []
     },
     {
       "name": "03-report-ebay-listings",
@@ -400,7 +961,8 @@
         "scrollWidth": 375,
         "clientWidth": 375,
         "horizontalScroll": false
-      }
+      },
+      "small_targets": []
     },
     {
       "name": "04-report-ebay-fees",
@@ -411,7 +973,8 @@
         "scrollWidth": 375,
         "clientWidth": 375,
         "horizontalScroll": false
-      }
+      },
+      "small_targets": []
     },
     {
       "name": "05-ebay-costs-show-data",
@@ -422,7 +985,8 @@
         "scrollWidth": 375,
         "clientWidth": 375,
         "horizontalScroll": false
-      }
+      },
+      "small_targets": []
     },
     {
       "name": "06-new-ebay-not-connected",
@@ -433,7 +997,8 @@
         "scrollWidth": 375,
         "clientWidth": 375,
         "horizontalScroll": false
-      }
+      },
+      "small_targets": []
     },
     {
       "name": "07-report-ebay-fees-partial",
@@ -444,7 +1009,92 @@
         "scrollWidth": 375,
         "clientWidth": 375,
         "horizontalScroll": false
-      }
+      },
+      "small_targets": []
+    },
+    {
+      "name": "10-templates-page-six",
+      "file": "10-templates-page-six-375.jpg",
+      "width": 375,
+      "axe": [],
+      "layout": {
+        "scrollWidth": 375,
+        "clientWidth": 375,
+        "horizontalScroll": false
+      },
+      "small_targets": []
+    },
+    {
+      "name": "11-conversation-food-truck-ready",
+      "file": "11-conversation-food-truck-ready-375.jpg",
+      "width": 375,
+      "axe": [],
+      "layout": {
+        "scrollWidth": 375,
+        "clientWidth": 375,
+        "horizontalScroll": false
+      },
+      "small_targets": []
+    },
+    {
+      "name": "12-report-food-truck-startup-costs",
+      "file": "12-report-food-truck-startup-costs-375.jpg",
+      "width": 375,
+      "axe": [],
+      "layout": {
+        "scrollWidth": 375,
+        "clientWidth": 375,
+        "horizontalScroll": false
+      },
+      "small_targets": []
+    },
+    {
+      "name": "13-report-restaurant-prices-nearby",
+      "file": "13-report-restaurant-prices-nearby-375.jpg",
+      "width": 375,
+      "axe": [],
+      "layout": {
+        "scrollWidth": 375,
+        "clientWidth": 375,
+        "horizontalScroll": false
+      },
+      "small_targets": []
+    },
+    {
+      "name": "14-report-daycare-requirements",
+      "file": "14-report-daycare-requirements-375.jpg",
+      "width": 375,
+      "axe": [],
+      "layout": {
+        "scrollWidth": 375,
+        "clientWidth": 375,
+        "horizontalScroll": false
+      },
+      "small_targets": []
+    },
+    {
+      "name": "15-report-etsy-fees",
+      "file": "15-report-etsy-fees-375.jpg",
+      "width": 375,
+      "axe": [],
+      "layout": {
+        "scrollWidth": 375,
+        "clientWidth": 375,
+        "horizontalScroll": false
+      },
+      "small_targets": []
+    },
+    {
+      "name": "16-etsy-costs-show-data",
+      "file": "16-etsy-costs-show-data-375.jpg",
+      "width": 375,
+      "axe": [],
+      "layout": {
+        "scrollWidth": 375,
+        "clientWidth": 375,
+        "horizontalScroll": false
+      },
+      "small_targets": []
     },
     {
       "name": "08-new-templates-zoom-200",
@@ -455,7 +1105,8 @@
         "scrollWidth": 1280,
         "clientWidth": 1280,
         "horizontalScroll": false
-      }
+      },
+      "small_targets": []
     },
     {
       "name": "09-report-ebay-fees-zoom-200",
@@ -466,7 +1117,32 @@
         "scrollWidth": 1280,
         "clientWidth": 1280,
         "horizontalScroll": false
-      }
+      },
+      "small_targets": []
+    },
+    {
+      "name": "17-report-daycare-requirements-zoom-200",
+      "file": "17-report-daycare-requirements-zoom-200-1280.jpg",
+      "width": 1280,
+      "axe": [],
+      "layout": {
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "horizontalScroll": false
+      },
+      "small_targets": []
+    },
+    {
+      "name": "18-report-food-truck-startup-zoom-200",
+      "file": "18-report-food-truck-startup-zoom-200-1280.jpg",
+      "width": 1280,
+      "axe": [],
+      "layout": {
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "horizontalScroll": false
+      },
+      "small_targets": []
     }
   ]
 }

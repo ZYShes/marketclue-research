@@ -27,6 +27,23 @@ export { toolIcon };
 // What the research lead adds to the intake for a template (mirrors the template's intake_needs).
 const TEMPLATE_HINTS = {
   ebay: "For eBay it also asks about the category or a close example listing, the condition, your target price and who pays shipping.",
+  food_truck: "For a food truck it also asks about the city and state, the cuisine, where you plan to sell and whether you own or rent the truck.",
+  restaurant: "For a restaurant or café it also asks about the city and neighbourhood, the number of seats, the cuisine and whether you serve alcohol.",
+  daycare: "For a daycare it also asks about the state and city, home or center, the ages you will serve and how many children. It never asks about specific children or families.",
+  etsy: "For Etsy it also asks about the product, its size and material, your target price and who pays shipping.",
+};
+
+// What the research lead learned for a template (brief.<field>), shown in the brief panel (SPEC v4.1).
+// eBay keeps its own block (ebayFields). Kinds: money (US dollars), bool (Yes/No), count.
+const TEMPLATE_BRIEF_FIELDS = {
+  food_truck: { title: "For the food truck", fields: [["city", "City"], ["state", "State"], ["cuisine", "Cuisine"],
+    ["selling_spots", "Where you will sell"], ["truck", "Truck"]] },
+  restaurant: { title: "For the restaurant or café", fields: [["city", "City"], ["neighbourhood", "Neighbourhood"],
+    ["seats", "Seats", "count"], ["cuisine", "Cuisine"], ["alcohol", "Serves alcohol", "bool"]] },
+  daycare: { title: "For the daycare", fields: [["state", "State"], ["city", "City"], ["setting", "Home or center"],
+    ["ages_served", "Ages served"], ["planned_children", "Planned number of children", "count"]] },
+  etsy: { title: "For Etsy", fields: [["product_type", "Product"], ["size_material", "Size and material"],
+    ["target_price_usd", "Target price", "money"]] },
 };
 // ---- #/new -----------------------------------------------------------------
 
@@ -51,7 +68,7 @@ export function viewNew(isCurrent, featureArg) {
   // Template (SPEC v4): loaded from GET /templates; the last choice is remembered per user.
   let templates = null; // null while loading
   let template = query.get("template") || lastTemplate();
-  const PREVIEW = 4; // templates shown here; the rest are on #/templates
+  const PREVIEW = 6; // available templates shown here (cards wrap); the rest are on #/templates
   const templateSlot = h("div", { class: "template-slot" });
   const toolStep = h("span", { class: "step-badge", "aria-hidden": "true" }, "1");
   const messageStep = h("span", { class: "step-badge", "aria-hidden": "true" }, "2");
@@ -225,13 +242,11 @@ export function viewNew(isCurrent, featureArg) {
       return;
     }
     rememberTemplate(template);
-    // Up to PREVIEW available templates in the server's order, always including the current choice.
-    const usable = templates.filter((t) => t.available);
-    let shown = usable.slice(0, PREVIEW);
+    // The first PREVIEW templates in the server's order (an unavailable one is shown disabled with its reason),
+    // always including the current choice; the cards wrap on narrow screens.
+    let shown = templates.slice(0, PREVIEW);
     const chosen = templates.find((t) => t.id === template);
     if (chosen && !shown.includes(chosen)) shown = [...shown.slice(0, PREVIEW - 1), chosen];
-    // Only one usable template: show it next to the first unavailable one, so the reason is visible.
-    if (shown.length < 2) shown = templates.slice(0, Math.min(2, templates.length));
     const cards = shown.map((t) => {
       const base = `template-${t.id}`;
       const described = [`${base}-desc`, `${base}-caps`, t.available ? null : `${base}-reason`].filter(Boolean).join(" ");
@@ -251,7 +266,7 @@ export function viewNew(isCurrent, featureArg) {
     });
     templateSlot.replaceChildren(h("fieldset", { class: "tool-picker template-picker" },
       h("legend", { class: "step-legend" }, h("span", { class: "step-badge", "aria-hidden": "true" }, "1"), "Choose a template"),
-      h("p", { class: "field-hint" }, "A template adds sources and report sections for one kind of seller. General is ordinary web research."),
+      h("p", { class: "field-hint" }, "A template adds sources and report sections for one kind of business. General is ordinary web research."),
       h("div", { class: "template-grid" }, cards),
       h("p", { class: "see-all" },
         h("a", { class: "see-all-link", href: "#/templates" },
@@ -627,6 +642,32 @@ function renderConversation(initial, isCurrent) {
         briefField("Sells on eBay now", sells)));
   }
 
+  // Food truck, Restaurant / café, Daycare / childcare and Etsy seller (SPEC v4.1): brief.<template id>.
+  function templateFields(templateId, answers) {
+    const spec = TEMPLATE_BRIEF_FIELDS[templateId];
+    if (!spec || !answers || typeof answers !== "object") return null;
+    const num = (v) => v != null && v !== "" && Number.isFinite(Number(v));
+    const show = (value, kind) => {
+      if (kind === "money") return num(value) ? fmtMoney(Number(value), "USD") : "";
+      if (kind === "bool") return value === true ? "Yes" : value === false ? "No" : "";
+      if (kind === "count") return num(value) ? Number(value).toLocaleString("en-US") : "";
+      return value == null ? "" : String(value);
+    };
+    const rows = spec.fields.map(([key, label, kind]) => briefField(label, show(answers[key], kind)));
+    if ("buyer_pays_shipping" in answers || "shipping_cost_usd" in answers) {
+      const cost = num(answers.shipping_cost_usd) ? fmtMoney(Number(answers.shipping_cost_usd), "USD") : "";
+      let shipping = cost ? `About ${cost}` : "";
+      if (answers.buyer_pays_shipping === true) shipping = cost ? `Buyer pays, about ${cost}` : "Buyer pays";
+      else if (answers.buyer_pays_shipping === false) shipping = cost ? `Free for the buyer; you pay about ${cost}` : "Free for the buyer";
+      rows.push(briefField("Shipping", shipping));
+    }
+    const known = Array.isArray(answers.known_costs) ? answers.known_costs.filter((c) => c && c.item) : [];
+    if (known.length) {
+      rows.push(briefField("Costs you gave", known.map((c) => `${c.item}: ${num(c.amount_usd) ? fmtMoney(Number(c.amount_usd), "USD") : "no amount"}`).join("; ")));
+    }
+    return h("div", { class: "brief-ebay brief-template-fields" }, h("h3", {}, spec.title), h("dl", { class: "brief-fields" }, rows));
+  }
+
   function depthSummary() {
     const m = MODES[mode];
     return h("p", { class: "depth-summary" },
@@ -684,6 +725,7 @@ function renderConversation(initial, isCurrent) {
               briefField("Goal", b.goal))
           : h("p", { class: "muted brief-empty" }, "The brief fills in as you answer."),
         b && b.ebay && typeof b.ebay === "object" ? ebayFields(b.ebay) : null,
+        b ? Object.keys(TEMPLATE_BRIEF_FIELDS).map((id) => (b[id] ? templateFields(id, b[id]) : null)) : null,
         questions.length
           ? h("div", { class: "brief-questions" },
               h("h3", {}, "Questions to research"),

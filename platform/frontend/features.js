@@ -55,7 +55,10 @@ export const MODE_ORDER = ["quick", "balanced", "smarter"];
 // Templates (SPEC v4). GET /api/templates is the source of truth; these names cover reports and
 // pages rendered before (or without) that list. "general" is the default and shows no badge.
 export const DEFAULT_TEMPLATE = "general";
-export const TEMPLATE_NAMES = { general: "General", ebay: "eBay seller" };
+export const TEMPLATE_NAMES = {
+  general: "General", ebay: "eBay seller", food_truck: "Food truck", restaurant: "Restaurant / café",
+  daycare: "Daycare / childcare", etsy: "Etsy seller",
+};
 
 export function templateName(id) {
   return TEMPLATE_NAMES[id] || (id ? String(id) : TEMPLATE_NAMES.general);

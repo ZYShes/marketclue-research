@@ -10,6 +10,10 @@ export const PAGE_SIZE = 6;
 const TEMPLATE_ICONS = {
   general: '<circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.4 2.4 3.6 5.2 3.6 8.5s-1.2 6.1-3.6 8.5c-2.4-2.4-3.6-5.2-3.6-8.5s1.2-6.1 3.6-8.5z"/>',
   ebay: '<path d="M4.5 8h15l-1.3 10.2a2 2 0 0 1-2 1.8H7.8a2 2 0 0 1-2-1.8z"/><path d="M9 8V6.5a3 3 0 0 1 6 0V8"/>',
+  food_truck: '<path d="M2.5 6.5h11.5v10H2.5z"/><path d="M14 9.5h3.8l3.2 3.5v3.5H14"/><path d="M5 9.5h6"/><circle cx="6.5" cy="17.5" r="1.8"/><circle cx="17" cy="17.5" r="1.8"/>',
+  restaurant: '<path d="M4 9.5h12v4a5.5 5.5 0 0 1-5.5 5.5h-1A5.5 5.5 0 0 1 4 13.5z"/><path d="M16 11h1.5a2.5 2.5 0 0 1 0 5H16"/><path d="M8 3.5c0 1.4 1.5 1.6 1.5 3.2M11.5 3.5c0 1.4 1.5 1.6 1.5 3.2"/>',
+  daycare: '<path d="M3.5 11.5 12 4.5l8.5 7"/><path d="M6 9.8v9.7h12V9.8"/><path d="M12 17.3 9.8 15.2a1.5 1.5 0 0 1 2.2-2 1.5 1.5 0 0 1 2.2 2z"/>',
+  etsy: '<path d="M3.5 12.6V5a1.5 1.5 0 0 1 1.5-1.5h7.6l8 8-9.1 9.1z"/><circle cx="8" cy="8" r="1.5"/>',
   // Any other template: a stacked-cards glyph.
   other: '<rect x="4" y="7" width="13" height="13" rx="2"/><path d="M8 4h10a2 2 0 0 1 2 2v10"/>',
 };
@@ -86,6 +90,10 @@ export async function viewTemplates(isCurrent) {
   const count = h("p", { class: "result-count", id: "tpl-count", role: "status", tabindex: "-1" });
   const list = h("div", { class: "template-results" });
   const pager = h("div", { class: "pager-slot" });
+  const toolbar = h("div", { class: "toolbar-row template-toolbar" },
+    h("form", { class: "control control-grow", role: "search", onsubmit: (ev) => ev.preventDefault() },
+      h("label", { for: "tpl-q" }, "Search templates"), search),
+    h("div", { class: "control" }, h("span", { class: "control-label", "aria-hidden": "true" }, "Show"), toggle));
 
   main.replaceChildren(page(
     pageHeader({
@@ -94,11 +102,7 @@ export async function viewTemplates(isCurrent) {
       lede: "A template adds questions, sources and report sections for one kind of business. General works for any business.",
       actions: h("a", { class: "btn btn-secondary btn-sm", href: "#/new" }, "Back to New research"),
     }),
-    h("div", { class: "toolbar-row template-toolbar" },
-      h("form", { class: "control control-grow", role: "search", onsubmit: (ev) => ev.preventDefault() },
-        h("label", { for: "tpl-q" }, "Search templates"), search),
-      h("div", { class: "control" }, h("span", { class: "control-label", "aria-hidden": "true" }, "Show"), toggle)),
-    count, list, pager));
+    toolbar, count, list, pager));
 
   function matches(t) {
     if (show === "available" && !t.available) return false;
@@ -195,7 +199,9 @@ export async function viewTemplates(isCurrent) {
     pager.replaceChildren(...(nav ? [nav] : []));
     if (fromUser) {
       count.focus({ preventScroll: true });
-      count.scrollIntoView({ block: "nearest" });
+      // Bring the search and filter back into view with the count under them, clear of the phone's sticky top bar
+      // (scroll-margin-top on the toolbar), instead of leaving the search box half under that bar.
+      toolbar.scrollIntoView({ block: "nearest" });
     }
   }
 

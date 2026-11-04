@@ -508,10 +508,10 @@ html.reading-reduced-motion *, html.reading-reduced-motion *::before, html.readi
 .tool-card.is-disabled .tool-icon { color: var(--muted); }
 .tool-note { margin-top: -4px; }
 
-/* Templates (SPEC v4): same radio-card behaviour as the tools, two wide cards. */
+/* Templates (SPEC v4, v4.1): same radio-card behaviour as the tools; the six cards wrap into as many columns as
+   fit (three on a wide window, two on a tablet, one on a phone). */
 .template-slot:empty { display: none; }
-.template-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-@container main (max-width: 640px) { .template-grid { grid-template-columns: 1fr; } }
+.template-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 15.5rem), 1fr)); gap: 12px; }
 .template-card { min-height: 0; gap: 8px; padding-right: 44px; }
 .template-head { display: inline-flex; align-items: center; gap: 10px; }
 .template-head .tool-icon { margin: 0; }
@@ -529,7 +529,7 @@ html.reading-reduced-motion *, html.reading-reduced-motion *::before, html.readi
 .see-all-link:hover { text-decoration: underline; }
 
 /* #/templates: all templates, paginated */
-.template-toolbar { align-items: flex-end; }
+.template-toolbar { align-items: flex-end; scroll-margin-top: 80px; }
 .template-toolbar .control-grow { flex: 1 1 280px; }
 .control-label { font-size: 0.875rem; font-weight: 650; }
 .template-list { list-style: none; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }

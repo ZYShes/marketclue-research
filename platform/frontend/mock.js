@@ -12,14 +12,18 @@
 // &smarter=limit makes Smarter runs answer 429 smarter_daily_limit;
 // &ebay=off shows the eBay seller template as not connected (409 template_unavailable);
 // &fees=partial makes the eBay fee sample incomplete (no per-order fee, no ad budget).
-// &templates=few lists only General and eBay seller (no sample "Coming soon" templates).
+// &templates=few lists only the six real templates (no sample "Coming soon" templates).
 // eBay samples (SPEC v4) use invented listings on example.com, never real eBay items.
+// v4.1 samples, one report per template, all invented and on example.com: Food truck startup costs
+// (#/runs/ft01c0ffee01), Restaurant / café prices nearby (#/runs/rs01c0ffee01), Daycare / childcare
+// requirements to check (#/runs/dc01c0ffee01, nothing about any child or family) and Etsy fees and Offsite Ads
+// (#/runs/et01c0ffee01); a ready food truck conversation at #/c/conv-truck-ready.
 // Projects (SPEC v5): the owner has a personal project "Handmade ceramic planters" (runs at every stage),
 // a team project "Planters on eBay" in "Clay & Leaf Studio" (with a report by Riley), and an archived
 // personal project. The owner is in two teams: owns "Clay & Leaf Studio", member of "North Market Makers".
 
-const STORE_KEY = "mc_mock_state_v6";
-const STORE_VERSION = 6;
+const STORE_KEY = "mc_mock_state_v7";
+const STORE_VERSION = 7;
 const LIVE_PROJECT_LIMIT = 10;
 const TEAM_LIMIT = 10;
 const EARLIER_LABEL = "from an earlier report in this project";
@@ -39,17 +43,32 @@ const TEMPLATES = [
       { id: "ebay_fees", label: "Estimates eBay fees and ad costs" },
     ],
   },
+  ...[
+    ["food_truck", "Food truck", "For a mobile food business in a US city: permits from official pages, nearby menu prices and startup costs."],
+    ["restaurant", "Restaurant / café", "For a small restaurant, café or bakery: permits from official pages, nearby menu prices and startup costs."],
+    ["daycare", "Daycare / childcare", "For a home daycare or childcare center: licensing from official pages, nearby tuition and startup costs, never about any child or family."],
+  ].map(([id, name, description]) => ({
+    id, name, description, tools: ["market_check", "competitor_scan", "launch_checklist", "marketing_plan"],
+    capabilities: [
+      { id: "official_requirements", label: "Checks permits from official pages" },
+      { id: "local_benchmarks", label: "Compares nearby businesses" },
+      { id: "startup_costs", label: "Estimates startup costs" },
+    ],
+  })),
+  {
+    id: "etsy", name: "Etsy seller",
+    description: "For selling handmade or designed goods on Etsy: comparable Etsy listings, Etsy fees and Offsite Ads costs per sale.",
+    tools: ["market_check", "competitor_scan", "launch_checklist", "marketing_plan"],
+    capabilities: [{ id: "etsy_fees", label: "Estimates Etsy fees and ad costs" }],
+  },
 ];
 // Sample templates that are not built: they make the paginated #/templates page visible in mock
 // mode. They are listed as unavailable ("Coming soon") and cannot be used. &templates=few hides them
-// (only General and eBay seller, like the real server today).
+// (only the six real templates, like the real server today).
 const SAMPLE_TEMPLATES = [
-  ["etsy", "Etsy seller", "Compare Etsy listings and estimate Etsy fees."],
   ["amazon", "Amazon seller", "Check Amazon competition, fees and fulfilment costs."],
   ["shopify", "Shopify store", "Plan an online store: apps, payments and first traffic."],
   ["local_service", "Local service business", "Cleaners, tutors, trades: local demand, pricing and permits."],
-  ["food_stall", "Food truck & market stall", "Pitch fees, food permits and foot traffic."],
-  ["restaurant", "Café or restaurant", "Neighbourhood competition, menus and licences."],
   ["saas", "Software (SaaS)", "Competitors, pricing pages and launch channels for an app."],
   ["creator", "Creator & newsletter", "Audience, sponsorship rates and platform rules."],
   ["wholesale", "Wholesale to shops", "Retail buyers, margins and line sheets."],
@@ -224,11 +243,143 @@ CARD_SETS.ebay_competitor_scan = [
 ];
 CARD_SETS.ebay_marketing_plan = EBAY_HELP_CARDS;
 
+// ---- v4.1 template samples: Food truck, Restaurant / café, Daycare / childcare, Etsy seller ----------
+// Invented sample pages on example.com. "Official" cards stand in for government pages in the demo; the daycare
+// sample never names or describes a child or a family.
+
+CARD_SETS.food_truck_marketing_plan = [
+  card("ft-truck", "marketing_plan", "Truck prices", "A sample marketplace lists used food trucks from $45,000 to $90,000.",
+    "Used food trucks: listings from $45,000 to $90,000 depending on age and kitchen.", "Truck marketplace · Used food trucks", "truck-market/used", "sourced", 0),
+  card("ft-kitchen", "marketing_plan", "Kitchen equipment", "A sample supplier prices an installed food truck kitchen package at $8,500 to $14,000.",
+    "Food truck kitchen package (griddle, fryer, prep fridge, steam table): $8,500 to $14,000 installed.", "Restaurant supply · Truck kitchens", "restaurant-supply/truck-kitchen", "sourced", 0),
+  card("ft-permit", "marketing_plan", "Permits", "The sample county page lists an $802.50 yearly mobile food unit permit.",
+    "Mobile food unit permit, full menu: $802.50 per year.", "County health department · Mobile food fees", "official/county-health/mobile-food-fees", "sourced", 0),
+  card("ft-license", "marketing_plan", "Permits", "The sample city page lists a $55 fee for a new business licence.",
+    "The business license fee for a new food business starts at $55.", "City business licensing · Fees", "official/city/business-license-fees", "sourced", 0),
+  card("ft-insurance", "marketing_plan", "Insurance", "A sample broker quotes $2,500 to $4,500 a year for food truck insurance.",
+    "Food truck liability and auto insurance: $2,500 to $4,500 a year for most small trucks.", "Insurance broker · Food trucks", "insurance-broker/food-trucks", "sourced", 0),
+  card("ft-night", "marketing_plan", "Where trucks sell", "A sample night market charges $150 per vendor night.",
+    "Food truck vendor fee for the Saturday night market: $150 per night.", "Night market · Vendor info", "night-market/vendors", "sourced", 0),
+  card("ft-office", "marketing_plan", "Where trucks sell", "A sample office park charges trucks a $50 weekly lunch spot fee.",
+    "Lunch slots are booked through the building manager; trucks pay a $50 weekly spot fee.", "Office park · Food truck program", "office-park/food-trucks", "sourced", 0),
+];
+
+CARD_SETS.restaurant_competitor_scan = [
+  card("rs-market", "competitor_scan", "Cafés nearby", "A sample café lists a 12 oz latte at $5.25 and an almond croissant at $5.75.",
+    "Latte 12 oz $5.25 · Drip coffee $3.50 · Almond croissant $5.75", "Market Street Coffee · Menu", "market-street-coffee/menu", "sourced", 0),
+  card("rs-fjord", "competitor_scan", "Cafés nearby", "A sample café lists a cappuccino at $5.00 and a morning bun at $4.75.",
+    "Cappuccino $5.00. Morning bun $4.75. Breakfast sandwich $10.50.", "Fjord Café · Menu", "fjord-cafe/menu", "sourced", 0),
+  card("rs-bakery", "competitor_scan", "Bakeries nearby", "A sample bakery lists drip coffee at $3.25, a croissant at $4.50 and a cardamom bun at $5.25.",
+    "Drip coffee $3.25. Croissant $4.50, cardamom bun $5.25, loaf of country bread $11.", "Salmon Bay Bakery · Prices", "salmon-bay-bakery/prices", "sourced", 0),
+  card("rs-roasters", "competitor_scan", "Cafés nearby", "A sample roaster lists a 16 oz oat milk latte at $6.25.",
+    "Oat milk latte (16 oz) $6.25", "Ballard Roasters · Drinks", "ballard-roasters/drinks", "sourced", 0),
+  card("rs-rating", "competitor_scan", "Reviews", "A claimed rating and review count could not be confirmed on the page.",
+    "Rated 4.8 stars from 2,300 reviews.", "Listing site · Market Street Coffee", "listings/market-street-coffee", "unverified", 0),
+];
+
+CARD_SETS.daycare_launch_checklist = [
+  card("dc-license", "launch_checklist", "State licensing (DCYF)", "The sample state page says family home child care must be licensed by DCYF first and lists a $30 application fee.",
+    "Family home child care providers must be licensed by the Department of Children, Youth, and Families (DCYF) before caring for children from more than one family. The application fee is $30.",
+    "State childcare licensing (DCYF) · Family home child care", "official/dcyf/family-home-licensing", "sourced", 0),
+  card("dc-ratio", "launch_checklist", "Ratios and capacity", "The sample state page says capacity and staff-to-child ratios depend on the ages served.",
+    "Capacity and staff-to-child ratios depend on the ages of the children and on whether an assistant is present; your license states how many children you may care for.",
+    "State childcare licensing (DCYF) · Capacity and ratios", "official/dcyf/capacity-ratios", "sourced", 0),
+  card("dc-checks", "launch_checklist", "Background checks", "The sample state page requires background checks for adults in the home and all staff.",
+    "Everyone over 16 who lives in the home and every staff member must pass a background check before the license is issued.",
+    "State childcare licensing (DCYF) · Background checks", "official/dcyf/background-checks", "sourced", 0),
+  card("dc-training", "launch_checklist", "Training", "The sample state page requires early learning training plus current first aid and CPR.",
+    "Providers complete the required early learning training and keep current first aid and CPR certificates.",
+    "State childcare licensing (DCYF) · Training", "official/dcyf/training", "sourced", 0),
+  card("dc-visit", "launch_checklist", "Space and inspections", "The sample state page says a licensor checks the space, safety and records before licensing.",
+    "A licensor visits the home to check the space, safety and records before the license is issued.",
+    "State childcare licensing (DCYF) · Licensing visit", "official/dcyf/licensing-visit", "sourced", 0),
+  card("dc-wccc", "launch_checklist", "Subsidies", "The sample state page says licensed providers may accept Working Connections Child Care payments.",
+    "Licensed providers may accept Working Connections Child Care subsidy payments after signing a provider agreement.",
+    "State childcare subsidies · Working Connections Child Care", "official/dcyf/working-connections", "sourced", 0),
+  card("dc-insurance", "launch_checklist", "Insurance", "A sample provider forum says most home daycares carry liability insurance.",
+    "Most home daycares carry liability insurance; ask your licensor whether your state requires it.",
+    "Provider forum · Insurance", "provider-forum/insurance", "sourced", 0),
+  card("dc-fire", "launch_checklist", "Fire safety", "A yearly fire inspection claim could not be confirmed on the page.",
+    "Every home daycare needs a fire marshal inspection every year.", "Provider forum · Fire safety", "provider-forum/fire", "unverified", 0),
+];
+
+CARD_SETS.etsy_marketing_plan = [
+  card("et-listing", "marketing_plan", "Etsy fees", "The sample Etsy fee page lists a $0.20 listing fee.",
+    "Listing fee: $0.20 for each item you list.", "Etsy help · Fees & payments policy", "etsy-help/fees", "sourced", 0),
+  card("et-transaction", "marketing_plan", "Etsy fees", "The sample Etsy fee page lists a 6.5% transaction fee on the price plus delivery.",
+    "Transaction fee: 6.5% of the price you display, plus the delivery and gift wrap you charge.", "Etsy help · Fees & payments policy", "etsy-help/fees#transaction", "sourced", 0),
+  card("et-processing", "marketing_plan", "Etsy fees", "The sample Etsy fee page lists US payment processing at 3% plus $0.25.",
+    "Payment processing in the US: 3% of the total sale plus $0.25.", "Etsy help · Etsy Payments", "etsy-help/payments", "sourced", 0),
+  card("et-offsite", "marketing_plan", "Offsite Ads", "The sample Etsy help page lists Offsite Ads at 15% under $10,000 a year and 12% above, capped at $100 per order.",
+    "Offsite Ads fee: 15% of the order total for shops under $10,000 in yearly sales, 12% for shops at or above it, never more than $100 per order.",
+    "Etsy help · Offsite Ads", "etsy-help/offsite-ads", "sourced", 0),
+  card("et-ads", "marketing_plan", "Etsy Ads", "The sample Etsy help page says Etsy Ads charge per click within a daily budget.",
+    "Etsy Ads charge per click within the daily budget you set, whether or not the item sells.", "Etsy help · Etsy Ads", "etsy-help/etsy-ads", "sourced", 0),
+  card("et-ship", "marketing_plan", "Shipping costs", "A sample parcel quote for a boxed mug is $8.00.",
+    "Ground shipping: 1.5 lb mug box, Seattle to Chicago — $8.00.", "Parcel calculator · Example quote", "parcel/quote-mug", "sourced", 0),
+];
+
+// Sample briefs per template (brief.<template id> holds what the research lead learned).
+const TEMPLATE_BRIEFS = {
+  food_truck: {
+    business: "Taco truck serving lunch at Seattle office parks and weekend events.",
+    customer: "Office workers in South Lake Union and weekend event crowds.",
+    location: "Seattle, WA", stage: "Planning; buying a used truck next month.", budget_usd: 800,
+    goal: "Know what it costs to start and how to find the first lunch customers.",
+    questions: ["What does it cost to start a taco truck in Seattle?", "How do nearby trucks find lunch customers?"],
+    food_truck: { city: "Seattle", state: "WA", cuisine: "Tacos", selling_spots: "Office parks at lunch, weekend events",
+      truck: "Buy a used truck", known_costs: [{ item: "Used truck quote", amount_usd: 62000 }] },
+  },
+  restaurant: {
+    business: "Small neighbourhood café with pastries baked in-house.",
+    customer: "Ballard residents and people working from home nearby.",
+    location: "Seattle, WA (Ballard)", stage: "Signing a lease next month.", budget_usd: 500,
+    goal: "Price the coffee and pastries against cafés nearby.",
+    questions: ["What do cafés and bakeries in Ballard charge for coffee and pastries?", "Where does a new café fit?"],
+    restaurant: { city: "Seattle", neighbourhood: "Ballard", seats: 24, cuisine: "Café and bakery", alcohol: false, known_costs: [] },
+  },
+  daycare: {
+    business: "Licensed family home child care for toddlers and preschoolers.",
+    customer: "Working parents in north Tacoma.",
+    location: "Tacoma, WA", stage: "Preparing the home; not licensed yet.", budget_usd: null,
+    goal: "Know which licences, checks and inspections come before opening.",
+    questions: ["What does Washington require before a home daycare opens?", "Can a home daycare accept childcare subsidies?"],
+    daycare: { state: "WA", city: "Tacoma", setting: "Home-based", ages_served: "1 to 5 years", planned_children: 6, known_costs: [] },
+  },
+  etsy: {
+    business: "Hand-thrown ceramic mugs sold on Etsy.",
+    customer: "US coffee lovers and gift buyers shopping on Etsy.",
+    location: "Ships from Seattle, WA", stage: "Opening an Etsy shop.", budget_usd: 200,
+    goal: "Know what Etsy fees and Offsite Ads leave from a $32 mug.",
+    questions: ["What do Etsy fees take from a $32 mug?", "What is left when an order comes from an Offsite Ad?"],
+    etsy: { product_type: "Ceramic mug", size_material: "12 oz stoneware", target_price_usd: 32, buyer_pays_shipping: true, shipping_cost_usd: 8 },
+  },
+};
+
+function templateBrief(template, feature) {
+  return { ...fixtureBrief(feature), ...structuredClone(TEMPLATE_BRIEFS[template]), feature, template };
+}
+
+const TEMPLATE_ANSWERS = {
+  food_truck: ["A taco truck for Seattle office parks at lunch.", "Seattle, WA; tacos and agua fresca.", "Office parks and weekend events; I will buy a used truck, I have a $62,000 quote."],
+  restaurant: ["A small café with pastries baked in-house.", "Ballard in Seattle; a café and bakery.", "About 24 seats, no alcohol."],
+  daycare: ["A licensed home daycare.", "Tacoma, WA; home-based.", "Ages 1 to 5, up to 6 children."],
+  etsy: ["Hand-thrown ceramic mugs for Etsy.", "12 oz stoneware mugs.", "$32 each; the buyer pays about $8 shipping."],
+};
+
+const TEMPLATE_QUESTIONS = {
+  food_truck: ["Which city and state, and what food will you serve?", "Where do you plan to sell (street, events, office parks), and will you own, buy or rent the truck?"],
+  restaurant: ["Which city and neighbourhood, and what kind of place: restaurant, café or bakery?", "About how many seats, and will you serve alcohol?"],
+  daycare: ["Which state and city, and will it be home-based or a center?", "Which age groups will you serve, and about how many children in total? (Please do not share anything about a particular child or family.)"],
+  etsy: ["What is the product, and what size and material?", "What price do you want to ask, and who pays shipping (roughly how much)?"],
+};
+
 function fixtureCards(set) {
   return CARD_SETS[set] || [];
 }
 
-const cardSetOf = (run) => run.cardSet || (run.template === "ebay" && CARD_SETS[`ebay_${run.feature}`] ? `ebay_${run.feature}` : run.feature);
+const cardSetOf = (run) => run.cardSet || (run.template && run.template !== "general" && CARD_SETS[`${run.template}_${run.feature}`]
+  ? `${run.template}_${run.feature}` : run.feature);
 
 function ebayBrief(feature, overrides = {}) {
   return {
@@ -515,18 +666,279 @@ function ebayResult(run, base) {
   return base;
 }
 
+// ---- v4.1 sample reports ---------------------------------------------------------------
+
+const NOT_LEGAL_ADVICE = "A checklist built from official pages. Confirm each item with the agency; this is not legal advice.";
+const RESULT_FIELDS = {
+  ebay: { listings: [], fees: null, ad_budget: null },
+  food_truck: { requirements: null, benchmarks: null, startup_costs: null },
+  restaurant: { requirements: null, benchmarks: null, startup_costs: null },
+  daycare: { requirements: null, benchmarks: null, startup_costs: null },
+  etsy: { benchmarks: null, etsy_fees: null },
+};
+
+// Food truck · Get your first customers: startup costs next to the 4-week marketing plan.
+function foodTruckResult(run, base) {
+  const lines = [
+    { category: "Truck (buy or lease)", item: "Used truck (your quote)", low: 62000, high: 62000, basis: "founder", kind: "estimate", card_ids: [], method: "Your own figure from the brief: $62,000.00." },
+    { category: "Kitchen equipment", item: "Kitchen package, installed", low: 8500, high: 14000, basis: "source", kind: "estimate", card_ids: ["ft-kitchen"], method: "Griddle, fryer, prep fridge and steam table. Checked quote: $8,500.00 to $14,000.00." },
+    { category: "Permits and licences", item: "Mobile food unit permit", low: 802.5, high: 802.5, basis: "source", kind: "estimate", card_ids: ["ft-permit"], method: "First year. Checked quote: $802.50." },
+    { category: "Permits and licences", item: "Business licence", low: 55, high: 55, basis: "source", kind: "estimate", card_ids: ["ft-license"], method: "The lowest fee for a new food business. Checked quote: $55.00." },
+    { category: "Insurance", item: "Liability and auto insurance, first year", low: 2500, high: 4500, basis: "source", kind: "estimate", card_ids: ["ft-insurance"], method: "Checked quote: $2,500.00 to $4,500.00." },
+  ];
+  const startup = {
+    currency: "USD", lines, sum_low: 73857.5, sum_high: 81357.5, total_low: 73000, total_high: 82000, missing_lines: ["First inventory"], kind: "estimate",
+    method: "Total = $73,857.50 (the low ends added up) to $81,357.50 (the high ends added up), rounded outward to the nearest $1,000: about $73,000 to $82,000. Each line comes from a checked quote or a figure you gave; it is a range, not a quote for your business. Not included: first inventory.",
+  };
+  const ranked = [...lines].sort((a, b) => b.high - a.high);
+  return {
+    ...base,
+    startup_costs: startup,
+    charts: [
+      {
+        id: "budget", type: "bar", unit: "USD", kind: "estimate", title: "4-week budget by line",
+        caption: "Two night-market evenings are the largest line: $300 of $800.",
+        series: [
+          { label: "Night market, two evenings", value: 300, card_ids: ["ft-night"] },
+          { label: "Office park spot, four weeks", value: 200, card_ids: ["ft-office"] },
+          { label: "Menu boards and signs", value: 180, card_ids: [] },
+          { label: "Launch posts (boosted)", value: 120, card_ids: [] },
+        ],
+        method: "Amounts from the budget table below; each line's basis is shown there.",
+      },
+      {
+        id: "startup_costs", type: "range", unit: "USD", kind: "estimate", title: "Startup costs by line",
+        caption: "The checked lines add up to about $73,000 to $82,000; the largest is used truck (your quote) ($62,000). Not included: first inventory.",
+        series: ranked.map((l) => ({ label: l.item, value: l.low, low: l.low, high: l.high, card_ids: l.card_ids })),
+        method: startup.method,
+      },
+      ...base.charts.filter((c) => c.id === "coverage"),
+    ],
+    takeaway: item("Starting this taco truck takes about $73,000 to $82,000 for the lines a source or your quote supports, most of it the truck; first inventory is not included yet. For customers, test one office park and two night markets before spending on ads.", "estimate", ["ft-kitchen", "ft-insurance"], "Sum of the startup cost lines, rounded outward; see Startup costs."),
+    findings: [
+      finding("The truck is most of the cost", "Your $62,000 quote sits inside the $45,000 to $90,000 range of used trucks in the sample marketplace.", "sourced", ["ft-truck"]),
+      finding("Kitchen and insurance add $11,000 to $18,500", "An installed kitchen package costs $8,500 to $14,000 and the first year of insurance $2,500 to $4,500.", "estimate", ["ft-kitchen", "ft-insurance"], "$8,500 + $2,500 = $11,000; $14,000 + $4,500 = $18,500."),
+      finding("Permits are small next to the truck", "The sample mobile food unit permit is $802.50 a year and a new business licence starts at $55.", "sourced", ["ft-permit", "ft-license"]),
+      finding("Office parks and night markets charge spot fees", "One office park charges $50 a week for a lunch spot; one night market charges $150 per evening.", "sourced", ["ft-office", "ft-night"]),
+    ],
+    plan: [
+      { section: "Customers", items: [item("Start with lunch at one office park where trucks book a weekly spot.", "assumption", ["ft-office"])] },
+      { section: "Channels", items: [item("Add two Saturday night markets to reach event crowds.", "assumption", ["ft-night"]), item("Post the week's spots every Monday.")] },
+      { section: "Measurement", items: [item("Count orders per spot and the spot fee per order each week.")] },
+    ],
+    budget: {
+      currency: "USD", total: 800,
+      lines: [
+        { item: "Night market, two evenings", amount: 300, kind: "estimate", card_ids: ["ft-night"], method: "2 × $150 vendor fee." },
+        { item: "Office park spot, four weeks", amount: 200, kind: "estimate", card_ids: ["ft-office"], method: "4 × $50 weekly spot fee." },
+        { item: "Menu boards and signs", amount: 180, kind: "assumption", card_ids: [], method: "A planning allowance, not a supplier quote." },
+        { item: "Launch posts (boosted)", amount: 120, kind: "assumption", card_ids: [], method: "A capped test allowance." },
+      ],
+    },
+    next_steps: [
+      { text: "Price your first inventory.", how: "Ask two restaurant suppliers for a quote on a week of tortillas, meat, produce and packaging." },
+      { text: "Confirm the permit and commissary rules.", how: "Call the county health department before you buy the truck; the permit depends on the kitchen on board." },
+    ],
+    missing_evidence: ["No checked source or figure of yours gave a cost for first inventory, so it is left out of the startup costs.", "No sales numbers for trucks at these spots."],
+  };
+}
+
+// Restaurant / café · Check competitors & prices: menu prices nearby.
+function restaurantResult(run, base) {
+  const at = base.generated_at;
+  const source = (id) => fixtureCards("restaurant_competitor_scan").find((c) => c.card_id === id);
+  const row = (business, itemName, price, unit, id) => ({ business, item: itemName, price, price_high: null, unit, notes: "",
+    url: source(id).url, source_title: source(id).source_title, retrieved_at: source(id).captured_at, card_ids: [id], kind: "sourced" });
+  const items = [
+    row("Salmon Bay Bakery", "Drip coffee", 3.25, "per drink", "rs-bakery"),
+    row("Market Street Coffee", "Drip coffee", 3.5, "per drink", "rs-market"),
+    row("Salmon Bay Bakery", "Croissant", 4.5, "per pastry", "rs-bakery"),
+    row("Fjord Café", "Morning bun", 4.75, "per pastry", "rs-fjord"),
+    row("Fjord Café", "Cappuccino", 5, "per drink", "rs-fjord"),
+    row("Market Street Coffee", "Latte (12 oz)", 5.25, "per drink", "rs-market"),
+    row("Salmon Bay Bakery", "Cardamom bun", 5.25, "per pastry", "rs-bakery"),
+    row("Market Street Coffee", "Almond croissant", 5.75, "per pastry", "rs-market"),
+    row("Ballard Roasters", "Oat milk latte (16 oz)", 6.25, "per drink", "rs-roasters"),
+  ];
+  const drinks = items.filter((i) => i.unit === "per drink");
+  return {
+    ...base,
+    table: null,
+    benchmarks: { title: "Prices nearby", what: "menu prices", source: "nearby cafés' and bakeries' own menus", asking: false, items },
+    charts: [
+      {
+        id: "price_benchmarks", type: "bar", unit: "USD", kind: "sourced", title: "Menu prices nearby",
+        caption: `Menu prices per drink from nearby cafés' and bakeries' own menus, retrieved ${shortDate(at)}: 5 prices from $3.25 to $6.25; the middle is $5. 4 prices for another unit are in the table only.`,
+        series: drinks.map((i) => ({ label: `${i.business} · ${i.item}`, value: i.price, card_ids: i.card_ids })),
+        method: "Prices as each business's own page or listing stated them on the day it was fetched; only prices whose quote was found word for word on the page are drawn.",
+      },
+      {
+        id: "price_band", type: "range", unit: "USD", kind: "estimate", title: "Suggested price band",
+        caption: "A suggested latte price of $5 to $5.50, against menu prices nearby of $3.25 to $6.25.",
+        series: [
+          { label: "Competitor prices", value: 3.25, low: 3.25, high: 6.25, card_ids: ["rs-bakery", "rs-roasters"] },
+          { label: "Your suggested price", value: 5, low: 5, high: 5.5, card_ids: [] },
+        ],
+        method: "Between the $5.00 cappuccino and the $5.25 12 oz latte, below the 16 oz oat milk latte.",
+      },
+      ...base.charts.filter((c) => c.id === "coverage"),
+    ],
+    takeaway: item("Coffee drinks at four cafés and bakeries nearby are listed at $3.25 to $6.25 and pastries at $4.50 to $5.75. A 12 oz latte at $5 to $5.50 would sit with the cafés nearby.", "sourced", ["rs-bakery", "rs-roasters", "rs-market"]),
+    findings: [
+      finding("Lattes cost $5.25 to $6.25", "Market Street Coffee lists a 12 oz latte at $5.25; Ballard Roasters lists a 16 oz oat milk latte at $6.25.", "sourced", ["rs-market", "rs-roasters"]),
+      finding("Pastries cost $4.50 to $5.75", "Salmon Bay Bakery lists a croissant at $4.50; Market Street Coffee lists an almond croissant at $5.75.", "sourced", ["rs-bakery", "rs-market"]),
+      finding("The bakery's drip coffee is the cheapest", "Salmon Bay Bakery lists drip coffee at $3.25, below Market Street Coffee's $3.50.", "sourced", ["rs-bakery", "rs-market"]),
+    ],
+    next_steps: [
+      { text: "Visit two cafés at the morning rush.", how: "Note cup sizes, the line length at 8 am and which pastries sell out." },
+      { text: "Price your latte against your costs.", how: "Add milk, beans, cup and labour per drink before choosing between $5 and $5.50." },
+    ],
+    missing_evidence: ["A rating and review count for one café could not be checked on the page, so it is not shown.", "No sales volume for any café."],
+  };
+}
+
+// Daycare / childcare · Get ready to sell: requirements to check (WA, DCYF), never anything about a child or family.
+function daycareResult(run, base) {
+  const official = (requirement, agency, text, id, fee = null) => ({
+    requirement, agency, text, url: fixtureCards("daycare_launch_checklist").find((c) => c.card_id === id).url,
+    source_title: fixtureCards("daycare_launch_checklist").find((c) => c.card_id === id).source_title,
+    captured_at: daysAgo(0), fee_usd: fee, fee_card_ids: fee ? [id] : [], kind: "sourced", official: true, card_ids: [id], method: "",
+  });
+  const items = [
+    official("State childcare licence", "Department of Children, Youth, and Families (DCYF)", "Apply to DCYF for a family home child care license before caring for children from more than one family.", "dc-license", 30),
+    official("Capacity and staff-to-child ratios", "DCYF", "Your license states how many children you may care for; ratios depend on the ages served and on whether an assistant is present.", "dc-ratio"),
+    official("Background checks", "DCYF", "Every adult over 16 living in the home and every staff member passes a background check before the license is issued.", "dc-checks"),
+    official("Training, first aid and CPR", "DCYF", "Complete the required early learning training and keep first aid and CPR certificates current.", "dc-training"),
+    official("Space and safety inspection", "DCYF licensor", "A licensor visits the home to check the space, safety and records before the license is issued.", "dc-visit"),
+    official("Working Connections Child Care (subsidy)", "DCYF", "Once licensed, sign a provider agreement to accept Working Connections Child Care payments.", "dc-wccc"),
+    { requirement: "Liability insurance", agency: "DCYF and your insurer", text: "Ask whether liability insurance is required and get a quote before opening.", url: "https://example.com/sample/provider-forum/insurance",
+      source_title: "Sample · Provider forum · Insurance", captured_at: daysAgo(0), fee_usd: null, fee_card_ids: [], kind: "assumption", official: false, card_ids: ["dc-insurance"],
+      method: "Not confirmed on an official page in this run. Check with DCYF and your insurer." },
+    { requirement: "Fire safety inspection", agency: "Tacoma Fire Department", text: "Ask whether a fire inspection is needed for a home daycare and how often.", url: null, source_title: null, captured_at: null,
+      fee_usd: null, fee_card_ids: [], kind: "assumption", official: false, card_ids: [], method: "Not confirmed on an official page in this run. Check with Tacoma Fire Department." },
+  ];
+  return {
+    ...base,
+    checklist: [],
+    requirements: { title: "Requirements to check", note: NOT_LEGAL_ADVICE, items, official_count: 6 },
+    charts: [
+      {
+        id: "requirements", type: "stacked_bar", unit: "count", kind: "sourced", title: "Requirements by evidence",
+        caption: "6 of 8 requirements were confirmed on an official page in this run; check the others with the agency.",
+        series: [
+          { label: "Confirmed on an official page", value: 6, card_ids: ["dc-license", "dc-ratio", "dc-checks", "dc-training", "dc-visit", "dc-wccc"] },
+          { label: "Check with the agency", value: 2, card_ids: [] },
+        ],
+        method: "Official means a government page (.gov or a state- or city-run site) fetched in this run states the requirement.",
+      },
+      ...base.charts.filter((c) => c.id === "coverage"),
+    ],
+    takeaway: item("Before opening, a Washington home daycare needs a DCYF family home child care license, background checks for adults in the home, training and a licensing visit. Once licensed it can accept Working Connections Child Care payments.", "sourced", ["dc-license", "dc-checks", "dc-wccc"]),
+    findings: [
+      finding("The licence comes first", "DCYF licenses family home child care before a provider cares for children from more than one family.", "sourced", ["dc-license"]),
+      finding("Capacity depends on ages and help", "The license states how many children may be cared for; ratios depend on the ages served and on an assistant.", "sourced", ["dc-ratio"]),
+      finding("Subsidies need a provider agreement", "Licensed providers can accept Working Connections Child Care payments after signing a provider agreement.", "sourced", ["dc-wccc"]),
+    ],
+    next_steps: [
+      { text: "Book a DCYF licensing orientation.", how: "Use the DCYF licensing page and ask which training to finish before the licensing visit." },
+      { text: "Ask about insurance and fire safety.", how: "Call DCYF and the Tacoma Fire Department; neither rule was confirmed on an official page in this run." },
+    ],
+    missing_evidence: ["2 of 8 requirements could not be confirmed on an official government page in this run; check them with the agency named.", "A yearly fire inspection claim on a forum could not be checked on the page."],
+  };
+}
+
+// Etsy seller · Get your first customers: Etsy fees per sale and Offsite Ads scenarios.
+const ETSY_FEES = {
+  currency: "USD", price: 32, price_basis: "Your target price", buyer_pays_shipping: true, shipping_cost: 8, sale_total: 40,
+  lines: [
+    { item: "Listing fee", rate_pct: null, amount: 0.2, kind: "estimate", card_ids: ["et-listing"], method: "$0.20 per listing" },
+    { item: "Transaction fee", rate_pct: 6.5, amount: 2.6, kind: "estimate", card_ids: ["et-transaction"], method: "6.5% × $40.00 sale total = $2.60" },
+    { item: "Payment processing fee", rate_pct: 3, amount: 1.45, kind: "estimate", card_ids: ["et-processing"], method: "3% × $40.00 + $0.25 = $1.45" },
+    { item: "Shipping label", rate_pct: null, amount: 8, kind: "estimate", card_ids: ["et-ship"], method: "The buyer pays $8.00 shipping (your estimate); you spend it on the label" },
+  ],
+  left_before_ads: 27.75,
+  scenarios: [
+    { label: "Order not from an Offsite Ad", ad_rate_pct: 0, ad_fee: 0, left: 27.75, card_ids: [], kind: "estimate", method: "No Offsite Ads fee on this order." },
+    { label: "Shops under $10,000 a year", ad_rate_pct: 15, ad_fee: 6, left: 21.75, card_ids: ["et-offsite"], kind: "estimate", method: "15% × $40.00 = $6.00 Offsite Ads fee; $27.75 − $6.00 = $21.75 left" },
+    { label: "Shops at $10,000 or more", ad_rate_pct: 12, ad_fee: 4.8, left: 22.95, card_ids: ["et-offsite"], kind: "estimate", method: "12% × $40.00 = $4.80 Offsite Ads fee; $27.75 − $4.80 = $22.95 left" },
+  ],
+  offsite_ads_cap: 100, offsite_ads_cap_card_ids: ["et-offsite"], complete: true, kind: "estimate",
+  method: "Sale total = $32.00 price + $8.00 shipping paid by the buyer. What is left = $40.00 sale total − $0.20 listing fee − $2.60 transaction fee − $1.45 payment processing fee − $8.00 shipping label = $27.75, before your own cost of the item. This assumes Etsy's transaction, processing and Offsite Ads fees are charged on the sale total (price plus any shipping the buyer pays); sales tax is left out.",
+  summary: { text: "At $32.00, about $27.75 of the $40.00 sale total is left before your own cost of the item; an order from an Offsite Ad at 15% leaves $21.75.", kind: "estimate", card_ids: [], method: "" },
+  etsy_ads: { text: "Etsy Ads charge per click within the daily budget you set, whether or not the item sells.", kind: "sourced", card_ids: ["et-ads"], method: "" },
+};
+
+function etsyResult(run, base) {
+  return {
+    ...base,
+    etsy_fees: ETSY_FEES,
+    charts: [
+      {
+        id: "budget", type: "bar", unit: "USD", kind: "estimate", title: "4-week budget by line",
+        caption: "Etsy Ads are the largest line, capped at $90 for the month.",
+        series: [
+          { label: "Etsy Ads ($3 a day)", value: 90, card_ids: ["et-ads"] },
+          { label: "Product photos", value: 60, card_ids: [] },
+          { label: "Packaging for 15 orders", value: 50, card_ids: [] },
+        ],
+        method: "Amounts from the budget table below; each line's basis is shown there.",
+      },
+      {
+        id: "etsy_costs", type: "stacked_bar", unit: "USD", kind: "estimate", title: "Where an Etsy sale goes, with and without Offsite Ads",
+        caption: "Of the $40.00 sale total, $27.75 is left before your own cost of the item; an order from an Offsite Ad at 15% leaves $21.75.",
+        series: ETSY_FEES.scenarios.map((s) => ({
+          label: s.label, value: 40, card_ids: s.card_ids,
+          segments: [
+            { label: "Listing fee", value: 0.2 }, { label: "Transaction fee", value: 2.6 }, { label: "Processing fee", value: 1.45 },
+            { label: "Shipping", value: 8 }, { label: "Offsite Ads fee", value: s.ad_fee }, { label: "What is left", value: Math.max(0, s.left) },
+          ],
+        })),
+        method: ETSY_FEES.method,
+      },
+      ...base.charts.filter((c) => c.id === "coverage"),
+    ],
+    takeaway: item("At $32 with $8 shipping paid by the buyer, about $27.75 of each sale is left before ads and before the cost of making the mug. An order that comes through an Offsite Ad leaves $21.75 at the 15% rate.", "estimate", ["et-transaction", "et-processing", "et-offsite"], "$40.00 − $0.20 − $2.60 − $1.45 − $8.00 = $27.75; 15% × $40.00 = $6.00."),
+    findings: [
+      finding("Etsy fees take about $4.25 per sale", "The listing fee, the 6.5% transaction fee and payment processing come to $4.25 on a $40 sale total.", "estimate", ["et-listing", "et-transaction", "et-processing"], "$0.20 + $2.60 + $1.45 = $4.25."),
+      finding("Offsite Ads cost 12% or 15% of an order", "Offsite Ads take 15% of the order total for shops under $10,000 a year and 12% above, never more than $100 per order.", "sourced", ["et-offsite"]),
+      finding("Etsy Ads cost money without a sale", "Etsy Ads charge per click within a daily budget, whether or not the item sells.", "sourced", ["et-ads"]),
+    ],
+    plan: [
+      { section: "Pricing", items: [item("List at $32 with shipping charged separately.", "assumption", [])] },
+      { section: "Channels", items: [item("Try Etsy Ads at $3 a day for four weeks and stop if the cost per sale goes above $6.", "assumption", ["et-ads"])] },
+      { section: "Measurement", items: [item("Track views, favourites, sales and Offsite Ads fees per order each week.")] },
+    ],
+    budget: {
+      currency: "USD", total: 200,
+      lines: [
+        { item: "Etsy Ads ($3 a day)", amount: 90, kind: "estimate", card_ids: ["et-ads"], method: "30 days × $3 daily budget." },
+        { item: "Product photos", amount: 60, kind: "assumption", card_ids: [], method: "A planning allowance, not a quote." },
+        { item: "Packaging for 15 orders", amount: 50, kind: "estimate", card_ids: [], method: "15 × $3.33 assumed packing cost." },
+      ],
+    },
+    next_steps: [
+      { text: "Check the fees on Etsy's own fee page.", how: "Open Etsy's Fees & Payments Policy and compare the listing, transaction and processing fees with the table above." },
+      { text: "Price a shipped mug to three ZIP codes.", how: "Use Etsy's shipping calculator for a near, middle and far address." },
+    ],
+    missing_evidence: ["Sold prices: MarketClue sees only asking prices on Etsy listing pages.", "Sales tax is left out of the fee estimate."],
+  };
+}
+
+const TEMPLATE_RESULTS = { food_truck: foodTruckResult, restaurant: restaurantResult, daycare: daycareResult, etsy: etsyResult };
+
 function fixtureResult(run, generatedAt) {
   const feature = run.feature;
   const set = cardSetOf(run);
   const template = templateOf(run.template);
   const coverage = { directions: run.mode === "quick" || !run.mode ? 3 : 4, pages_read: { smarter: 9, balanced: 8 }[run.mode] || 6, quotes_found: feature === "market_check" || feature === "launch_checklist" ? 3 : 4, quotes_total: 4, claims_narrowed: 2, relabelled: 1 };
-  if (template === "ebay" && set.startsWith("ebay_")) {
-    coverage.quotes_total = fixtureCards(set).length;
-    coverage.quotes_found = coverage.quotes_total;
+  if (template !== "general" && set.startsWith(`${template}_`)) {
+    const sampleCards = fixtureCards(set);
+    coverage.quotes_total = sampleCards.length;
+    coverage.quotes_found = sampleCards.filter((c) => c.type === "sourced").length;
   }
   const result = {
-    version: template === "ebay" ? 4 : 3, template, feature, mode: run.mode || "quick", title: run.title, generated_at: generatedAt, brief: run.brief,
-    ...(template === "ebay" ? { listings: [], fees: null, ad_budget: null } : {}),
+    version: template === "general" ? 3 : 4, template, feature, mode: run.mode || "quick", title: run.title, generated_at: generatedAt, brief: run.brief,
+    ...(RESULT_FIELDS[template] || {}),
     table: null, plan: [], budget: null, checklist: [], cards: fixtureCards(set),
     coverage,
     charts: [...fixtureCharts(feature, set), coverageChart(coverage)],
@@ -647,7 +1059,8 @@ function fixtureResult(run, generatedAt) {
     },
   };
   const general = { ...result, ...byFeature[feature] };
-  return template === "ebay" && set.startsWith("ebay_") ? ebayResult(run, general) : general;
+  if (template === "ebay" && set.startsWith("ebay_")) return ebayResult(run, general);
+  return TEMPLATE_RESULTS[template] && set.startsWith(`${template}_`) ? TEMPLATE_RESULTS[template](run, general) : general;
 }
 
 // ---- Sample intake ------------------------------------------------------------
@@ -682,8 +1095,30 @@ function ebayIntakeReply(feature, count) {
   };
 }
 
+// v4.1 templates: two questions, then the brief with the template details (brief.<template id>).
+function templateIntakeReply(template, feature, count) {
+  const questions = TEMPLATE_QUESTIONS[template];
+  const brief = templateBrief(template, feature);
+  const name = TEMPLATES.find((t) => t.id === template).name;
+  if (count < 3) {
+    const partial = Object.fromEntries(Object.entries(brief[template]).map(([key, value]) => [key, count === 1 ? (Array.isArray(value) ? [] : null) : value]));
+    return {
+      reply: `${count === 1 ? `This demo uses a sample ${name.toLowerCase()} business. ` : "Thanks. "}${questions[count - 1]}`,
+      ready: false,
+      brief: { ...brief, goal: "", questions: [], [template]: partial },
+    };
+  }
+  return {
+    reply: count === 3
+      ? `Your brief is ready, including the ${name} details. Choose a research depth, then press Start research to see a simulated report.`
+      : "The demo brief is unchanged. Press Start research when you are ready.",
+    ready: true, brief,
+  };
+}
+
 function intakeReply(feature, count, template = "general") {
   if (template === "ebay") return ebayIntakeReply(feature, count);
+  if (TEMPLATE_BRIEFS[template]) return templateIntakeReply(template, feature, count);
   const questions = {
     market_check: ["Who do you picture buying these planters, and what have they told you so far?", "Which buying question matters most: the customer, the occasion or willingness to pay?"],
     competitor_scan: ["Which planter size and finish should we compare? Should the price include a saucer?", "Should we compare local pickup, delivered prices or both? Any sellers to include?"],
@@ -736,18 +1171,23 @@ function initialState() {
     { run_id: "eb01c0ffee01", owner: "demo-owner", feature: "competitor_scan", template: "ebay", mode: "balanced", created_at: hoursAgo(5), seeded: true, title: "Sample · Handmade planters on eBay: comparable listings", project_id: "proj-ebay" },
     { run_id: "eb02c0ffee02", owner: "demo-owner", feature: "marketing_plan", template: "ebay", mode: "quick", created_at: hoursAgo(8), seeded: true, title: "Sample · eBay fees and ad budget for a $48 planter", project_id: "proj-ebay" },
     { run_id: "cc77dd88ee99", owner: "demo-owner", feature: "market_check", mode: "quick", created_at: daysAgo(30), seeded: true, title: "Sample · Who books weekend pottery classes?", project_id: "proj-classes" },
+    { run_id: "ft01c0ffee01", owner: "demo-owner", feature: "marketing_plan", template: "food_truck", mode: "balanced", created_at: hoursAgo(20), seeded: true, title: "Sample · Startup costs and first customers for a Seattle taco truck" },
+    { run_id: "rs01c0ffee01", owner: "demo-owner", feature: "competitor_scan", template: "restaurant", mode: "quick", created_at: hoursAgo(22), seeded: true, title: "Sample · Café menu prices in Ballard" },
+    { run_id: "dc01c0ffee01", owner: "demo-owner", feature: "launch_checklist", template: "daycare", mode: "quick", created_at: hoursAgo(28), seeded: true, title: "Sample · Licensing a home daycare in Tacoma, WA" },
+    { run_id: "et01c0ffee01", owner: "demo-owner", feature: "marketing_plan", template: "etsy", mode: "quick", created_at: hoursAgo(32), seeded: true, title: "Sample · Etsy fees and Offsite Ads for a $32 mug" },
   ].map((run) => ({
     ...run, template: templateOf(run.template), conv_id: `conv-${run.run_id}`, title: run.title || TITLES[run.feature],
-    brief: run.template === "ebay" ? ebayBrief(run.feature) : fixtureBrief(run.feature),
+    brief: run.template === "ebay" ? ebayBrief(run.feature) : TEMPLATE_BRIEFS[run.template] ? templateBrief(run.template, run.feature) : fixtureBrief(run.feature),
     share_token: run.run_id === "a1b2c3d4e5f6" ? "sample-share" : null,
   }));
   const convs = {};
   for (const run of runs) {
     convs[run.conv_id] = seedConversation(run.conv_id, run.owner, run.feature,
-      run.template === "ebay" ? EBAY_ANSWERS : SAMPLE_ANSWERS[run.feature], run.created_at,
+      run.template === "ebay" ? EBAY_ANSWERS : TEMPLATE_ANSWERS[run.template] || SAMPLE_ANSWERS[run.feature], run.created_at,
       { run_id: run.run_id, template: run.template, project_id: run.project_id || null });
   }
   convs["conv-ebay-ready"] = seedConversation("conv-ebay-ready", "demo-owner", "competitor_scan", EBAY_ANSWERS, hoursAgo(1), { template: "ebay" });
+  convs["conv-truck-ready"] = seedConversation("conv-truck-ready", "demo-owner", "marketing_plan", TEMPLATE_ANSWERS.food_truck, hoursAgo(12), { template: "food_truck" });
   convs["conv-draft-01"] = seedConversation("conv-draft-01", "demo-owner", "market_check",
     ["Weekend wheel-throwing classes for beginners in Ballard."], hoursAgo(3));
   convs["conv-draft-01"].brief = { ...fixtureBrief("market_check"), business: "Weekend wheel-throwing classes for beginners in Ballard.", customer: "", stage: "", budget_usd: null, goal: "", questions: [] };
@@ -970,7 +1410,13 @@ function timeline(feature, total, template = "general") {
     competitor_scan: ["Comparable eBay listings", "Shipping on eBay", "Listing details"],
     marketing_plan: ["eBay fees", "Promoted Listings", "Shipping costs"],
   };
-  const tasks = (template === "ebay" && ebayTasks[feature]) || {
+  const templateTasks = {
+    food_truck_marketing_plan: ["Truck prices", "Kitchen equipment", "Permit fees & insurance"],
+    restaurant_competitor_scan: ["Cafés nearby", "Bakeries nearby", "Menu pages"],
+    daycare_launch_checklist: ["State licensing (DCYF)", "Ratios & background checks", "Subsidies & insurance"],
+    etsy_marketing_plan: ["Etsy fees", "Offsite Ads", "Shipping costs"],
+  };
+  const tasks = (template === "ebay" && ebayTasks[feature]) || templateTasks[`${template}_${feature}`] || {
     market_check: ["Buyer language", "Buying occasions", "Routes to buyers"],
     competitor_scan: ["Local studios", "Online sellers", "Shipping & costs"],
     launch_checklist: ["Business registration", "Tax & records", "Market requirements"],

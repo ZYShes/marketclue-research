@@ -12,8 +12,10 @@ const SOURCED_NOTE =
   "Sourced means the exact quote matched the captured page. The page itself may still be wrong.";
 const LISTING_NOTE =
   "For an eBay listing, Sourced means the quoted text matched the listing data saved from eBay on that date. It is the seller's asking price, not a sale.";
-// Charts that belong to the eBay sections rather than the tool section (SPEC v4).
-const EBAY_CHART_IDS = new Set(["asking_prices", "ebay_costs"]);
+// Charts that belong to a template's sections rather than the tool section (SPEC v4 eBay, v4.1 local and Etsy).
+const TEMPLATE_CHART_IDS = new Set(["asking_prices", "ebay_costs", "price_benchmarks", "startup_costs", "etsy_costs", "requirements"]);
+// Shown with every "Requirements to check" section (SPEC v4.1), also when an older result has no note.
+export const NOT_LEGAL_ADVICE = "A checklist built from official pages. Confirm each item with the agency; this is not legal advice.";
 const isListingCard = (card) => card && card.source_kind === "ebay_api";
 
 function capturedText(card) {
@@ -152,7 +154,11 @@ export function renderReport(result = {}, { run = null, shared = false, actions 
 
   const charts = list(result.charts).filter((c) => c && validSeries(c).length);
   const ebayChart = (id) => charts.find((c) => c.id === id) || null;
-  const toolCharts = charts.filter((c) => !isCoverageChart(c) && !EBAY_CHART_IDS.has(c.id));
+  const toolCharts = charts.filter((c) => !isCoverageChart(c) && !TEMPLATE_CHART_IDS.has(c.id));
+  // Local-business and Etsy templates (SPEC v4.1): their sections replace the generic price table and checklist.
+  const benchmarks = result.benchmarks && list(result.benchmarks.items).some(Boolean) ? result.benchmarks : null;
+  const requirements = result.requirements && list(result.requirements.items).some(Boolean) ? result.requirements : null;
+  const startup = result.startup_costs && list(result.startup_costs.lines).some(Boolean) ? result.startup_costs : null;
   const covSpec = charts.find(isCoverageChart) || coverageChart(result.coverage);
   const chartNodes = (specs) => {
     const nodes = specs.map((spec) => renderChart(spec, { chip })).filter(Boolean);
@@ -187,7 +193,9 @@ export function renderReport(result = {}, { run = null, shared = false, actions 
 
   // Tool section, with its charts first.
   const tool = TOOL_SECTION[feature.id];
-  if (feature.id === "competitor_scan" && (result.table || toolCharts.length)) {
+  if ((feature.id === "competitor_scan" && benchmarks) || (feature.id === "launch_checklist" && requirements && !list(result.checklist).length)) {
+    // Shown below as "Prices nearby" / "Comparable Etsy listings" or "Requirements to check".
+  } else if (feature.id === "competitor_scan" && (result.table || toolCharts.length)) {
     content.push(section(tool.id, result.table?.title || tool.title, chartNodes(toolCharts),
       result.table ? renderPriceTable(result.table, richText) : null));
   } else if (feature.id === "marketing_plan" || (!result.version && (list(result.plan).length || result.budget))) {
@@ -228,6 +236,36 @@ export function renderReport(result = {}, { run = null, shared = false, actions 
       result.fees ? renderFees(result.fees, richText) : null,
       costChart ? renderChart(costChart, { chip }) : null,
       result.ad_budget ? renderAdBudget(result.ad_budget, richText) : null));
+  }
+
+  // Local-business templates (SPEC v4.1): requirements from official pages, prices nearby, startup costs.
+  if (requirements) {
+    const reqChart = ebayChart("requirements");
+    content.push(section("r-requirements", requirements.title || "Requirements to check",
+      h("p", { class: "callout callout-warn legal-note" }, icon("info"), h("span", {}, requirements.note || NOT_LEGAL_ADVICE)),
+      reqChart ? renderChart(reqChart, { chip }) : null,
+      renderRequirements(list(requirements.items).filter(Boolean), richText)));
+  }
+  if (benchmarks) {
+    const items = list(benchmarks.items).filter(Boolean);
+    const benchChart = ebayChart("price_benchmarks");
+    const band = feature.id === "competitor_scan" ? toolCharts : [];
+    content.push(section("r-benchmarks", benchmarks.title || (benchmarks.asking ? "Comparable Etsy listings" : "Prices nearby"),
+      chartNodes([benchChart, ...band].filter(Boolean)),
+      renderBenchmarks(benchmarks, items, richText, listingDates(items, result.generated_at))));
+  }
+  if (startup) {
+    const startupChart = ebayChart("startup_costs");
+    content.push(section("r-startup", "Startup costs",
+      startupChart ? renderChart(startupChart, { chip }) : null,
+      renderStartupCosts(startup, richText, { showMethod: !startupChart })));
+  }
+  const etsyChart = ebayChart("etsy_costs");
+  if (result.etsy_fees || etsyChart) {
+    content.push(section("r-etsy-costs", "Etsy fees & ad costs",
+      result.etsy_fees ? renderEtsyFees(result.etsy_fees, richText) : null,
+      etsyChart ? renderChart(etsyChart, { chip }) : null,
+      result.etsy_fees?.etsy_ads ? renderEtsyAds(asItem(result.etsy_fees.etsy_ads), richText) : null));
   }
 
   if (mockups) content.push(section("r-mockups", "Mock-ups", mockups));
@@ -465,6 +503,177 @@ function renderAdBudget(budget, richText) {
       h("h4", {}, "Promoted Listings Priority (cost per click)"),
       h("p", {}, priority.kind ? [kindBadge(priority.kind), " "] : null, richText(priority.text, priority.card_ids)),
       methodNote(priority)) : null);
+}
+
+// ---- Local-business and Etsy templates (SPEC v4.1) -------------------------------
+
+const money = (v, cur = "USD") => (isNum(v) ? fmtMoney(Number(v), cur) : "—");
+const priceSpan = (low, high) => (isNum(high) && Number(high) > Number(low) ? `${money(low)} – ${money(high)}` : money(low));
+
+// Requirements to check: one item per requirement, Sourced only from an official page fetched in the run.
+function renderRequirements(items, richText) {
+  return h("ol", { class: "checklist requirements-list" }, items.map((item) => {
+    const facts = [
+      ["Agency", item.agency || "The city, county or state office"],
+      item.url ? [item.official ? "Official page" : "Read on", externalLink(item.url, item.source_title || domainOf(item.url) || "Source page", "source-link")] : null,
+      isNum(item.fee_usd) ? ["Fee", [money(item.fee_usd), " ", richText("", item.fee_card_ids)]] : null,
+      item.captured_at ? ["Checked", fmtDate(item.captured_at)] : null,
+    ].filter(Boolean);
+    return h("li", { class: "checklist-item requirement" },
+      h("span", { class: "checklist-box", "aria-hidden": "true" }),
+      h("div", { class: "checklist-body" },
+        h("h3", {}, item.requirement || "Requirement"),
+        h("div", { class: "badge-row" }, item.kind ? kindBadge(item.kind) : null,
+          item.official ? h("span", { class: "badge badge-official" }, "Official page") : null),
+        item.text || list(item.card_ids).length ? h("p", {}, richText(item.text || "", item.card_ids)) : null,
+        h("dl", { class: "req-facts" }, facts.map(([label, value]) => h("div", {}, h("dt", {}, label), h("dd", {}, value)))),
+        methodNote(item)));
+  }));
+}
+
+// Prices nearby (menus, tuition) or comparable Etsy listings (asking prices), each from a sourced card.
+function renderBenchmarks(section, items, richText, dateText) {
+  const asking = !!section.asking;
+  const hasUnit = items.some((i) => i.unit);
+  const hasNotes = items.some((i) => i.notes);
+  const what = section.what || "prices";
+  const note = asking
+    ? `Asking prices of Etsy listings on ${dateText}, not sold prices.`
+    : `${what.charAt(0).toUpperCase()}${what.slice(1)} as each business's own page or listing stated them on ${dateText}. Only prices whose quote matched the page are shown.`;
+  const title = section.title || (asking ? "Comparable Etsy listings" : "Prices nearby");
+  return [
+    h("p", { class: "section-note listing-note" }, note),
+    h("div", { class: "table-scroll", role: "region", "aria-label": `${title} table`, tabindex: "0" },
+      h("table", { class: "data-table benchmarks-table" },
+        h("caption", { class: "visually-hidden" }, `${title}. ${note}`),
+        h("thead", {}, h("tr", {},
+          h("th", { scope: "col" }, asking ? "Shop" : "Business"),
+          h("th", { scope: "col" }, asking ? "Listing" : "Item"),
+          h("th", { scope: "col", class: "num" }, asking ? "Asking price" : "Price"),
+          hasUnit ? h("th", { scope: "col" }, "For") : null,
+          hasNotes ? h("th", { scope: "col" }, "Notes") : null,
+          h("th", { scope: "col" }, "Source"))),
+        h("tbody", {}, items.map((i) => h("tr", {},
+          h("th", { scope: "row" }, i.url ? externalLink(i.url, i.business || "Business", "source-link") : i.business || "Business"),
+          h("td", {}, i.item || ""),
+          h("td", { class: "num" }, priceSpan(i.price, i.price_high)),
+          hasUnit ? h("td", {}, i.unit || "") : null,
+          hasNotes ? h("td", {}, i.notes || "") : null,
+          h("td", { class: "chips-cell" }, richText("", i.card_ids), i.retrieved_at ? h("span", { class: "muted block" }, fmtDate(i.retrieved_at)) : null)))))),
+  ];
+}
+
+// Startup costs: one range per line from a checked quote or the founder's own figure; the total is a range.
+function renderStartupCosts(costs, richText, { showMethod = true } = {}) {
+  const lines = list(costs.lines).filter(Boolean);
+  const missing = list(costs.missing_lines).filter(Boolean);
+  const total = isNum(costs.total_low) && isNum(costs.total_high) ? `${money(costs.total_low)} – ${money(costs.total_high)}` : "";
+  return [
+    total ? h("p", { class: "fees-intro" }, `About ${money(costs.total_low)} to ${money(costs.total_high)} for the lines a checked source or your own figures support.`) : null,
+    h("div", { class: "table-scroll", role: "region", "aria-label": "Startup costs table", tabindex: "0" },
+      h("table", { class: "data-table startup-table" },
+        h("caption", { class: "visually-hidden" }, "Startup costs in USD, as ranges (estimates)"),
+        h("thead", {}, h("tr", {},
+          h("th", { scope: "col" }, "Line"),
+          h("th", { scope: "col", class: "num" }, "Cost"),
+          h("th", { scope: "col" }, "Basis"),
+          h("th", { scope: "col" }, "How it is worked out"))),
+        h("tbody", {}, lines.map((line) => h("tr", {},
+          h("th", { scope: "row" }, line.item || line.category || "Cost", line.category && line.category !== "Other" && line.category !== line.item
+            ? h("span", { class: "muted block" }, line.category) : null),
+          h("td", { class: "num" }, priceSpan(line.low, line.high)),
+          h("td", {}, h("span", { class: `badge ${line.basis === "founder" ? "badge-neutral" : "badge-official"}` }, line.basis === "founder" ? "Your figure" : "Checked source")),
+          h("td", { class: "basis" }, richText(line.method || "", line.card_ids))))),
+        total ? h("tfoot", {}, h("tr", {},
+          h("th", { scope: "row" }, "Total, rounded"),
+          h("td", { class: "num" }, total),
+          h("td", {}, kindBadge(costs.kind || "estimate")),
+          h("td", { class: "basis" }, missing.length ? "Lines without a source are not included." : "A range, not a quote for your business."))) : null)),
+    missing.length ? h("div", { class: "callout callout-warn" },
+      h("p", {}, h("strong", {}, "Missing lines. "), `No checked source or figure of yours gave a cost for: ${missing.join(", ")}. They are left out; see Missing evidence.`)) : null,
+    showMethod && costs.method ? h("p", { class: "method" }, h("span", { class: "method-label" }, "Method: "), String(costs.method)) : null,
+  ];
+}
+
+// Etsy fees per sale, then what is left with and without an Offsite Ads order.
+function renderEtsyFees(fees, richText) {
+  const lines = list(fees.lines).filter(Boolean);
+  const scenarios = list(fees.scenarios).filter(Boolean);
+  const summary = fees.summary ? asItem(fees.summary) : null;
+  const out = [];
+  if (fees.complete === false) {
+    out.push(h("div", { class: "callout callout-warn" },
+      h("p", {}, h("strong", {}, "Incomplete breakdown. "),
+        "Some Etsy fees could not be checked on an etsy.com page in this run, so they are left out below. See Missing evidence.")));
+  }
+  if (summary && summary.text) {
+    out.push(h("p", { class: "fees-intro" }, kindBadge(summary.kind || "estimate"), " ", summary.text));
+  }
+  if (lines.length) {
+    out.push(h("div", { class: "table-scroll", role: "region", "aria-label": "Etsy fee breakdown table", tabindex: "0" },
+      h("table", { class: "data-table fees-table" },
+        h("caption", { class: "visually-hidden" }, `Etsy fees per item in ${fees.currency || "USD"}`),
+        h("thead", {}, h("tr", {},
+          h("th", { scope: "col" }, "Item"),
+          h("th", { scope: "col", class: "num" }, "Rate"),
+          h("th", { scope: "col", class: "num" }, "Cost"),
+          h("th", { scope: "col" }, "Kind"),
+          h("th", { scope: "col" }, "How it is worked out"))),
+        h("tbody", {},
+          isNum(fees.sale_total) ? h("tr", { class: "fees-total-row" },
+            h("th", { scope: "row" }, "Sale total"), h("td", { class: "num" }, ""), h("td", { class: "num" }, money(fees.sale_total)),
+            h("td", {}), h("td", { class: "basis" }, fees.price_basis ? `${fees.price_basis}, plus any shipping the buyer pays` : "Price plus any shipping the buyer pays")) : null,
+          lines.map((line) => h("tr", {},
+            h("th", { scope: "row" }, line.item || "Fee"),
+            h("td", { class: "num" }, isNum(line.rate_pct) ? fmtPct(line.rate_pct) : "—"),
+            h("td", { class: "num" }, money(line.amount)),
+            h("td", {}, kindBadge(line.kind || "estimate")),
+            h("td", { class: "basis" }, richText(line.method || "", line.card_ids))))),
+        isNum(fees.left_before_ads) ? h("tfoot", {}, h("tr", {},
+          h("th", { scope: "row" }, "What is left before ads"),
+          h("td", { class: "num" }, ""),
+          h("td", { class: `num${Number(fees.left_before_ads) < 0 ? " is-loss" : ""}` }, money(fees.left_before_ads)),
+          h("td", {}),
+          h("td", { class: "basis" }, "Before the cost of making the item"))) : null)));
+  }
+  if (scenarios.length) {
+    out.push(h("h3", { class: "subhead" }, "Offsite Ads: what is left per order"),
+      h("div", { class: "table-scroll", role: "region", "aria-label": "Offsite Ads scenarios table", tabindex: "0" },
+        h("table", { class: "data-table scenarios-table" },
+          h("caption", { class: "visually-hidden" }, "What is left per item without and with an Offsite Ads fee (estimates)"),
+          h("thead", {}, h("tr", {},
+            h("th", { scope: "col" }, "Order"),
+            h("th", { scope: "col", class: "num" }, "Fee rate"),
+            h("th", { scope: "col", class: "num" }, "Offsite Ads fee"),
+            h("th", { scope: "col", class: "num" }, "What is left"),
+            h("th", { scope: "col" }, "Source"))),
+          h("tbody", {}, scenarios.map((s) => {
+            const loss = isNum(s.left) && Number(s.left) < 0;
+            return h("tr", {},
+              h("th", { scope: "row" }, s.label || "Scenario"),
+              h("td", { class: "num" }, Number(s.ad_rate_pct) ? fmtPct(s.ad_rate_pct) : "—"),
+              h("td", { class: "num" }, money(s.ad_fee)),
+              h("td", { class: `num${loss ? " is-loss" : ""}` }, loss ? `${money(s.left)} (a loss)` : money(s.left)),
+              h("td", { class: "chips-cell" }, richText("", s.card_ids)));
+          })))));
+    if (isNum(fees.offsite_ads_cap)) {
+      out.push(h("p", { class: "field-hint" }, `Etsy's page caps the Offsite Ads fee at ${money(fees.offsite_ads_cap)} per order. `,
+        richText("", fees.offsite_ads_cap_card_ids)));
+    }
+  }
+  if (fees.method) {
+    out.push(h("p", { class: "method" }, h("span", { class: "method-label" }, "Method: "), String(fees.method)));
+  }
+  out.push(h("p", { class: "field-hint" }, "All amounts are estimates per item, before the cost of making it. Fee rates link to the etsy.com pages read in this run."));
+  return out;
+}
+
+function renderEtsyAds(item, richText) {
+  if (!item || !item.text) return null;
+  return h("div", { class: "ad-budget etsy-ads", role: "group", "aria-labelledby": "etsy-ads-h" },
+    h("h3", { id: "etsy-ads-h" }, "Etsy Ads (cost per click)"),
+    h("p", {}, item.kind ? [kindBadge(item.kind), " "] : null, richText(item.text, item.card_ids)),
+    methodNote(item));
 }
 
 function renderPriceTable(table, richText) {

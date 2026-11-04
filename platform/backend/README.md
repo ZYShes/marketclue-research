@@ -128,6 +128,41 @@ run one real search with production keys and compare `itemSummaries` fields (`pr
 (`price:[10..50],priceCurrency:USD`, `conditions:{NEW}`) with a live answer; also confirm the US fee and
 Promoted Listings help page URLs in `app/templates.py`.
 
+## v4.1 additions: more templates (see `../SPEC.md` v4.1)
+
+- `app/templates.py` adds `food_truck`, `restaurant`, `daycare` (built by `_local_template`) and `etsy`. Every
+  template now also has `sections` (report sections per tool), and the new ones `brief_heading`, `intake_rules`,
+  `instructions` (the local templates replace the launch checklist instruction with requirements),
+  `requirement_topics`, `benchmark`, `cost_lines` and `privacy` (`"children"` for daycare: benchmark rows lose their
+  notes). `intake.system_prompt` appends `intake_rules`; `pipeline.brief_text` prints any template's answers under
+  its `brief_heading` (eBay's text is byte-for-byte as before).
+- `app/capabilities/local.py` registers `official_requirements`, `local_benchmarks` and `startup_costs`;
+  `app/capabilities/etsy.py` registers `etsy_fees`. None has tool definitions or a key, so these runs keep the
+  4-turn web-only research loop. `local.is_official(url)`: `.gov`, US locality domains (`state.<st>.us`,
+  `ci.`/`co.`/`city.`/`county.` ... `.<st>.us`) and `STATE_RUN_DOMAINS` (extend it only after checking the
+  government's own page). `etsy.is_etsy_help` / `is_etsy_listing` split etsy.com policy and help pages from
+  listing pages.
+- `app/pipeline.py`: `report_schema` reads the template's sections (`requirements` replaces `checklist`;
+  `price_unit` on table rows; `startup_costs` with a category enum from `cost_lines`; `etsy_fees`); the reviewer
+  also checks requirement items and the Etsy Ads statement. After the reviewer, `template_sections()` builds the
+  result fields from `fresh` (this run's cards with this run's quote check and capture time, so a requirement or an
+  Etsy fee counts only from a page fetched in this run) and `known` (adds earlier project cards, allowed for
+  benchmarks and startup costs). Results of every non-general template are version 4.
+- `app/local_report.py`: `requirements`, `benchmarks` (rows whose sourced card states the price; unstated ratings
+  dropped) and `startup_costs` (source or founder lines; missing categories and unsupported lines named; total
+  rounded outward to two significant figures, e.g. to the nearest $1,000 for tens of thousands). `app/etsy_report.py`:
+  `fee_breakdown` (reuses `ebay_report.checked` with an etsy.com help-page test). `app/charts.py` adds
+  `price_benchmarks_chart`, `startup_costs_chart`, `requirements_chart`, `etsy_costs_chart`; `build_charts(...,
+  compare=noun)` puts the benchmark chart first and compares the price band against that noun.
+- Tests: `tests/test_templates_more.py` (registry and `GET /api/templates` with six available entries, intake
+  needs, the official-source rule, benchmark and startup-cost rules, Etsy fee math including a zero-margin case
+  and the Offsite Ads cap, full fake runs for each template, and fingerprints of every General and eBay prompt and
+  schema taken before v4.1).
+
+Not verified live: no network here. Before release run one report per template and check that the agents fetch
+and quote official pages for the founder's city and state, `https://www.etsy.com/legal/fees/` and Etsy's Offsite
+Ads help page, and that `STATE_RUN_DOMAINS` covers the cities you expect.
+
 ## v5 additions: projects (see `../SPEC.md` v5)
 
 - `app/store.py` adds projects (`PROJECT#<id>/META`, list rows under `USER#<owner>` or `TEAM#<team_id>`,

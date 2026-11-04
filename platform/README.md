@@ -26,6 +26,17 @@ prices of active listings on the retrieval date, never sold prices, with the ask
 "eBay fees & ad costs" (fee breakdown, Promoted Listings ad-rate scenarios, a stacked chart per scenario and
 the ad budget box). A stacked chart whose series items carry `segments` draws one stacked bar per item.
 
+More templates (v4.1, SPEC "v4.1: more templates"): Food truck, Restaurant / café, Daycare / childcare and Etsy
+seller join General and eBay seller, so `#/new` shows six template cards (icon, one-sentence description,
+capability badges) that wrap into three, two or one column; an unavailable one stays visible, disabled, with its
+reason, and `#/templates` lists all six. The brief panel shows each template's details (for example "For the food
+truck", with the founder's own cost figures). Reports add "Requirements to check" (official-page items, the agency
+to check with, fees only when a source states them, and the line "A checklist built from official pages. Confirm
+each item with the agency; this is not legal advice."), "Prices nearby" (or "Comparable Etsy listings": asking
+prices, never sold prices) with the benchmark chart, "Startup costs" (ranges with their basis, missing lines named,
+a rounded total range) and "Etsy fees & ad costs" (fee breakdown, Offsite Ads rows and chart, Etsy Ads box).
+Segmented charts keep "What is left" green and give up to six segments their own colour.
+
 Projects (v5, SPEC "v5: projects"), in `projects.js` (project store, new-project and move dialogs, breadcrumb,
 project page): the sidebar lists Projects above Recent (name and a small "Personal" or "Team · <name>" tag,
 "+ New project", "Show archived"), and Recent rows show their project name in muted text. The project page
@@ -68,7 +79,11 @@ research depth. Add `&mockups=off` to see the site without the mock-up feature (
 has two eBay seller reports (`#/runs/eb01c0ffee01` comparable listings, `#/runs/eb02c0ffee02` fees and ad
 budget) and a ready eBay conversation (`#/c/conv-ebay-ready`); every listing is invented and links to
 example.com. `&ebay=off` shows the eBay template as not connected (409 `template_unavailable` on use) and
-`&fees=partial` shows an incomplete fee breakdown (no per-order fee, no ad budget). Project samples: the
+`&fees=partial` shows an incomplete fee breakdown (no per-order fee, no ad budget). v4.1 samples, one report
+per template (invented, on example.com): Food truck startup costs `#/runs/ft01c0ffee01`, Restaurant / café prices
+nearby `#/runs/rs01c0ffee01`, Daycare / childcare requirements `#/runs/dc01c0ffee01` (nothing about any child or
+family) and Etsy fees and Offsite Ads `#/runs/et01c0ffee01`, plus a ready food truck conversation
+`#/c/conv-truck-ready`; `&templates=few` lists only the six real templates. Project samples: the
 owner has a personal project "Handmade ceramic planters" (`#/p/proj-planters`, reports at Compare, Prepare
 and Grow, one still running, Discover not started; the unfiled Discover report `#/runs/b1c2d3e4f5a6` can be
 moved into it), a team project "Planters on eBay" in Clay & Leaf Studio (`#/p/proj-ebay`, default template
@@ -88,8 +103,11 @@ scroll and 44 px target checks; writes `qa-report.json` and `screenshots/`) and 
 
 QA for templates (`qa/templates/`): with the same server, `node qa/templates/flows.js` picks eBay seller,
 chats, runs and checks the listings table, both eBay charts, the fee breakdown, the ad budget, partial fees,
-the not-connected card and keyboard selection, then screenshots the new pages at 1280 and 375 px (and 200%
-zoom) with axe-core and horizontal-scroll checks into `qa/templates/screenshots/` and `qa-report.json`.
+the not-connected card and keyboard selection; for v4.1 the six cards (badges, wrapping at 1280 and 375 px,
+arrow keys through all six), `#/templates` with all six, a food truck conversation through to its Startup costs
+report, and the Prices nearby, Requirements to check (not-legal-advice line, official badges, agencies) and Etsy
+fees & ad costs samples. It then screenshots the pages at 1280 and 375 px (and 200% zoom) with axe-core,
+horizontal-scroll and 44 px target checks into `qa/templates/screenshots/` and `qa-report.json`.
 Set `BASE` when the server is not on `http://localhost:8765/index.html`.
 
 QA for projects (`qa/projects/`): with the same server, `node qa/projects/flows.js` opens a project from the

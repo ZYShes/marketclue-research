@@ -623,3 +623,110 @@ four stage cards (latest report or "Not started" + Start), tabs Reports (filter 
 came from, else the last used, else "No project"; "+ New project" asks only for a name and Personal/Team) and
 "We already know: …" when the project has a brief. Report and run pages: breadcrumb `Project › Compare` and
 "Move to project" (author only). Team page: team picker for several teams and the team's projects.
+
+# v4.1 (2026-11-04): more templates
+
+Author: Yuexizi Zhang. Full brief: `tasks/templates-more.md`. Adds to v4; General and eBay seller are unchanged
+(their prompts, schemas and results are pinned by a fingerprint test).
+
+Four templates next to General and eBay seller, so New research offers six. None needs an API key: they use web
+search and fetch with their own intake questions, source rules, report sections and charts, and every claim keeps
+the Sourced / Assumption / Estimate labels and the word-for-word quote check.
+
+| id | Name | For | Capabilities |
+|---|---|---|---|
+| `food_truck` | Food truck | a mobile food business in a US city | `official_requirements`, `local_benchmarks`, `startup_costs` |
+| `restaurant` | Restaurant / café | a small restaurant, café or bakery | the same three |
+| `daycare` | Daycare / childcare | a home daycare or a childcare center | the same three |
+| `etsy` | Etsy seller | a maker selling handmade or designed goods on Etsy | `etsy_fees` |
+
+## Shared building blocks (in-process capabilities, no keys, no client tools)
+
+- `official_requirements` ("Checks permits from official pages"): research for permits, licences, inspections,
+  taxes and rules prefers the founder's city, county and state government pages. A requirement is **Sourced only
+  when a cited card comes from an official page fetched in this run**: a `.gov` site, a US locality domain
+  (`state.<st>.us`, `ci.<city>.<st>.us`, `co.<county>.<st>.us`, ...) or a state- or city-run domain listed in
+  `capabilities/local.py`. Otherwise it is an Assumption whose method says "Check with <agency>." Each item:
+  requirement, agency, text, link, fee (only when a sourced card from this run states it), captured date. The
+  section "Requirements to check" always carries: "A checklist built from official pages. Confirm each item with
+  the agency; this is not legal advice." For these templates the launch checklist tool writes requirements
+  instead of the v3 checklist.
+- `local_benchmarks` ("Compares nearby businesses"): rows of the price table become "Prices nearby" only when the
+  cited sourced card states the price; each row has a `price_unit` (per item, per week, ...). Chart
+  `price_benchmarks` (bar, or range for from-to prices) draws only the most common unit, and its caption says what
+  the prices are and when they were retrieved. Ratings or review counts stay only when the quote states them;
+  daycare rows carry no notes at all.
+- `startup_costs` ("Estimates startup costs"): writer lines `{category, item, low_usd, high_usd, basis, card_ids,
+  method}` count only when a sourced card states the numbers (basis `source`) or the founder gave the amount in the
+  brief's `known_costs` (basis `founder`). Lines with neither are left out and named in `missing_evidence`, and so
+  is every expected cost category (`cost_lines` in `templates.py`) without a line. The total runs from the sum of
+  the low ends to the sum of the high ends, rounded outward, so it is always a range, never one precise number.
+  Chart `startup_costs`: ranked bars (ranges where a line has one), the total range in the caption.
+- `etsy_fees` ("Estimates Etsy fees and ad costs"): like `ebay_fees`. The listing fee, transaction fee, payment
+  processing fee (percent and fixed part), each Offsite Ads tier and the Offsite Ads cap per order count only when
+  a sourced card from an etsy.com help or policy page fetched in this run states the number. The breakdown at the
+  founder's target price (else the middle comparable asking price) shows what is left before ads and per order
+  with and without an Offsite Ad (`left` may be negative). Chart `etsy_costs`: one stacked bar per order type
+  (Listing fee, Transaction fee, Processing fee, Shipping, Offsite Ads fee, What is left). Comparable Etsy listings
+  come only from etsy.com listing pages fetched in this run, as asking prices on the retrieval date, never sold
+  prices.
+
+## Templates in `templates.py`
+
+Each template lists `capabilities`, `intake_needs` and `intake_rules`, `brief_fields` (with `brief_heading`),
+`source_rules`, per-tool `research` and `writer` guidance, `instructions` (a tool instruction that replaces the
+default one) and `sections` (which report sections each tool gets). The tools map as for eBay: market_check → who
+the customers are and what nearby businesses (or listings) emphasise; competitor_scan → `local_benchmarks` or
+`etsy_listings`; launch_checklist → `official_requirements` (Etsy: the v3 checklist from etsy.com and government
+pages); marketing_plan → the v3 plan and budget plus `startup_costs` or `etsy_fees`. Intake still asks at most
+three questions and reuses the project brief. Briefs gain `food_truck: {city, state, cuisine, selling_spots, truck,
+known_costs}`, `restaurant: {city, neighbourhood, seats, cuisine, alcohol, known_costs}`, `daycare: {state, city,
+setting, ages_served, planned_children, known_costs}` or `etsy: {product_type, size_material, target_price_usd,
+buyer_pays_shipping, shipping_cost_usd}`; `known_costs` is `[{item, amount_usd}]`. The daycare intake and every
+daycare prompt say never to collect, quote or show anything about specific children or families.
+
+## Result v4 for these templates
+
+All v3 fields plus, for the local templates, `requirements`, `benchmarks` and `startup_costs`, and for Etsy
+`benchmarks` and `etsy_fees`; each is null unless the tool produces it:
+
+```json
+{
+  "version": 4, "template": "daycare",
+  "requirements": {"title": "Requirements to check", "note": "A checklist built from official pages. ...", "official_count": 6,
+                   "items": [{"requirement": "...", "agency": "...", "text": "...", "url": "...", "source_title": "...",
+                              "captured_at": "...", "fee_usd": 30.0, "fee_card_ids": [], "kind": "sourced|assumption",
+                              "official": true, "card_ids": [], "method": "Check with <agency>. (assumptions only)"}]},
+  "benchmarks": {"title": "Prices nearby|Comparable Etsy listings", "what": "menu prices", "source": "...", "asking": false,
+                 "items": [{"business": "...", "item": "...", "price": 5.25, "price_high": null, "unit": "per drink", "notes": "",
+                            "url": "...", "source_title": "...", "retrieved_at": "...", "card_ids": [], "kind": "sourced"}]},
+  "startup_costs": {"currency": "USD", "lines": [{"category": "...", "item": "...", "low": 8500, "high": 14000,
+                    "basis": "source|founder", "kind": "estimate", "card_ids": [], "method": "..."}],
+                    "sum_low": 0, "sum_high": 0, "total_low": 0, "total_high": 0, "missing_lines": [], "kind": "estimate", "method": "..."},
+  "etsy_fees": {"currency": "USD", "price": 32, "price_basis": "...", "buyer_pays_shipping": true, "shipping_cost": 8,
+                "sale_total": 40, "lines": [{"item", "rate_pct", "amount", "kind", "card_ids", "method"}], "left_before_ads": 27.75,
+                "scenarios": [{"label", "ad_rate_pct", "ad_fee", "left", "card_ids", "kind", "method"}],
+                "offsite_ads_cap": 100, "offsite_ads_cap_card_ids": [], "complete": true, "kind": "estimate", "method": "...",
+                "summary": {"text", "kind", "card_ids", "method"}, "etsy_ads": {"text", "kind", "card_ids", "method"}}
+}
+```
+
+Charts: `requirements` (stacked count: confirmed on an official page / check with the agency), `price_benchmarks`
+(first, followed by the suggested price band compared against "<what> nearby" or "asking prices of Etsy
+listings"), `startup_costs`, and `etsy_costs` (only when the fee breakdown is complete and has an Offsite Ads tier).
+Etsy writer answers get the same "sells for" → "is listed at" rewrite as eBay's.
+
+## Frontend
+
+New research shows the six template cards (icon, one-sentence description, capability badges), wrapping into
+three, two or one column; an unavailable template stays visible, disabled, with its reason; `#/templates` lists
+all six. The brief panel shows each template's details. Report sections: "Requirements to check" (with the
+not-legal-advice line), "Prices nearby" (or "Comparable Etsy listings"), "Startup costs" and "Etsy fees & ad
+costs"; they replace the generic price table and checklist where they apply. Mock mode has one sample report per
+new template, and `qa/templates/flows.js` covers them with axe, 44 px target and keyboard checks.
+
+## Before release (not verified here)
+
+No network was used in tests. The official-domain list, Etsy's fee page (`https://www.etsy.com/legal/fees/`) and
+the Offsite Ads help page wording need one live run per template to confirm the agents fetch and quote them; fee
+numbers are never hard-coded.

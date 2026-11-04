@@ -253,7 +253,10 @@ async function run(width) {
     await snap(page, "41-templates-page-2", width);
     await page.click(".toggle-btn:has-text('Available now')");
     await wait(300);
-    await snap(page, "42-templates-available", width);
+    // A full-page screenshot leaves the window scrolled to the bottom, where axe would test the search box half under
+    // the phone's sticky top bar, a position the toggle never produces. Shoot the window as the person sees it.
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await snap(page, "42-templates-available", width, { fullPage: false });
     await go(page, "/does-not-exist");
     await snap(page, "29-not-found", width);
     await ctx.close();

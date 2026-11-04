@@ -11,7 +11,8 @@ that replaces the default one, e.g. requirements instead of a launch checklist),
 sections each of the four tools gets. Section ids: `ebay_listings`, `ebay_fees` (eBay seller, built by
 ebay_report), `official_requirements`, `local_benchmarks`, `startup_costs` (local businesses, local_report),
 `etsy_listings`, `etsy_fees` (Etsy seller, etsy_report). The local and Etsy templates also carry `benchmark`
-(what the compared prices are), `requirement_topics` and `cost_lines` (the startup cost lines to look for).
+(what the compared prices are), `requirement_topics`, `cost_lines` (the startup cost lines to look for) and
+`privacy` ("children" for daycare: no notes on benchmark rows, never anything about a child or family).
 """
 
 from . import capabilities
@@ -198,8 +199,8 @@ TEMPLATES = {
     },
     "food_truck": _local_template(
         "food_truck", "Food truck",
-        ("For a mobile food business in a US city: permits from official city, county and state pages, menu prices "
-         "of nearby trucks and a startup cost range."),
+        ("For a mobile food business in a US city: permits from official pages, nearby menu prices and startup "
+         "costs."),
         key="food_truck", heading="About the food truck",
         needs=("the city and state, the cuisine, where they plan to sell (street, events, office parks or other spots), "
                "and whether they own the truck, will buy one or will rent one"),
@@ -225,8 +226,8 @@ TEMPLATES = {
     ),
     "restaurant": _local_template(
         "restaurant", "Restaurant / café",
-        ("For a small restaurant, café or bakery: food service permits and plan review from official pages, menu "
-         "prices nearby and a startup cost range."),
+        ("For a small restaurant, café or bakery: permits from official pages, nearby menu prices and startup "
+         "costs."),
         key="restaurant", heading="About the restaurant or café",
         needs=("the city and neighbourhood, the number of seats, the cuisine or kind of place (restaurant, café, "
                "bakery), and whether they will serve alcohol"),
@@ -252,8 +253,8 @@ TEMPLATES = {
     ),
     "daycare": _local_template(
         "daycare", "Daycare / childcare",
-        ("For a home daycare or a childcare center: state licensing rules from official pages, tuition of nearby "
-         "providers and a startup cost range. Nothing about specific children or families."),
+        ("For a home daycare or childcare center: licensing from official pages, nearby tuition and startup costs, "
+         "never about any child or family."),
         key="daycare", heading="About the daycare",
         needs=("the state and city, whether it will be home-based or a center, the age groups it will serve, and the "
                "planned number of children"),
@@ -286,8 +287,8 @@ TEMPLATES = {
     "etsy": {
         "id": "etsy",
         "name": "Etsy seller",
-        "description": ("For selling handmade or designed goods on Etsy: compares Etsy listings like yours and estimates "
-                        "Etsy fees and Offsite Ads costs, so you see what is left per sale."),
+        "description": ("For selling handmade or designed goods on Etsy: comparable Etsy listings, Etsy fees and "
+                        "Offsite Ads costs per sale."),
         "tools": FEATURE_IDS,
         "capabilities": ["etsy_fees"],
         "intake_needs": ("the product type, its size and material, the price they want to ask, and who pays shipping "
