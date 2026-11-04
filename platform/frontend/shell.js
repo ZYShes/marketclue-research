@@ -183,7 +183,9 @@ window.addEventListener("resize", applyLayout);
 window.addEventListener("mc:layout", applyLayout);
 backdropEl.addEventListener("click", () => setDrawer(false));
 document.addEventListener("keydown", (event) => {
-  if (event.key === "Escape" && drawerOpen) {
+  // A dialog opened from the drawer (e.g. Reading & motion) closes first; its own Escape must
+  // not be swallowed here. A second Escape then closes the drawer.
+  if (event.key === "Escape" && drawerOpen && !document.querySelector("dialog[open]")) {
     event.preventDefault();
     setDrawer(false);
   }

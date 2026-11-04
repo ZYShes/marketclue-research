@@ -243,6 +243,15 @@ async function run(width) {
     await wait(400);
     await snap(page, "28-reading-dialog", width, { fullPage: false });
     await page.keyboard.press("Escape");
+    if (mobile) await page.keyboard.press("Escape"); // then the drawer
+    await go(page, "/templates", "", 900);
+    await snap(page, "40-templates-page-1", width);
+    await page.click(".pager a[aria-label='Next page']");
+    await wait(300);
+    await snap(page, "41-templates-page-2", width);
+    await page.click(".toggle-btn:has-text('Available now')");
+    await wait(300);
+    await snap(page, "42-templates-available", width);
     await go(page, "/does-not-exist");
     await snap(page, "29-not-found", width);
     await ctx.close();

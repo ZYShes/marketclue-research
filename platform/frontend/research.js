@@ -9,9 +9,12 @@ import {
 } from "./core.js";
 import {
   FEATURES, MODES, DEFAULT_FEATURE, featureById, stageLabel,
-  DEFAULT_TEMPLATE, TEMPLATE_NAMES, templateName, isGeneralTemplate,
+  DEFAULT_TEMPLATE, templateName, isGeneralTemplate,
 } from "./features.js";
 import { depthSlider } from "./depth.js";
+import {
+  GENERAL_FALLBACK, templateIcon, fetchTemplates, rememberTemplate, lastTemplate, capabilityBadges,
+} from "./templates.js";
 import { refreshHistory, getHistory, onHistory, historyRow, groupHistory } from "./shell.js";
 
 const TOOL_ICONS = {
@@ -25,42 +28,10 @@ export function toolIcon(id, size = 22) {
   return svg(`<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${TOOL_ICONS[id]}</svg>`);
 }
 
-const TEMPLATE_ICONS = {
-  general: '<circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.4 2.4 3.6 5.2 3.6 8.5s-1.2 6.1-3.6 8.5c-2.4-2.4-3.6-5.2-3.6-8.5s1.2-6.1 3.6-8.5z"/>',
-  ebay: '<path d="M4.5 8h15l-1.3 10.2a2 2 0 0 1-2 1.8H7.8a2 2 0 0 1-2-1.8z"/><path d="M9 8V6.5a3 3 0 0 1 6 0V8"/>',
-};
 // What the research lead adds to the intake for a template (mirrors the template's intake_needs).
 const TEMPLATE_HINTS = {
   ebay: "For eBay it also asks about the category or a close example listing, the condition, your target price and who pays shipping.",
 };
-const GENERAL_FALLBACK = {
-  id: DEFAULT_TEMPLATE, name: TEMPLATE_NAMES.general, description: "Public web pages only.",
-  tools: FEATURES.map((f) => f.id), capabilities: [], available: true, unavailable_reason: null,
-};
-
-function templateIcon(id, size = 22) {
-  const paths = TEMPLATE_ICONS[id] || TEMPLATE_ICONS.general;
-  return svg(`<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${paths}</svg>`);
-}
-
-// GET /api/templates answers a JSON array (SPEC v4); tolerate {templates: [...]} too.
-function normalizeTemplates(data) {
-  const raw = Array.isArray(data) ? data : Array.isArray(data?.templates) ? data.templates : [];
-  const items = raw.filter((t) => t && typeof t.id === "string").map((t) => ({
-    id: t.id,
-    name: t.name || templateName(t.id),
-    description: t.description || "",
-    tools: Array.isArray(t.tools) && t.tools.length ? t.tools : FEATURES.map((f) => f.id),
-    capabilities: (Array.isArray(t.capabilities) ? t.capabilities : []).filter((c) => c && c.label),
-    available: t.available !== false,
-    unavailable_reason: t.unavailable_reason || null,
-  }));
-  if (!items.some((t) => t.id === DEFAULT_TEMPLATE)) items.unshift(GENERAL_FALLBACK);
-  return items;
-}
-
-const templateKey = () => `mc_last_template_${(state.user && state.user.sub) || "anon"}`;
-
 // ---- #/new -----------------------------------------------------------------
 
 export function viewNew(isCurrent, featureArg) {
@@ -83,7 +54,8 @@ export function viewNew(isCurrent, featureArg) {
 
   // Template (SPEC v4): loaded from GET /templates; the last choice is remembered per user.
   let templates = null; // null while loading
-  let template = storage.get(templateKey()) || DEFAULT_TEMPLATE;
+  let template = query.get("template") || lastTemplate();
+  const PREVIEW = 4; // templates shown here; the rest are on #/templates
   const templateSlot = h("div", { class: "template-slot" });
   const toolStep = h("span", { class: "step-badge", "aria-hidden": "true" }, "1");
   const messageStep = h("span", { class: "step-badge", "aria-hidden": "true" }, "2");
@@ -136,7 +108,7 @@ export function viewNew(isCurrent, featureArg) {
 
   function selectTemplate(id) {
     template = id;
-    storage.set(templateKey(), id);
+    rememberTemplate(id);
     updateTools();
   }
 
@@ -155,7 +127,15 @@ export function viewNew(isCurrent, featureArg) {
       updateTools();
       return;
     }
-    const cards = templates.map((t) => {
+    rememberTemplate(template);
+    // Up to PREVIEW available templates in the server's order, always including the current choice.
+    const usable = templates.filter((t) => t.available);
+    let shown = usable.slice(0, PREVIEW);
+    const chosen = templates.find((t) => t.id === template);
+    if (chosen && !shown.includes(chosen)) shown = [...shown.slice(0, PREVIEW - 1), chosen];
+    // Only one usable template: show it next to the first unavailable one, so the reason is visible.
+    if (shown.length < 2) shown = templates.slice(0, Math.min(2, templates.length));
+    const cards = shown.map((t) => {
       const base = `template-${t.id}`;
       const described = [`${base}-desc`, `${base}-caps`, t.available ? null : `${base}-reason`].filter(Boolean).join(" ");
       return h("label", { class: `tool-card template-card${t.available ? "" : " is-disabled"}`, for: base },
@@ -168,22 +148,26 @@ export function viewNew(isCurrent, featureArg) {
           h("span", { class: "tool-icon" }, templateIcon(t.id)),
           h("span", { class: "tool-name", id: `${base}-name` }, t.name)),
         h("span", { class: "tool-question", id: `${base}-desc` }, t.description),
-        h("span", { class: "cap-badges", id: `${base}-caps` },
-          t.capabilities.length
-            ? t.capabilities.map((c) => h("span", { class: "badge badge-cap" }, c.label))
-            : h("span", { class: "badge badge-cap badge-cap-plain" }, "Web search and page reading")),
+        capabilityBadges(t, `${base}-caps`),
         t.available ? null : h("span", { class: "template-reason", id: `${base}-reason` },
           icon("info"), `Not available: ${t.unavailable_reason || "not set up yet"}`));
     });
     templateSlot.replaceChildren(h("fieldset", { class: "tool-picker template-picker" },
       h("legend", { class: "step-legend" }, h("span", { class: "step-badge", "aria-hidden": "true" }, "1"), "Choose a template"),
       h("p", { class: "field-hint" }, "A template adds sources and report sections for one kind of seller. General is ordinary web research."),
-      h("div", { class: "template-grid" }, cards)));
+      h("div", { class: "template-grid" }, cards),
+      h("p", { class: "see-all" },
+        h("a", { class: "see-all-link", href: "#/templates" },
+          templates.length > shown.length ? `See all ${templates.length} templates` : "Browse templates",
+          icon("arrow")),
+        templates.length > shown.length
+          ? h("span", { class: "field-hint" }, ` ${templates.length - shown.length} more, including ones not set up yet`)
+          : null)));
     updateTools();
   }
 
   function loadTemplates() {
-    return api("/templates").then((data) => normalizeTemplates(data)).catch(() => [GENERAL_FALLBACK]).then((items) => {
+    return fetchTemplates().then((items) => {
       if (!isCurrent()) return;
       templates = items;
       renderTemplates();

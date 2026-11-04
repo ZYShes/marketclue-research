@@ -11,13 +11,14 @@ import { renderShell, refreshHistory, resetHistory, onSignOut, refreshAccount } 
 import { isFeature } from "./features.js";
 import { landingPage } from "./landing.js";
 import { viewNew, viewConversation } from "./research.js";
+import { viewTemplates } from "./templates.js";
 import { viewRun, viewShared } from "./run.js";
 import { viewLibrary, viewReports } from "./library.js";
 import { viewTeam, viewJoin } from "./team.js";
 import { closeCardPanel, hideHovercard } from "./report.js";
 
 const cfg = window.MC_CONFIG || {};
-const PROTECTED = new Set(["home", "new", "c", "runs", "library", "team"]);
+const PROTECTED = new Set(["home", "new", "templates", "c", "runs", "library", "team"]);
 
 let cleanup = null;
 let renderSeq = 0;
@@ -56,6 +57,7 @@ async function router() {
   let result;
   if (!head) result = viewLanding();
   else if (head === "new" && (!arg || isFeature(arg))) result = viewNew(isCurrent, arg || null);
+  else if (head === "templates" && !arg) result = viewTemplates(isCurrent);
   else if (head === "c" && arg) result = viewConversation(arg, isCurrent);
   else if (head === "runs" && arg) result = viewRun(arg, isCurrent);
   else if (head === "runs") result = viewReports(isCurrent);

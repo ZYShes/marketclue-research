@@ -69,6 +69,7 @@ export const ICONS = {
   team: stroke('<circle cx="9" cy="8.5" r="3.2"/><path d="M3.5 19.5c.6-3.2 2.8-5 5.5-5s4.9 1.8 5.5 5"/><circle cx="17" cy="9.5" r="2.5"/><path d="M16.2 14.6c2.4.1 4 1.7 4.4 4.4"/>'),
   reading: stroke('<path d="M4 6h16M4 12h10M4 18h7"/><circle cx="18" cy="16" r="3"/>'),
   chevron: stroke('<path d="M9 6l6 6-6 6"/>', 16),
+  chevronLeft: stroke('<path d="M15 6l-6 6 6 6"/>', 16),
   chevronDown: stroke('<path d="M6 9l6 6 6-6"/>', 16),
   share: stroke('<path d="M12 4v11M7.5 8.5L12 4l4.5 4.5"/><path d="M5 13v6h14v-6"/>'),
   image: stroke('<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><circle cx="9" cy="10" r="1.8"/><path d="M20.5 16l-5-5L5 19.5"/>'),

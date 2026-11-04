@@ -12,6 +12,7 @@
 // &smarter=limit makes Smarter runs answer 429 smarter_daily_limit;
 // &ebay=off shows the eBay seller template as not connected (409 template_unavailable);
 // &fees=partial makes the eBay fee sample incomplete (no per-order fee, no ad budget).
+// &templates=few lists only General and eBay seller (no sample "Coming soon" templates).
 // eBay samples (SPEC v4) use invented listings on example.com, never real eBay items.
 
 const STORE_KEY = "mc_mock_state_v4";
@@ -33,10 +34,33 @@ const TEMPLATES = [
     ],
   },
 ];
+// Sample templates that are not built: they make the paginated #/templates page visible in mock
+// mode. They are listed as unavailable ("Coming soon") and cannot be used. &templates=few hides them
+// (only General and eBay seller, like the real server today).
+const SAMPLE_TEMPLATES = [
+  ["etsy", "Etsy seller", "Compare Etsy listings and estimate Etsy fees."],
+  ["amazon", "Amazon seller", "Check Amazon competition, fees and fulfilment costs."],
+  ["shopify", "Shopify store", "Plan an online store: apps, payments and first traffic."],
+  ["local_service", "Local service business", "Cleaners, tutors, trades: local demand, pricing and permits."],
+  ["food_stall", "Food truck & market stall", "Pitch fees, food permits and foot traffic."],
+  ["restaurant", "Café or restaurant", "Neighbourhood competition, menus and licences."],
+  ["saas", "Software (SaaS)", "Competitors, pricing pages and launch channels for an app."],
+  ["creator", "Creator & newsletter", "Audience, sponsorship rates and platform rules."],
+  ["wholesale", "Wholesale to shops", "Retail buyers, margins and line sheets."],
+  ["course", "Online course", "Course platforms, prices and how similar courses sell."],
+  ["subscription_box", "Subscription box", "Box pricing, shipping and churn assumptions."],
+  ["handmade_fairs", "Craft fairs", "Fair calendars, stall fees and what sells in person."],
+  ["app_store", "Mobile app", "App store competition, pricing and review themes."],
+].map(([id, name, description]) => ({
+  id, name, description, tools: ["market_check", "competitor_scan", "launch_checklist", "marketing_plan"],
+  capabilities: [], sample: true,
+}));
 const ebayOff = () => pageQuery.get("ebay") === "off";
 function templatesView() {
-  return TEMPLATES.map((t) => {
+  const extra = pageQuery.get("templates") === "few" ? [] : SAMPLE_TEMPLATES;
+  return [...TEMPLATES, ...extra].map(({ sample, ...t }) => {
     const off = t.id === "ebay" && ebayOff();
+    if (sample) return { ...t, available: false, unavailable_reason: "Coming soon (sample template)" };
     return { ...t, available: !off, unavailable_reason: off ? "eBay is not connected yet" : null };
   });
 }

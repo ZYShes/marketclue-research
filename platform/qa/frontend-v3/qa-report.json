@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-04T03:54:59.778Z",
+  "generated_at": "2026-11-04T04:11:34.123Z",
   "axe_source": "local npm copy (CDN blocked)",
   "pages": [
     {
@@ -131,7 +131,7 @@
     {
       "name": "09-run-progress",
       "file": "09-run-progress-1280.jpg",
-      "url": "?mock=1#/runs/64d6656772b5",
+      "url": "?mock=1#/runs/f93931f65634",
       "axe": [],
       "layout": {
         "scrollWidth": 1280,
@@ -384,6 +384,48 @@
       "name": "28-reading-dialog",
       "file": "28-reading-dialog-1280.jpg",
       "url": "?mock=1#/team",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "horizontalScroll": false,
+        "small": [],
+        "overflow": []
+      },
+      "width": 1280
+    },
+    {
+      "name": "40-templates-page-1",
+      "file": "40-templates-page-1-1280.jpg",
+      "url": "?mock=1#/templates",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "horizontalScroll": false,
+        "small": [],
+        "overflow": []
+      },
+      "width": 1280
+    },
+    {
+      "name": "41-templates-page-2",
+      "file": "41-templates-page-2-1280.jpg",
+      "url": "?mock=1#/templates?page=2",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "horizontalScroll": false,
+        "small": [],
+        "overflow": []
+      },
+      "width": 1280
+    },
+    {
+      "name": "42-templates-available",
+      "file": "42-templates-available-1280.jpg",
+      "url": "?mock=1#/templates?show=available",
       "axe": [],
       "layout": {
         "scrollWidth": 1280,
@@ -677,7 +719,7 @@
     {
       "name": "09-run-progress",
       "file": "09-run-progress-375.jpg",
-      "url": "?mock=1#/runs/5e2d3be1de60",
+      "url": "?mock=1#/runs/8bea6388bd56",
       "axe": [],
       "layout": {
         "scrollWidth": 375,
@@ -930,6 +972,48 @@
       "name": "28-reading-dialog",
       "file": "28-reading-dialog-375.jpg",
       "url": "?mock=1#/team",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 375,
+        "clientWidth": 375,
+        "horizontalScroll": false,
+        "small": [],
+        "overflow": []
+      },
+      "width": 375
+    },
+    {
+      "name": "40-templates-page-1",
+      "file": "40-templates-page-1-375.jpg",
+      "url": "?mock=1#/templates",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 375,
+        "clientWidth": 375,
+        "horizontalScroll": false,
+        "small": [],
+        "overflow": []
+      },
+      "width": 375
+    },
+    {
+      "name": "41-templates-page-2",
+      "file": "41-templates-page-2-375.jpg",
+      "url": "?mock=1#/templates?page=2",
+      "axe": [],
+      "layout": {
+        "scrollWidth": 375,
+        "clientWidth": 375,
+        "horizontalScroll": false,
+        "small": [],
+        "overflow": []
+      },
+      "width": 375
+    },
+    {
+      "name": "42-templates-available",
+      "file": "42-templates-available-375.jpg",
+      "url": "?mock=1#/templates?show=available",
       "axe": [],
       "layout": {
         "scrollWidth": 375,

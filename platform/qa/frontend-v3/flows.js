@@ -183,6 +183,85 @@ async function context(browser, width = 1280) {
     await ctx.close();
   }
 
+  // 8. Phone: Escape closes a dialog opened from the navigation drawer before the drawer itself.
+  {
+    const { ctx, page } = await context(browser, 375);
+    await page.goto(`${BASE}#/`);
+    await wait(400);
+    await page.click("text=Continue as demo owner");
+    await wait(700);
+    await page.click("#menu-btn");
+    await wait(300);
+    await page.click(".sb-reading");
+    await wait(300);
+    await page.keyboard.press("Escape");
+    await wait(200);
+    check(!(await page.evaluate(() => document.getElementById("reading-dialog").open)), "phone: Escape closes Reading & motion opened from the drawer");
+    check(await page.evaluate(() => document.getElementById("shell").classList.contains("drawer-open")), "phone: the drawer stays open under it");
+    await page.keyboard.press("Escape");
+    await wait(300);
+    check(!(await page.evaluate(() => document.getElementById("shell").classList.contains("drawer-open"))), "phone: a second Escape closes the drawer");
+    await ctx.close();
+  }
+
+  // 7. Templates: "See all" on #/new leads to a paginated list of every template.
+  {
+    const { ctx, page } = await context(browser);
+    await page.goto(`${BASE}#/`);
+    await wait(400);
+    await page.click("text=Continue as demo owner");
+    await wait(700);
+    await page.goto(`${BASE}#/new`);
+    await wait(900);
+    const cardsOnNew = await page.locator(".template-card").count();
+    check(cardsOnNew <= 4, `#/new previews at most 4 templates (${cardsOnNew})`);
+    const seeAll = page.locator(".see-all-link");
+    check((await seeAll.textContent()).includes("See all 15 templates"), "#/new has 'See all 15 templates'");
+    await seeAll.click();
+    await wait(900);
+    check(page.url().endsWith("#/templates"), "See all opens #/templates");
+    check(await page.locator(".template-tile").count() === 6, "page 1 shows 6 templates");
+    check((await page.locator("#tpl-count").textContent()).includes("page 1 of 3"), "count says page 1 of 3");
+    check(await page.locator(".pager-link[aria-current=page]").textContent() === "1", "page 1 is marked current");
+    const firstNames = await page.locator(".template-tile-name").allTextContents();
+    check(firstNames[0] === "General" && firstNames[1] === "eBay seller", "available templates come first");
+    await page.click(".pager a[aria-label='Next page']");
+    await wait(300);
+    check(page.url().includes("page=2"), "Next updates the URL to page=2");
+    check((await page.locator("#tpl-count").textContent()).includes("page 2 of 3"), "Next shows page 2");
+    check(await page.evaluate(() => document.activeElement.id === "tpl-count"), "focus moves to the result count after paging");
+    const secondNames = await page.locator(".template-tile-name").allTextContents();
+    check(!secondNames.some((n) => firstNames.includes(n)), "page 2 shows different templates");
+    await page.goto(`${BASE}#/templates?page=3`);
+    await wait(900);
+    check(await page.locator(".template-tile").count() === 3, "a direct link to page 3 shows the last 3");
+    check(await page.locator(".pager .is-disabled", { hasText: "Next" }).count() === 1, "Next is disabled on the last page");
+    await page.goto(`${BASE}#/templates?page=99`);
+    await wait(900);
+    check((await page.locator("#tpl-count").textContent()).includes("page 3 of 3"), "an out-of-range page falls back to the last page");
+    await page.click(".toggle-btn:has-text('Available now')");
+    await wait(300);
+    check(await page.locator(".template-tile").count() === 2 && await page.locator(".pager").count() === 0, "Available now shows 2 and no pager");
+    await page.click(".toggle-btn:has-text('All')");
+    await page.fill("#tpl-q", "etsy");
+    await wait(500);
+    check(await page.locator(".template-tile").count() === 1, "search filters the list");
+    check(page.url().includes("q=etsy"), "search is kept in the URL");
+    await page.fill("#tpl-q", "");
+    await wait(500);
+    await page.locator(".template-tile", { hasText: "eBay seller" }).locator("a:has-text('Use this template')").click();
+    await wait(1000);
+    check(page.url().includes("#/new"), "Use this template opens #/new");
+    check(await page.locator("#template-ebay").isChecked(), "the chosen template is preselected on #/new");
+    await page.goto(`${BASE}&templates=few#/new`);
+    await wait(900);
+    check((await page.locator(".see-all-link").textContent()).includes("Browse templates"), "with only two templates the link reads 'Browse templates'");
+    await page.goto(`${BASE}&templates=few#/templates`);
+    await wait(900);
+    check(await page.locator(".template-tile").count() === 2 && await page.locator(".pager").count() === 0, "two templates: one page, no pager");
+    await ctx.close();
+  }
+
   await browser.close();
   console.log(failures ? `\n${failures} check(s) failed` : "\nall checks passed");
   process.exit(failures ? 1 : 0);
