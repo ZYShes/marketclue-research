@@ -41,6 +41,12 @@ class RunContext:
         self.lock = threading.Lock()
         self.counts = {}
         self.evidence = {}
+        self._key_locks = {}
+
+    def key_lock(self, key) -> threading.Lock:
+        """One lock per key, so agents asking the same thing at the same time wait for one answer."""
+        with self.lock:
+            return self._key_locks.setdefault(key, threading.Lock())
 
     def take(self, name, limit) -> bool:
         with self.lock:
@@ -55,8 +61,9 @@ class RunContext:
             return self.counts[name]
 
     def add_evidence(self, url, page):
+        """Keeps the first evidence recorded for a URL; a listing found again by another agent is the same item."""
         with self.lock:
-            self.evidence[url] = page
+            self.evidence.setdefault(url, page)
 
 
 class Toolbox:

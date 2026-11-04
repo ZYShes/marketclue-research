@@ -172,17 +172,18 @@ def search_listings(name, tool_input, context):
     except ValueError as exc:
         return {"error": str(exc)}
     key = hashlib.sha256(json.dumps({"marketplace": MARKETPLACE, **params}, sort_keys=True).encode()).hexdigest()
-    cached = store.get_ebay_cache(key)
-    if cached:
-        raw, retrieved_at = cached["raw"], cached["retrieved_at"]
-    else:
-        if not context.take("ebay_calls", MAX_CALLS_PER_RUN):
-            return {"error": f"This research run has used its {MAX_CALLS_PER_RUN} eBay searches; use the listings you have."}
-        if not store.reserve_ebay_call(get_settings().max_ebay_calls_per_day):
-            return {"error": "MarketClue's eBay searches for today are used up; use web search instead."}
-        raw = _browse(params)
-        retrieved_at = datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
-        store.put_ebay_cache(key, raw, retrieved_at)
+    with context.key_lock(key):
+        cached = store.get_ebay_cache(key)
+        if cached:
+            raw, retrieved_at = cached["raw"], cached["retrieved_at"]
+        else:
+            if not context.take("ebay_calls", MAX_CALLS_PER_RUN):
+                return {"error": f"This research run has used its {MAX_CALLS_PER_RUN} eBay searches; use the listings you have."}
+            if not store.reserve_ebay_call(get_settings().max_ebay_calls_per_day):
+                return {"error": "MarketClue's eBay searches for today are used up; use web search instead."}
+            raw = _browse(params)
+            retrieved_at = datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+            store.put_ebay_cache(key, raw, retrieved_at)
     snapshot_key = store.save_ebay_snapshot(context.run_id, context.next_number("ebay_snapshots"), raw, retrieved_at)
     data = json.loads(raw)
     items = [item for item in (compact_item(entry, retrieved_at) for entry in data.get("itemSummaries") or []) if item]
