@@ -126,8 +126,8 @@ def chat(conv, message):
     # The history is rebuilt from stored text in the same order every turn, so this request starts with exactly
     # the bytes of the previous one: with caching on, each turn reads the earlier conversation from the cache.
     # Keep the system prompt, schema and effort fixed per feature and template - changing any of them (or adding
-    # a date or user name to the system prompt) would break the shared prefix. The project context is stored on
-    # the conversation, so it stays the same from turn to turn.
+    # a date or user name to the system prompt) would break the shared prefix. The project context is rebuilt each
+    # turn from the project, so it only changes (and misses the cache once) when the project itself changes.
     out = claude.json_call(None, system=system_prompt(spec, template, conv.get("project_context")), prompt=None,
                            schema=reply_schema(template), effort="low", messages=messages, cache=True)
     brief = out.get("brief") if out.get("ready") else None
