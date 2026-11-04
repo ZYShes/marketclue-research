@@ -57,6 +57,11 @@ class Settings:
         secret = _optional_parameter(f"{self.ssm_prefix}/ebay_client_secret") if client_id else None
         return (client_id, secret) if client_id and secret else None
 
+    @property
+    def ebay_verification_token(self) -> str | None:
+        """The token entered on eBay's Marketplace Account Deletion page, or None until it is in SSM."""
+        return _optional_parameter(f"{self.ssm_prefix}/ebay_verification_token")
+
 
 def _optional_parameter(name: str) -> str | None:
     """An optional SSM value; a missing one is looked up again next time, so adding it needs no redeploy."""

@@ -1,5 +1,6 @@
 import base64
 import binascii
+import hashlib
 import json
 import logging
 import re
@@ -395,6 +396,33 @@ def _invite_preview(token: str) -> dict:
     }
 
 
+EBAY_DELETION_PATH = "/api/ebay/account-deletion"
+
+
+def _ebay_challenge(event: dict) -> dict:
+    """eBay Marketplace Account Deletion endpoint check: SHA-256 hex of challengeCode + token + endpoint URL."""
+    code = str(_query(event).get("challenge_code") or "")
+    token = get_settings().ebay_verification_token
+    if not code or not token:
+        raise HTTPError(400 if token else 503, "ebay_challenge_unavailable", "Challenge code or verification token is missing")
+    endpoint = f"{get_settings().site_origin}{EBAY_DELETION_PATH}"
+    return {"challengeResponse": hashlib.sha256((code + token + endpoint).encode("utf-8")).hexdigest()}
+
+
+def _ebay_deletion_notice(event: dict) -> dict:
+    """Acknowledges an account deletion notice. We keep no eBay user data (seller ids are stripped before
+    anything is stored), so there is nothing to delete; the notice id is logged for the record."""
+    try:
+        notice = json.loads(event.get("body") or "{}")
+    except (TypeError, ValueError):
+        notice = {}
+    if not isinstance(notice, dict):
+        notice = {}
+    print(json.dumps({"ebay_account_deletion": ((notice.get("notification") or {}).get("notificationId")),
+                      "topic": (notice.get("metadata") or {}).get("topic")}))
+    return {"statusCode": 204, "headers": {"cache-control": "no-store"}, "body": "", "isBase64Encoded": False}
+
+
 def _revoke_invite(user: dict, token: str) -> dict:
     _team_member(user, owner=True)
     invite = store.get_invite(token)
@@ -454,6 +482,10 @@ def _dispatch(event: dict) -> dict:
             claims["sub"], claims["email"], claims.get("name", ""), claims.get("picture", "")
         )
         return _response({"user": _public_user(user)}, cookies=[auth.session_cookie(user)])
+    if path == EBAY_DELETION_PATH and method == "GET":
+        return _response(_ebay_challenge(event))
+    if path == EBAY_DELETION_PATH and method == "POST":
+        return _ebay_deletion_notice(event)
     if method == "GET" and len(parts) == 3 and parts[:2] == ["api", "invites"]:
         return _response(_invite_preview(parts[2]))
     if method == "GET" and len(parts) == 3 and parts[:2] == ["api", "shared"]:

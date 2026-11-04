@@ -85,6 +85,19 @@ def _browse(params):
         return response.text
 
 
+SELLER_KEEP = ("feedbackScore", "feedbackPercentage")
+
+
+def without_seller_identity(raw):
+    """The search JSON without seller usernames or ids: we keep public listing facts, not eBay user data."""
+    data = json.loads(raw)
+    for item in data.get("itemSummaries") or []:
+        seller = item.get("seller")
+        if isinstance(seller, dict):
+            item["seller"] = {key: seller[key] for key in SELLER_KEEP if key in seller}
+    return json.dumps(data, separators=(",", ":"))
+
+
 def _number(value):
     try:
         number = float(value)
@@ -181,7 +194,7 @@ def search_listings(name, tool_input, context):
                 return {"error": f"This research run has used its {MAX_CALLS_PER_RUN} eBay searches; use the listings you have."}
             if not store.reserve_ebay_call(get_settings().max_ebay_calls_per_day):
                 return {"error": "MarketClue's eBay searches for today are used up; use web search instead."}
-            raw = _browse(params)
+            raw = without_seller_identity(_browse(params))
             retrieved_at = datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
             store.put_ebay_cache(key, raw, retrieved_at)
     snapshot_key = store.save_ebay_snapshot(context.run_id, context.next_number("ebay_snapshots"), raw, retrieved_at)

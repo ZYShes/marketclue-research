@@ -54,7 +54,9 @@ def test_search_calls_browse_and_returns_compact_listings(ebay_keys, fake_ebay, 
     assert page["label"].startswith("eBay listing (asking price, ") and first["quote_text"] in page["text"]
     snapshot = aws["s3"].get_object(Bucket=aws["bucket"], Key="runs/run-1/ebay/1.json")
     raw = snapshot["Body"].read().decode()
-    assert json.loads(raw)["itemSummaries"] == ITEMS
+    stored = json.loads(raw)["itemSummaries"]
+    assert [{k: v for k, v in item.items() if k != "seller"} for item in stored] == [{k: v for k, v in item.items() if k != "seller"} for item in ITEMS]
+    assert all("username" not in item.get("seller", {}) for item in stored)
     assert snapshot["Metadata"]["retrieved-at"] == result["retrieved_at"]
 
 
