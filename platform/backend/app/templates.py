@@ -187,12 +187,15 @@ TEMPLATES = {
         },
         "writer": {
             "competitor_scan": "Rows from eBay listings use the listing's asking price; the table title says they are asking prices of active eBay listings.",
-            "marketing_plan": ("Also fill ebay_fees with the inputs for an eBay cost breakdown: the final value fee "
-                               "percent and per-order fee in US dollars exactly as an ebay.com fee card states them "
-                               "(with those card ids; null when no card states them), the founder's target price, "
-                               "the shipping cost and who pays it, three Promoted Listings General ad rates to compare "
-                               "(low, typical, high), eBay's minimum and maximum ad rate if a card states them, and "
-                               "one statement on Promoted Listings Priority (charged per click; set a daily budget)."),
+            "marketing_plan": ("Also fill ebay_fees with the inputs for an eBay cost breakdown. In numbers, add one "
+                               "entry per number: final_value_fee_pct and per_order_fee_usd (US dollars) exactly as an "
+                               "ebay.com fee card states them, with those card ids (leave a number out when no card "
+                               "states it); ad_rate_pct three times, for the Promoted Listings General ad rates to "
+                               "compare (low, typical, high); ad_rate_min_pct and ad_rate_max_pct when a card states "
+                               "eBay's minimum and maximum ad rate; and target_price_usd and shipping_cost_usd for the "
+                               "founder's target price and shipping cost. Set shipping_paid_by (buyer, seller or "
+                               "unknown) and write one statement on Promoted Listings Priority (charged per click; set "
+                               "a daily budget)."),
             "launch_checklist": "Steps cover the eBay seller account, managed payments, sales tax collected by eBay, and item specifics and photo rules, citing ebay.com help pages.",
             "market_check": "Findings from eBay listings describe what listings emphasise and whom they target; say they are listing evidence, not what buyers say.",
         },
@@ -334,13 +337,15 @@ TEMPLATES = {
         "writer": {
             "competitor_scan": ("Rows come from Etsy listing pages: Seller is the shop, Price the listing's asking price "
                                 "as the page states it; the table title says they are asking prices of Etsy listings."),
-            "marketing_plan": ("Also fill etsy_fees with the inputs for an Etsy cost breakdown, each number exactly as an "
-                               "etsy.com card states it with those card ids (null when no card states it): the listing "
-                               "fee in US dollars, the transaction fee percent, the payment processing fee percent and "
-                               "fixed fee in US dollars, each Offsite Ads tier (a short label such as \"Shops under the "
-                               "sales threshold\", its fee percent and card ids), the Offsite Ads cap per order in US "
-                               "dollars, the founder's target price, the shipping cost and who pays it, and one "
-                               "statement on Etsy Ads (charged per click; set a daily budget)."),
+            "marketing_plan": ("Also fill etsy_fees with the inputs for an Etsy cost breakdown. In numbers, add one "
+                               "entry per number, each exactly as an etsy.com card states it with those card ids (leave "
+                               "a number out when no card states it): listing_fee_usd, transaction_fee_pct, "
+                               "processing_fee_pct and processing_fee_fixed_usd (US dollars), one offsite_ads_pct entry "
+                               "per Offsite Ads tier with a short label such as \"Shops under the sales threshold\", and "
+                               "offsite_ads_cap_usd for the Offsite Ads cap per order; add target_price_usd and "
+                               "shipping_cost_usd for the founder's target price and shipping cost. Set "
+                               "shipping_paid_by (buyer, seller or unknown) and write one statement on Etsy Ads "
+                               "(charged per click; set a daily budget)."),
             "launch_checklist": ("Steps cover opening an Etsy shop, Etsy Payments, the sales tax Etsy collects, Etsy's "
                                  "handmade rules, a business licence and state tax registration, citing etsy.com help "
                                  "pages and government pages."),

@@ -112,9 +112,9 @@ EBAY_ANSWERS = {"category": "Mugs", "example_listing": None, "condition": "new",
 FINGERPRINT_BRIEF = {"business": "Mugs", "customer": "Gift buyers", "location": "Portland, Oregon", "stage": "markets",
                      "budget_usd": 200, "goal": "Price", "questions": ["What do mugs cost?"]}
 # Digests of every General and eBay prompt, schema and template field taken before v4.1 was added. Update them only
-# when General or eBay is meant to change.
+# when General or eBay is meant to change (eBay changed on 2026-11-04: its fee inputs became one list of numbers).
 FINGERPRINTS = {"general": "4fef6eedf8c35218de5c92185ff8246303473d4127b1b1b88f8065c30ee3aeb3",
-                "ebay": "4937edf0250c5848e858f6dd45e58b45ae004cacbbb3be3cb341046ffde7b421"}
+                "ebay": "07faef1d4e61372b926dc09a1a9bf462776b1e73c7b3c71eb693cd9774df12dd"}
 
 
 def fingerprint(template_id):
@@ -686,11 +686,19 @@ def test_etsy_marketing_plan_gives_fees_and_offsite_ads(template_run):
             "budget": [{"item": "Etsy Ads", "amount": 30, "kind": "estimate", "card_ids": [], "method": "Daily cap"},
                        {"item": "Photos", "amount": 40, "kind": "estimate", "card_ids": [], "method": "Props"}],
             "projection": None,
-            "etsy_fees": etsy_inputs(listing_fee_card_ids=[fees], transaction_fee_card_ids=[cid("Transaction fees")],
-                                     processing_fee_card_ids=[cid("processing")],
-                                     offsite_ads=[{"label": "Shops under $10,000 a year", "rate_pct": 15, "card_ids": [offsite]},
-                                                  {"label": "Shops at $10,000 or more", "rate_pct": 12, "card_ids": [offsite]}],
-                                     offsite_ads_cap_card_ids=[offsite]),
+            "etsy_fees": {
+                "numbers": [
+                    {"fee": "listing_fee_usd", "value": 0.2, "label": "", "card_ids": [fees]},
+                    {"fee": "transaction_fee_pct", "value": 6.5, "label": "", "card_ids": [cid("Transaction fees")]},
+                    {"fee": "processing_fee_pct", "value": 3, "label": "", "card_ids": [cid("processing")]},
+                    {"fee": "processing_fee_fixed_usd", "value": 0.25, "label": "", "card_ids": [cid("processing")]},
+                    {"fee": "offsite_ads_pct", "value": 15, "label": "Shops under $10,000 a year", "card_ids": [offsite]},
+                    {"fee": "offsite_ads_pct", "value": 12, "label": "Shops at $10,000 or more", "card_ids": [offsite]},
+                    {"fee": "offsite_ads_cap_usd", "value": 100, "label": "", "card_ids": [offsite]},
+                ],
+                "shipping_paid_by": "unknown", "shipping_method": "",
+                "etsy_ads": {"text": "Etsy Ads are charged per click.", "kind": "assumption", "card_ids": [], "method": ""},
+            },
         }
     result, agents = template_run("etsy", "marketing_plan", ETSY_ANSWERS, ETSY_PAGES, ETSY_FINDINGS, doc)
     fees = result["etsy_fees"]
@@ -737,3 +745,45 @@ def test_general_results_gain_no_template_fields(aws, monkeypatch):
     assert result["version"] == 3
     assert not {"requirements", "benchmarks", "startup_costs", "etsy_fees", "listings", "fees"} & set(result)
     assert [chart["id"] for chart in result["charts"]] == ["prices", "price_band", "coverage"]
+
+
+# ---------- Fee inputs: one list of numbers (the API rejects the grammar of many nullable fields) ----------
+
+def test_fee_inputs_turns_the_number_list_into_flat_inputs():
+    flat = pipeline.fee_inputs({
+        "numbers": [
+            {"fee": "listing_fee_usd", "value": 0.2, "label": "", "card_ids": ["a"]},
+            {"fee": "listing_fee_usd", "value": 9, "label": "", "card_ids": ["z"]},
+            {"fee": "processing_fee_pct", "value": 3, "label": "", "card_ids": ["p"]},
+            {"fee": "processing_fee_fixed_usd", "value": 0.25, "label": "", "card_ids": ["p", "q"]},
+            {"fee": "offsite_ads_pct", "value": 15, "label": "Small shops", "card_ids": ["o"]},
+            {"fee": "offsite_ads_pct", "value": 12, "label": "Large shops", "card_ids": ["o"]},
+            {"fee": "ad_rate_pct", "value": 5, "label": "", "card_ids": []},
+            {"fee": "ad_rate_pct", "value": 2, "label": "", "card_ids": []},
+            {"fee": "target_price_usd", "value": 38, "label": "", "card_ids": []},
+            {"fee": "not_a_fee", "value": 1, "label": "", "card_ids": []},
+        ],
+        "shipping_paid_by": "seller", "shipping_method": "USPS", "etsy_ads": {"text": "Per click"},
+    })
+    assert flat["listing_fee_usd"] == 0.2 and flat["listing_fee_card_ids"] == ["a"]
+    assert flat["processing_fee_pct"] == 3 and flat["processing_fee_fixed_usd"] == 0.25
+    assert flat["processing_fee_card_ids"] == ["p", "q"]
+    assert flat["offsite_ads"] == [{"label": "Small shops", "rate_pct": 15, "card_ids": ["o"]},
+                                   {"label": "Large shops", "rate_pct": 12, "card_ids": ["o"]}]
+    assert flat["ad_rates_pct"] == [5, 2] and flat["target_price_usd"] == 38 and "not_a_fee" not in flat
+    assert flat["buyer_pays_shipping"] is False and flat["shipping_method"] == "USPS" and flat["etsy_ads"] == {"text": "Per click"}
+    assert pipeline.fee_inputs({"numbers": [], "shipping_paid_by": "unknown"})["buyer_pays_shipping"] is None
+    assert pipeline.fee_inputs({"numbers": [], "shipping_paid_by": "buyer"})["buyer_pays_shipping"] is True
+    assert pipeline.fee_inputs(etsy_inputs()) == etsy_inputs() and pipeline.fee_inputs(None) == {}
+
+
+def test_report_schemas_stay_small_enough_to_compile():
+    """Checked against the API on 2026-11-04: the eBay and Etsy marketing-plan schemas with one nullable field per fee
+    (4,100 and 4,533 characters, 9 and 11 nullable fields) were rejected as "compiled grammar is too large"; the
+    same schemas with the fee list (3,786 and 3,823 characters, 2 nullable fields) compile. Re-check against the API
+    before raising these limits."""
+    for template_id in templates.TEMPLATES:
+        for feature in templates.FEATURE_IDS:
+            text = json.dumps(pipeline.report_schema(feature, template_id))
+            assert len(text) <= 3900, (template_id, feature, len(text))
+            assert text.count('"null"') <= 3, (template_id, feature)

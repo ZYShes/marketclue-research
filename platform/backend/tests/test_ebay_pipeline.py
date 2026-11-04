@@ -142,11 +142,14 @@ class EbayAgents(FakeClaude):
                         {"item": "Photos", "amount": 30, "kind": "estimate", "card_ids": [], "method": "Test"}],
                 projection=None,
                 ebay_fees={
-                    "final_value_fee_pct": 13.6, "final_value_fee_card_ids": by_quote("13.6%"),
-                    "per_order_fee_usd": 0.4, "per_order_fee_card_ids": by_quote("$0.40"),
-                    "target_price_usd": None, "shipping_cost_usd": None, "buyer_pays_shipping": None, "shipping_method": "",
-                    "ad_rates_pct": [5, 2, 10], "ad_rate_min_pct": 2, "ad_rate_max_pct": 100,
-                    "ad_rate_card_ids": by_quote("ad rate"),
+                    "numbers": [
+                        {"fee": "final_value_fee_pct", "value": 13.6, "label": "", "card_ids": by_quote("13.6%")},
+                        {"fee": "per_order_fee_usd", "value": 0.4, "label": "", "card_ids": by_quote("$0.40")},
+                        *({"fee": "ad_rate_pct", "value": rate, "label": "", "card_ids": []} for rate in (5, 2, 10)),
+                        {"fee": "ad_rate_min_pct", "value": 2, "label": "", "card_ids": by_quote("ad rate")},
+                        {"fee": "ad_rate_max_pct", "value": 100, "label": "", "card_ids": by_quote("ad rate")},
+                    ],
+                    "shipping_paid_by": "unknown", "shipping_method": "",
                     "priority": {"text": "Priority ads are charged per click.", "kind": "assumption", "card_ids": [], "method": ""},
                 },
             )

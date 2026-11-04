@@ -412,41 +412,60 @@ def _nullable(schema):
 NUMBER_OR_NULL = {"type": ["number", "null"]}
 
 
-EBAY_FEES_SCHEMA = _object({
-    "final_value_fee_pct": NUMBER_OR_NULL,
-    "final_value_fee_card_ids": _array({"type": "string"}),
-    "per_order_fee_usd": NUMBER_OR_NULL,
-    "per_order_fee_card_ids": _array({"type": "string"}),
-    "target_price_usd": NUMBER_OR_NULL,
-    "shipping_cost_usd": NUMBER_OR_NULL,
-    "buyer_pays_shipping": {"type": ["boolean", "null"]},
-    "shipping_method": {"type": "string"},
-    "ad_rates_pct": _array({"type": "number"}),
-    "ad_rate_min_pct": NUMBER_OR_NULL,
-    "ad_rate_max_pct": NUMBER_OR_NULL,
-    "ad_rate_card_ids": _array({"type": "string"}),
-    "priority": _item(),
-})
+# The fee inputs are one list of named numbers, not one nullable field per number: with a field per number the
+# marketing-plan schema compiled to a grammar the API rejects ("The compiled grammar is too large", 2026-11-04).
+# fee_inputs() turns the list back into the flat inputs ebay_report and etsy_report read.
+def _fee_numbers(names):
+    return _array(_object({
+        "fee": {"type": "string", "enum": names},
+        "value": {"type": "number"},
+        "label": {"type": "string"},
+        "card_ids": _array({"type": "string"}),
+    }))
 
 
-ETSY_FEES_SCHEMA = _object({
-    "listing_fee_usd": NUMBER_OR_NULL,
-    "listing_fee_card_ids": _array({"type": "string"}),
-    "transaction_fee_pct": NUMBER_OR_NULL,
-    "transaction_fee_card_ids": _array({"type": "string"}),
-    "processing_fee_pct": NUMBER_OR_NULL,
-    "processing_fee_fixed_usd": NUMBER_OR_NULL,
-    "processing_fee_card_ids": _array({"type": "string"}),
-    "offsite_ads": _array(_object({"label": {"type": "string"}, "rate_pct": NUMBER_OR_NULL,
-                                   "card_ids": _array({"type": "string"})})),
-    "offsite_ads_cap_usd": NUMBER_OR_NULL,
-    "offsite_ads_cap_card_ids": _array({"type": "string"}),
-    "target_price_usd": NUMBER_OR_NULL,
-    "shipping_cost_usd": NUMBER_OR_NULL,
-    "buyer_pays_shipping": {"type": ["boolean", "null"]},
-    "shipping_method": {"type": "string"},
-    "etsy_ads": _item(),
-})
+SHIPPING_PAID_BY = {"type": "string", "enum": ["buyer", "seller", "unknown"]}
+EBAY_FEE_NUMBERS = ["final_value_fee_pct", "per_order_fee_usd", "ad_rate_pct", "ad_rate_min_pct", "ad_rate_max_pct",
+                    "target_price_usd", "shipping_cost_usd"]
+ETSY_FEE_NUMBERS = ["listing_fee_usd", "transaction_fee_pct", "processing_fee_pct", "processing_fee_fixed_usd",
+                    "offsite_ads_pct", "offsite_ads_cap_usd", "target_price_usd", "shipping_cost_usd"]
+EBAY_FEES_SCHEMA = _object({"numbers": _fee_numbers(EBAY_FEE_NUMBERS), "shipping_paid_by": SHIPPING_PAID_BY,
+                            "shipping_method": {"type": "string"}, "priority": _item()})
+ETSY_FEES_SCHEMA = _object({"numbers": _fee_numbers(ETSY_FEE_NUMBERS), "shipping_paid_by": SHIPPING_PAID_BY,
+                            "shipping_method": {"type": "string"}, "etsy_ads": _item()})
+# Where each number's card ids go in the flat inputs (numbers that share a card list share a key).
+FEE_CARD_KEYS = {
+    "final_value_fee_pct": "final_value_fee_card_ids", "per_order_fee_usd": "per_order_fee_card_ids",
+    "ad_rate_min_pct": "ad_rate_card_ids", "ad_rate_max_pct": "ad_rate_card_ids",
+    "listing_fee_usd": "listing_fee_card_ids", "transaction_fee_pct": "transaction_fee_card_ids",
+    "processing_fee_pct": "processing_fee_card_ids", "processing_fee_fixed_usd": "processing_fee_card_ids",
+    "offsite_ads_cap_usd": "offsite_ads_cap_card_ids",
+}
+
+
+def fee_inputs(answer):
+    """The writer's fee answer ({numbers: [{fee, value, label, card_ids}], shipping_paid_by, ...}) as the flat
+    inputs of ebay_report / etsy_report. The first entry of a single number wins; ad_rate_pct entries become
+    ad_rates_pct and offsite_ads_pct entries the Offsite Ads tiers. A flat answer is returned unchanged."""
+    answer = answer if isinstance(answer, dict) else {}
+    if "numbers" not in answer:
+        return answer
+    flat = {key: value for key, value in answer.items() if key not in ("numbers", "shipping_paid_by")}
+    flat["buyer_pays_shipping"] = {"buyer": True, "seller": False}.get(answer.get("shipping_paid_by"))
+    for entry in answer.get("numbers") or []:
+        if not isinstance(entry, dict):
+            continue
+        name, value, ids = entry.get("fee"), entry.get("value"), list(entry.get("card_ids") or [])
+        if name == "ad_rate_pct":
+            flat.setdefault("ad_rates_pct", []).append(value)
+        elif name == "offsite_ads_pct":
+            flat.setdefault("offsite_ads", []).append({"label": entry.get("label") or "", "rate_pct": value, "card_ids": ids})
+        elif name in EBAY_FEE_NUMBERS + ETSY_FEE_NUMBERS and name not in flat:
+            flat[name] = value
+            if name in FEE_CARD_KEYS:
+                key = FEE_CARD_KEYS[name]
+                flat[key] = list(dict.fromkeys((flat.get(key) or []) + ids))
+    return flat
 
 
 def requirements_schema():
@@ -776,7 +795,7 @@ def template_sections(template, feature, doc, fresh, known, brief):
         fields["startup_costs"], missing = section, missing + notes
         extra.append(charts.startup_costs_chart(section))
     if "etsy_fees" in sections:
-        fees, notes = etsy_report.fee_breakdown(doc.get("etsy_fees"), fresh, brief)
+        fees, notes = etsy_report.fee_breakdown(fee_inputs(doc.get("etsy_fees")), fresh, brief)
         fields["etsy_fees"], missing = fees, missing + notes
         extra.append(charts.etsy_costs_chart(fees))
     return fields, [chart for chart in extra if chart], missing, compare
@@ -893,7 +912,7 @@ def run(run_id):
         extra_charts, template_fields, missing, compare = [], {}, list(doc["missing_evidence"]), None
         if template["id"] == "ebay":
             listings = ebay_report.cited_listings(cards, evidence)
-            fees, ad_budget, notes = (ebay_report.fee_breakdown(doc.get("ebay_fees"), cards, brief, listings)
+            fees, ad_budget, notes = (ebay_report.fee_breakdown(fee_inputs(doc.get("ebay_fees")), cards, brief, listings)
                                       if feature == "marketing_plan" else (None, None, []))
             if not toolbox:
                 notes.append("eBay listings could not be searched for this report (eBay is not connected).")
