@@ -1,6 +1,6 @@
 """The research lead's intake chat: understand the founder before any research runs."""
 
-from . import claude
+from . import claude, templates
 
 FEATURES = {
     "market_check": {
@@ -42,6 +42,13 @@ three sentences and tell them to press "Start research". The brief's questions a
 research questions about {research} that public web pages can answer. Never promise market sizes or
 predictions. Until you are ready, brief is null and ready is false."""
 
+TEMPLATE_SYSTEM = """
+
+The founder also chose the template "{name}". For it you also need to learn {needs}. These count toward
+the same limit of three questions in total: combine them with the questions above, and do not ask what the
+founder already told you. Fill what you learn into the brief's {field} fields and use null for anything
+still unknown."""
+
 BRIEF_SCHEMA = {
     "type": "object",
     "properties": {
@@ -69,10 +76,28 @@ REPLY_SCHEMA = {
 }
 
 
+def reply_schema(template):
+    """The reply schema; a template's brief_fields extend the brief (general: exactly REPLY_SCHEMA)."""
+    if not template["brief_fields"]:
+        return REPLY_SCHEMA
+    brief = {**BRIEF_SCHEMA, "properties": {**BRIEF_SCHEMA["properties"], **template["brief_fields"]}}
+    brief["required"] = list(brief["properties"])
+    return {**REPLY_SCHEMA, "properties": {**REPLY_SCHEMA["properties"], "brief": {"anyOf": [brief, {"type": "null"}]}}}
+
+
+def system_prompt(spec, template):
+    prompt = SYSTEM.format(**spec)
+    if template["intake_needs"]:
+        prompt += TEMPLATE_SYSTEM.format(name=template["name"], needs=template["intake_needs"],
+                                         field=" and ".join(template["brief_fields"]) or "extra")
+    return prompt
+
+
 def chat(conv, message):
     """Returns {"reply", "ready", "brief"} for the founder's new message."""
     feature = conv.get("feature") or "marketing_plan"
     spec = FEATURES.get(feature, FEATURES["marketing_plan"])
+    template = templates.get(conv.get("template")) or templates.TEMPLATES[templates.DEFAULT]
     messages = []
     for turn in conv.get("messages") or []:
         role = "assistant" if turn.get("role") == "assistant" else "user"
@@ -87,9 +112,12 @@ def chat(conv, message):
     if messages[0]["role"] != "user":
         messages.insert(0, {"role": "user", "content": "Hi."})
 
-    out = claude.json_call(None, system=SYSTEM.format(**spec), prompt=None, schema=REPLY_SCHEMA, effort="low", messages=messages)
+    out = claude.json_call(None, system=system_prompt(spec, template), prompt=None, schema=reply_schema(template),
+                           effort="low", messages=messages)
     brief = out.get("brief") if out.get("ready") else None
     if brief:
         brief["questions"] = [q for q in brief.get("questions", []) if q.strip()][:4]
         brief["feature"] = feature
+        if template["id"] != templates.DEFAULT:
+            brief["template"] = template["id"]
     return {"reply": out["reply"], "ready": bool(out.get("ready") and brief), "brief": brief}

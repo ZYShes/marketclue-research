@@ -10,7 +10,7 @@ from uuid import uuid4
 
 import boto3
 
-from . import auth, intake, invites, mockups, pipeline, quota, store
+from . import auth, intake, invites, mockups, pipeline, quota, store, templates
 from .settings import get_settings
 
 
@@ -150,6 +150,7 @@ def _conversation_view(conv: dict) -> dict:
     return {
         **conv, "feature": conv.get("feature") or "marketing_plan", "title": store.conversation_title(conv),
         "run_id": conv.get("run_id"), "run_status": conv.get("run_status"),
+        "template": conv.get("template") or templates.DEFAULT,
     }
 
 
@@ -161,9 +162,11 @@ def _chat(user: dict, data: dict) -> dict:
         feature = data.get("feature") or "marketing_plan"
         if not isinstance(feature, str) or feature not in intake.FEATURES:
             raise HTTPError(400, "invalid_feature", "Choose one of the four research tools")
-        conv = {"conv_id": uuid4().hex[:12], "messages": [], "brief": None, "ready": False, "feature": feature}
+        conv = {"conv_id": uuid4().hex[:12], "messages": [], "brief": None, "ready": False, "feature": feature,
+                "template": _usable_template(data.get("template") or templates.DEFAULT, feature)["id"]}
     else:
         conv = _conversation(user["sub"], _text(data, "conv_id"))
+    template_id = conv.get("template") or templates.DEFAULT
     quota.check_chat_limits(user["sub"], conv, is_new)
     messages = list(conv.get("messages", []))
     result = intake.chat(conv, message)
@@ -179,18 +182,32 @@ def _chat(user: dict, data: dict) -> dict:
         [{"role": "user", "text": message, "at": now},
          {"role": "assistant", "text": result["reply"], "at": now}]
     )
-    conv.update(messages=messages, ready=result["ready"], brief=result.get("brief"))
+    brief = result.get("brief")
+    if brief is not None and template_id != templates.DEFAULT:
+        brief = {**brief, "template": template_id}
+    conv.update(messages=messages, ready=result["ready"], brief=brief)
     store.save_conversation(user["sub"], conv)
     return {
         "conv_id": conv["conv_id"],
         "feature": conv.get("feature") or "marketing_plan",
+        "template": template_id,
         "reply": result["reply"],
         "ready": result["ready"],
-        "brief": result.get("brief"),
+        "brief": brief,
         "messages": messages,
         "run_id": conv.get("run_id"),
         "run_status": conv.get("run_status"),
     }
+
+
+def _usable_template(template_id, feature=None) -> dict:
+    template = templates.get(template_id)
+    if template is None or (feature and feature not in template["tools"]):
+        raise HTTPError(400, "invalid_template", "Choose General or one of the listed templates for this tool")
+    available, reason = templates.availability(template)
+    if not available:
+        raise HTTPError(409, "template_unavailable", reason or "This template is not available right now")
+    return template
 
 
 def _start_run(user: dict, data: dict) -> dict:
@@ -200,14 +217,17 @@ def _start_run(user: dict, data: dict) -> dict:
     conv = _conversation(user["sub"], _text(data, "conv_id"))
     if conv.get("ready") is not True or not isinstance(conv.get("brief"), dict):
         raise HTTPError(400, "conversation_not_ready", "Complete the conversation before starting research")
+    template_id = conv.get("template") or conv["brief"].get("template") or templates.DEFAULT
+    _usable_template(template_id)
+    brief = conv["brief"] if template_id == templates.DEFAULT else {**conv["brief"], "template": template_id}
     function_name = get_settings().self_function_name
     if not function_name:
         raise RuntimeError("SELF_FUNCTION_NAME is required")
     reservation = quota.reserve_run(user, smarter=mode == "smarter")
     run = None
     try:
-        title = conv["brief"].get("business") or "Market research"
-        run = store.create_run(user["sub"], conv["conv_id"], title, conv["brief"], mode=mode)
+        title = brief.get("business") or "Market research"
+        run = store.create_run(user["sub"], conv["conv_id"], title, brief, mode=mode)
         result = _lambda_client().invoke(
             FunctionName=function_name,
             InvocationType="Event",
@@ -451,6 +471,8 @@ def _dispatch(event: dict) -> dict:
         return _response({"ok": True}, cookies=[auth.clear_session_cookie()])
     if method == "POST" and path == "/api/chat":
         return _response(_chat(user, _body(event)))
+    if method == "GET" and path == "/api/templates":
+        return _response(templates.listing())
     if method == "GET" and path == "/api/conversations":
         return _response({"conversations": store.list_conversations(sub, _limit(_query(event)))})
     if method == "GET" and len(parts) == 3 and parts[:2] == ["api", "conversations"]:
