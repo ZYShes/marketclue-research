@@ -78,6 +78,7 @@ export const ICONS = {
   arrow: stroke('<path d="M5 12h14M13 6l6 6-6 6"/>', 16),
   send: stroke('<path d="M12 19V5M6 11l6-6 6 6"/>'),
   sparkle: stroke('<path d="M12 3v4M12 17v4M3 12h4M17 12h4M6.5 6.5l2.5 2.5M15 15l2.5 2.5M17.5 6.5L15 9M9 15l-2.5 2.5"/>'),
+  info: stroke('<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5M12 7.6v.1"/>', 16),
 };
 
 export function icon(name) {
@@ -541,6 +542,11 @@ export function typeBadge(type) {
   return type === "sourced"
     ? h("span", { class: "badge badge-sourced" }, "Sourced")
     : h("span", { class: "badge badge-unverified" }, "Unverified");
+}
+
+// Template badge (SPEC v4), shown next to the depth badge; the default "General" shows none.
+export function templateBadge(name) {
+  return h("span", { class: "badge badge-template" }, `${name} template`);
 }
 
 export function staleBadge() {

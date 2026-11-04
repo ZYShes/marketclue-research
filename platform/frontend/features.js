@@ -49,3 +49,16 @@ export const MODES = {
   smarter: { id: "smarter", name: "Smarter", time: "3 min", cost: "about $2–2.50", detail: "Strongest model, up to 4 directions, 4 pages each, careful writing." },
 };
 export const MODE_ORDER = ["quick", "balanced", "smarter"];
+
+// Templates (SPEC v4). GET /api/templates is the source of truth; these names cover reports and
+// pages rendered before (or without) that list. "general" is the default and shows no badge.
+export const DEFAULT_TEMPLATE = "general";
+export const TEMPLATE_NAMES = { general: "General", ebay: "eBay seller" };
+
+export function templateName(id) {
+  return TEMPLATE_NAMES[id] || (id ? String(id) : TEMPLATE_NAMES.general);
+}
+
+export function isGeneralTemplate(id) {
+  return !id || id === DEFAULT_TEMPLATE;
+}

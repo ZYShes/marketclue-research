@@ -9,9 +9,38 @@
 //            a pending invite: open #/join/sample-invite to accept it.
 // Anyone may pick any research depth (SPEC v3 decisions): quick, balanced or smarter.
 // Page URL switches: &mockups=off makes the mock-up endpoints answer 503 (button hidden);
-// &smarter=limit makes Smarter runs answer 429 smarter_daily_limit.
+// &smarter=limit makes Smarter runs answer 429 smarter_daily_limit;
+// &ebay=off shows the eBay seller template as not connected (409 template_unavailable);
+// &fees=partial makes the eBay fee sample incomplete (no per-order fee, no ad budget).
+// eBay samples (SPEC v4) use invented listings on example.com, never real eBay items.
 
-const STORE_KEY = "mc_mock_state_v3";
+const STORE_KEY = "mc_mock_state_v4";
+const STORE_VERSION = 4;
+const TEMPLATES = [
+  {
+    id: "general", name: "General",
+    description: "Research from public web pages. Works for any business.",
+    tools: ["market_check", "competitor_scan", "launch_checklist", "marketing_plan"],
+    capabilities: [],
+  },
+  {
+    id: "ebay", name: "eBay seller",
+    description: "For selling on eBay: compares live eBay listings and estimates eBay fees and ad costs.",
+    tools: ["market_check", "competitor_scan", "launch_checklist", "marketing_plan"],
+    capabilities: [
+      { id: "ebay_listings", label: "Searches live eBay listings" },
+      { id: "ebay_fees", label: "Estimates eBay fees and ad costs" },
+    ],
+  },
+];
+const ebayOff = () => pageQuery.get("ebay") === "off";
+function templatesView() {
+  return TEMPLATES.map((t) => {
+    const off = t.id === "ebay" && ebayOff();
+    return { ...t, available: !off, unavailable_reason: off ? "eBay is not connected yet" : null };
+  });
+}
+const templateOf = (value) => (TEMPLATES.some((t) => t.id === value) ? value : "general");
 const DURATION = { quick: 18, balanced: 24, smarter: 30 };
 const MODE_IDS = Object.keys(DURATION);
 const FREE_RUNS = 2;
@@ -99,8 +128,90 @@ const CARD_SETS = {
   ],
 };
 
+// ---- eBay seller template samples (SPEC v4) -------------------------------------------
+// Invented active listings. Prices are asking prices on the retrieval date, never sold prices.
+
+const usd = (v) => `$${Number(v).toFixed(2)}`;
+const shortDate = (iso) => new Date(iso).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+const EBAY_LISTINGS = [
+  ["eb-l1", "Ceramic plant pot 6 inch, drainage hole and saucer, matte white", 24.99, 0, "New", 8805],
+  ["eb-l2", "Vintage stoneware planter with saucer, 6 in", 32.0, 11.2, "Pre-owned", 1203],
+  ["eb-l3", "Speckled pottery planter with drip tray, 6.5 in", 39.95, null, "New", 2044],
+  ["eb-l4", "Handmade stoneware planter 6 in with saucer, speckled glaze", 44.0, 9.85, "New", 1520],
+  ["eb-l5", "Handmade ceramic succulent pots, set of 2 with saucers", 52.0, 0, "New", 97],
+  ["eb-l6", "Wheel-thrown 6 in planter with saucer, made in USA", 58.0, 12.4, "New", 312],
+  ["eb-l7", "Studio pottery planter 6 in, glazed stoneware with saucer", 64.0, 14.0, "New", 640],
+].map(([id, title, price, shipping, condition, feedback], i) => ({
+  id, title: `Sample · ${title}`, price, shipping, condition, feedback,
+  url: `https://example.com/sample/ebay/itm/10000000000${i + 1}`,
+}));
+
+function listingCards(age) {
+  const at = daysAgo(age);
+  return EBAY_LISTINGS.map((l) => ({
+    card_id: l.id, feature: "competitor_scan", direction: "Comparable eBay listings",
+    claim: `An active eBay listing asks ${usd(l.price)} for “${l.title}” (asking price on ${shortDate(at)}).`,
+    quote: `${l.title} — ${usd(l.price)}`,
+    source_title: l.title, url: l.url, captured_at: at, retrieved_at: at, type: "sourced",
+    source_kind: "ebay_api", label: `eBay listing (asking price, ${shortDate(at)})`,
+    snapshot_key: "runs/sample/ebay/1.json", tags: ["sample", "ebay"], dedupe_key: `dk-${l.id}`,
+  }));
+}
+
+function listingRows(age) {
+  const at = daysAgo(age);
+  return EBAY_LISTINGS.map((l) => ({
+    title: l.title, price: l.price, currency: "USD", shipping: l.shipping, condition: l.condition, url: l.url,
+    image_url: null, seller_feedback: l.feedback, buying_options: ["FIXED_PRICE"], retrieved_at: at, card_id: l.id,
+  }));
+}
+
+const EBAY_HELP_CARDS = [
+  card("eb-fvf", "marketing_plan", "eBay fees", "The sample eBay fee page lists a 13.6% final value fee for most categories.",
+    "For most categories, the final value fee is 13.6% of the total amount of the sale, up to $7,500.", "eBay help · Selling fees", "ebay-help/selling-fees", "sourced", 0),
+  card("eb-order", "marketing_plan", "eBay fees", "The sample eBay fee page lists a $0.40 per-order fee above $10.",
+    "A per-order fee of $0.40 applies when the total amount of the sale is over $10.", "eBay help · Selling fees", "ebay-help/selling-fees#per-order", "sourced", 0),
+  card("eb-ads", "marketing_plan", "Promoted Listings", "In the sample help page, General ads cost a chosen rate of 2% to 100% and are paid only on a sale.",
+    "You choose an ad rate from 2% to 100% of the total sale amount and pay it only when a buyer clicks your ad and buys within 30 days.", "eBay help · Promoted Listings", "ebay-help/promoted-listings", "sourced", 0),
+  card("eb-priority", "marketing_plan", "Promoted Listings", "In the sample help page, Priority ads charge per click within a daily budget.",
+    "With Priority, you set a daily budget and pay for each click on your ad, whether or not the item sells.", "eBay help · Promoted Listings Priority", "ebay-help/priority", "sourced", 0),
+  card("eb-ship", "marketing_plan", "Shipping costs", "A sample parcel quote for a boxed 5 lb planter is $11.50.",
+    "Ground shipping: 5 lb, 12 × 12 × 10 in, Seattle to Denver — $11.50.", "Parcel calculator · Example quote", "parcel/quote-denver", "sourced", 0),
+];
+
+CARD_SETS.ebay_competitor_scan = [
+  ...listingCards(0),
+  card("eb-cond", "competitor_scan", "Listing details", "The sample eBay help page asks sellers to state the item condition.",
+    "Choose the condition that best describes your item and describe any flaws in the listing.", "eBay help · Item condition", "ebay-help/condition", "sourced", 0),
+];
+CARD_SETS.ebay_marketing_plan = EBAY_HELP_CARDS;
+
 function fixtureCards(set) {
   return CARD_SETS[set] || [];
+}
+
+const cardSetOf = (run) => run.cardSet || (run.template === "ebay" && CARD_SETS[`ebay_${run.feature}`] ? `ebay_${run.feature}` : run.feature);
+
+function ebayBrief(feature, overrides = {}) {
+  return {
+    ...fixtureBrief(feature),
+    template: "ebay",
+    business: "Handmade 6-inch stoneware planters with matching saucers, to sell on eBay.",
+    customer: "US indoor-plant owners and gift buyers shopping on eBay.",
+    location: "Ships from Seattle, WA", stage: "Selling at weekend markets; not on eBay yet.",
+    budget_usd: 300, goal: "Price the planters for eBay and keep ad spend under control.",
+    questions: {
+      market_check: ["What do comparable eBay listings emphasise?", "Which buyers do those listings target?"],
+      competitor_scan: ["What do comparable active eBay listings ask?", "How do they handle shipping and saucers?"],
+      launch_checklist: ["What does eBay require before the first listing?", "Which listing rules apply to handmade planters?"],
+      marketing_plan: ["What do eBay fees take from a $48 sale?", "How high can a Promoted Listings ad rate go before nothing is left?"],
+    }[feature],
+    ebay: {
+      category: "Home & Garden › Planters & Pots", example_listing: null, condition: "New",
+      target_price_usd: 48, buyer_pays_shipping: true, shipping_cost_usd: 11.5, sells_on_ebay: false,
+    },
+    ...overrides,
+  };
 }
 
 function fixtureBrief(feature, overrides = {}) {
@@ -223,12 +334,161 @@ function fixtureCharts(feature, set) {
   }[feature] || [];
 }
 
+// Fee arithmetic of the eBay marketing sample: $48 target price, buyer pays $11.50 shipping.
+const EBAY_FEES = {
+  currency: "USD", price: 48, price_basis: "Your target price", buyer_pays_shipping: true, shipping_cost: 11.5, sale_total: 59.5,
+  lines: [
+    { item: "Final value fee", rate_pct: 13.6, amount: 8.09, kind: "estimate", card_ids: ["eb-fvf"], method: "13.6% × $59.50 sale total" },
+    { item: "Per-order fee", rate_pct: null, amount: 0.4, kind: "estimate", card_ids: ["eb-order"], method: "$0.40 per order over $10" },
+    { item: "Shipping label", rate_pct: null, amount: 11.5, kind: "estimate", card_ids: ["eb-ship"], method: "The buyer pays $11.50 shipping and you buy the label (sample parcel quote)" },
+  ],
+  left_before_ads: 39.51,
+  scenarios: [
+    { label: "Low", ad_rate_pct: 2, ad_fee: 1.19, left: 38.32, method: "2% × $59.50 = $1.19" },
+    { label: "Typical", ad_rate_pct: 5, ad_fee: 2.98, left: 36.53, method: "5% × $59.50 = $2.98" },
+    { label: "High", ad_rate_pct: 10, ad_fee: 5.95, left: 33.56, method: "10% × $59.50 = $5.95" },
+  ],
+  complete: true, kind: "estimate",
+  method: "What is left = $59.50 sale total − $8.09 final value fee − $0.40 per-order fee − $11.50 shipping − ad fee. Before the cost of making the item.",
+};
+const EBAY_FEES_PARTIAL = {
+  ...EBAY_FEES,
+  lines: EBAY_FEES.lines.filter((l) => l.item !== "Per-order fee"),
+  left_before_ads: 39.91, scenarios: [], complete: false,
+  method: "What is left = $59.50 sale total − $8.09 final value fee − $11.50 shipping. The per-order fee could not be checked, so it is not included.",
+};
+const EBAY_AD_BUDGET = {
+  break_even_rate_pct: 66.4, suggested_max_rate_pct: 33.2,
+  suggestion: "Suggestion: keep the Promoted Listings General ad rate at or below 33.2%, half the break-even rate, so at least half of what is left stays with you. Start at 2–5% and raise it only if the listing gets few views.",
+  min_rate_pct: 2, max_rate_pct: 100, rate_card_ids: ["eb-ads"], kind: "estimate",
+  method: "Break-even = $39.51 left before ads ÷ $59.50 sale total = 66.4%; suggested ceiling = 66.4% ÷ 2 = 33.2%.",
+  priority: { text: "Priority (cost per click) charges for every click on the ad, whether or not the item sells, within a daily budget you set.", kind: "sourced", card_ids: ["eb-priority"], method: "" },
+};
+
+function ebayCostsChart() {
+  return {
+    id: "ebay_costs", type: "stacked_bar", unit: "USD", kind: "estimate",
+    title: "Where an eBay sale goes, by ad rate",
+    caption: "At a 5% ad rate, $36.53 of the $59.50 sale total is left before the cost of making the planter.",
+    series: EBAY_FEES.scenarios.map((s) => ({
+      label: `Ad rate ${s.ad_rate_pct}%`, value: EBAY_FEES.sale_total, card_ids: [],
+      segments: [
+        { label: "Final value fee", value: 8.09 }, { label: "Per-order fee", value: 0.4 }, { label: "Shipping", value: 11.5 },
+        { label: "Ad fee", value: s.ad_fee }, { label: "What is left", value: Math.max(0, s.left) },
+      ],
+    })),
+    method: EBAY_FEES.method,
+  };
+}
+
+function shortLabel(text, max) {
+  if (text.length <= max) return text;
+  const cut = text.slice(0, max - 1);
+  return `${cut.slice(0, cut.lastIndexOf(" ") > 20 ? cut.lastIndexOf(" ") : cut.length).replace(/[,\s]+$/, "")}…`;
+}
+
+function askingPricesChart(age) {
+  const at = daysAgo(age);
+  const sorted = [...EBAY_LISTINGS].sort((a, b) => a.price - b.price);
+  return {
+    id: "asking_prices", type: "bar", unit: "USD", kind: "sourced",
+    title: "Asking prices of comparable eBay listings",
+    caption: `Asking prices of ${sorted.length} active listings on ${shortDate(at)}, not sold prices: ${usd(sorted[0].price)} to ${usd(sorted[sorted.length - 1].price)}, middle ${usd(sorted[Math.floor(sorted.length / 2)].price)}.`,
+    series: sorted.map((l) => ({ label: shortLabel(l.title.replace(/^Sample · /, ""), 40), value: l.price, card_ids: [l.id] })),
+    method: `Item prices from the eBay Browse API on ${shortDate(at)}; shipping is listed separately in the table.`,
+  };
+}
+
+function ebayResult(run, base) {
+  const partial = pageQuery.get("fees") === "partial";
+  if (run.feature === "competitor_scan") {
+    return {
+      ...base,
+      table: null,
+      listings: listingRows(0),
+      charts: [askingPricesChart(0), ...base.charts.filter((c) => c.id === "coverage")],
+      takeaway: item("Seven comparable active eBay listings ask $24.99 to $64.00 for a 6-inch planter, before shipping; the handmade stoneware ones ask $44 to $64. A $48 asking price with shipping charged separately would sit among them. These are asking prices on the retrieval date, not sold prices.", "sourced", ["eb-l1", "eb-l7", "eb-l4"]),
+      findings: [
+        finding("Handmade listings ask $44 to $64", "The four handmade stoneware listings with a saucer ask between $44.00 and $64.00 before shipping.", "sourced", ["eb-l4", "eb-l6", "eb-l7"]),
+        finding("The cheapest listings include free shipping", "The lowest asking price, $24.99, comes with free shipping; it is a mass-made matte pot, not a handmade one.", "sourced", ["eb-l1"]),
+        finding("Shipping changes the comparison", "Shipping on the other listings runs from $9.85 to $14.00; one listing gives no shipping cost in its data.", "sourced", ["eb-l4", "eb-l7", "eb-l3"]),
+        finding("Condition matters on eBay", "One comparable listing is pre-owned; eBay asks sellers to state the condition and describe flaws.", "sourced", ["eb-l2", "eb-cond"]),
+      ],
+      next_steps: [
+        { text: "Watch three comparable listings for two weeks.", how: "Note whether each one ends, is relisted or lowers its asking price. MarketClue cannot see sold prices." },
+        { text: "Price one shipped planter to three ZIP codes.", how: "Use eBay's shipping calculator for a near, middle and far address and compare with the listings above." },
+      ],
+      missing_evidence: ["Sold prices: eBay's sold-item data is not available to MarketClue, so every price here is an asking price.", "One listing did not give a shipping cost."],
+    };
+  }
+  if (run.feature === "marketing_plan") {
+    const fees = partial ? EBAY_FEES_PARTIAL : EBAY_FEES;
+    return {
+      ...base,
+      fees,
+      ad_budget: partial ? null : EBAY_AD_BUDGET,
+      charts: [
+        {
+          id: "budget", type: "bar", unit: "USD", kind: "estimate", title: "4-week budget by line",
+          caption: "Packaging is the largest line; ad fees are capped at $60.",
+          series: [
+            { label: "Packaging for 20 orders", value: 70, card_ids: [] },
+            { label: "Promoted Listings General fees (cap)", value: 60, card_ids: ["eb-ads"] },
+            { label: "Sample planters for photos", value: 54, card_ids: [] },
+            { label: "Photo light and backdrop", value: 45, card_ids: [] },
+            { label: "Contingency", value: 71, card_ids: [] },
+          ],
+          method: "Amounts from the budget table below; each line's basis is shown there.",
+        },
+        ...(partial ? [] : [ebayCostsChart()]),
+        ...base.charts.filter((c) => c.id === "coverage"),
+      ],
+      takeaway: item("At a $48 target price with $11.50 shipping paid by the buyer, about $39.51 of each sale is left before ads and before the cost of making the planter. A Promoted Listings General rate of 2–5% keeps most of it.", "estimate", ["eb-fvf", "eb-order"], "$59.50 − $8.09 − $0.40 − $11.50 = $39.51."),
+      findings: [
+        finding("eBay fees take about $8.49 per sale", "The 13.6% final value fee and the $0.40 per-order fee come to $8.49 on a $59.50 sale total.", "estimate", ["eb-fvf", "eb-order"], "13.6% × $59.50 = $8.09; + $0.40 = $8.49."),
+        finding("General ads are paid only on a sale", "With Promoted Listings General you pay the chosen rate only when a buyer clicks the ad and buys within 30 days.", "sourced", ["eb-ads"]),
+        finding("Priority ads can cost money without a sale", "Priority charges for each click, whether or not the item sells, so it needs a daily budget.", "sourced", ["eb-priority"]),
+      ],
+      plan: [
+        { section: "Pricing", items: [item("List at $48 with shipping charged separately, matching the handmade listings.", "assumption", [])] },
+        { section: "Channels", items: [item("Start with Promoted Listings General at 2–5%; try Priority only with a small daily budget.", "assumption", ["eb-ads", "eb-priority"])] },
+        { section: "Measurement", items: [item("Track views, clicks and sales per listing each week, and the ad fee per sale.")] },
+      ],
+      budget: {
+        currency: "USD", total: 300,
+        lines: [
+          { item: "Packaging for 20 orders", amount: 70, kind: "estimate", card_ids: [], method: "20 × $3.50 assumed packing cost." },
+          { item: "Promoted Listings General fees (cap)", amount: 60, kind: "estimate", card_ids: ["eb-ads"], method: "About 20 sales × $59.50 × 5% ≈ $60." },
+          { item: "Sample planters for photos", amount: 54, kind: "estimate", card_ids: [], method: "6 × $9 assumed materials and firing cost." },
+          { item: "Photo light and backdrop", amount: 45, kind: "assumption", card_ids: [], method: "A planning allowance, not a supplier quote." },
+          { item: "Contingency", amount: 71, kind: "assumption", card_ids: [], method: "Uncommitted remainder of the $300 test budget." },
+        ],
+      },
+      next_steps: [
+        { text: "Check the fee for your exact eBay category.", how: "Open eBay's selling fees page and find the final value fee for Home & Garden › Planters & Pots." },
+        { text: "Cap ad spend for the first month.", how: "Set the General ad rate at 5% and stop if the ad fee per sale goes above $3." },
+      ],
+      missing_evidence: [
+        "Suggested ad rates for your listings need a connected eBay seller account (not available yet).",
+        ...(partial ? ["eBay's per-order fee was not found on an ebay.com page in this run, so it is left out."] : []),
+      ],
+    };
+  }
+  return base;
+}
+
 function fixtureResult(run, generatedAt) {
   const feature = run.feature;
-  const set = run.cardSet || feature;
+  const set = cardSetOf(run);
+  const template = templateOf(run.template);
   const coverage = { directions: run.mode === "quick" || !run.mode ? 3 : 4, pages_read: { smarter: 9, balanced: 8 }[run.mode] || 6, quotes_found: feature === "market_check" || feature === "launch_checklist" ? 3 : 4, quotes_total: 4, claims_narrowed: 2, relabelled: 1 };
+  if (template === "ebay" && set.startsWith("ebay_")) {
+    coverage.quotes_total = fixtureCards(set).length;
+    coverage.quotes_found = coverage.quotes_total;
+  }
   const result = {
-    version: 3, feature, mode: run.mode || "quick", title: run.title, generated_at: generatedAt, brief: run.brief,
+    version: template === "ebay" ? 4 : 3, template, feature, mode: run.mode || "quick", title: run.title, generated_at: generatedAt, brief: run.brief,
+    ...(template === "ebay" ? { listings: [], fees: null, ad_budget: null } : {}),
     table: null, plan: [], budget: null, checklist: [], cards: fixtureCards(set),
     coverage,
     charts: [...fixtureCharts(feature, set), coverageChart(coverage)],
@@ -348,7 +608,8 @@ function fixtureResult(run, generatedAt) {
       missing_evidence: ["No paid-ad conversion data or verified customer acquisition cost.", "Production labour, equipment and actual shipping costs are not included in the $600 test budget."],
     },
   };
-  return { ...result, ...byFeature[feature] };
+  const general = { ...result, ...byFeature[feature] };
+  return template === "ebay" && set.startsWith("ebay_") ? ebayResult(run, general) : general;
 }
 
 // ---- Sample intake ------------------------------------------------------------
@@ -360,7 +621,31 @@ const SAMPLE_ANSWERS = {
   marketing_plan: ["Handmade planters for Seattle indoor-plant owners.", "Plant owners at weekend markets; I sell there today.", "$600 for four weeks; 40 customers would be a great result."],
 };
 
-function intakeReply(feature, count) {
+const EBAY_ANSWERS = ["Handmade 6-inch stoneware planters with saucers; I want to sell them on eBay.", "Home & Garden, new, made to order.", "About $48, the buyer pays shipping; I am not on eBay yet."];
+
+function ebayIntakeReply(feature, count) {
+  const questions = [
+    "Which eBay category fits, or can you share a close example listing? Is the item new or used?",
+    "What price are you aiming for, and will the buyer pay shipping? Do you already sell on eBay?",
+  ];
+  const brief = ebayBrief(feature);
+  if (count < 3) {
+    return {
+      reply: `${count === 1 ? "This demo uses a handmade-planter business that wants to sell on eBay. " : "Thanks. "}${questions[count - 1]}`,
+      ready: false,
+      brief: { ...brief, goal: "", questions: [], ebay: count === 1 ? { ...brief.ebay, target_price_usd: null, buyer_pays_shipping: null, shipping_cost_usd: null, sells_on_ebay: null } : brief.ebay },
+    };
+  }
+  return {
+    reply: count === 3
+      ? "Your brief is ready, including the eBay details. Choose a research depth, then press Start research to see a simulated eBay report."
+      : "The demo brief is unchanged. Press Start research when you are ready.",
+    ready: true, brief,
+  };
+}
+
+function intakeReply(feature, count, template = "general") {
+  if (template === "ebay") return ebayIntakeReply(feature, count);
   const questions = {
     market_check: ["Who do you picture buying these planters, and what have they told you so far?", "Which buying question matters most: the customer, the occasion or willingness to pay?"],
     competitor_scan: ["Which planter size and finish should we compare? Should the price include a saucer?", "Should we compare local pickup, delivered prices or both? Any sellers to include?"],
@@ -384,15 +669,16 @@ function intakeReply(feature, count) {
 
 function seedConversation(id, owner, feature, answers, when, extra = {}) {
   const messages = [];
+  const template = templateOf(extra.template);
   let out = null;
   answers.forEach((text, i) => {
     messages.push({ role: "user", text, at: when });
-    out = intakeReply(feature, i + 1);
+    out = intakeReply(feature, i + 1, template);
     messages.push({ role: "assistant", text: out.reply, at: when });
   });
   return {
     conv_id: id, owner, feature, messages, brief: out ? out.brief : null, ready: out ? out.ready : false,
-    run_id: null, created_at: when, updated_at: when, ...extra,
+    run_id: null, created_at: when, updated_at: when, ...extra, template,
   };
 }
 
@@ -409,14 +695,19 @@ function initialState() {
     { run_id: "b1c2d3e4f5a6", owner: "demo-owner", feature: "market_check", mode: "quick", created_at: daysAgo(12), seeded: true },
     { run_id: "aa11bb22cc33", owner: "demo-riley", feature: "competitor_scan", cardSet: "riley", mode: "quick", created_at: daysAgo(3), seeded: true, title: "Sample · Planter prices across online shops" },
     { run_id: "dd44ee55ff66", owner: "demo-member", feature: "market_check", mode: "quick", created_at: daysAgo(6), seeded: true, title: "Sample · Who buys handmade planters? (Sam)" },
+    { run_id: "eb01c0ffee01", owner: "demo-owner", feature: "competitor_scan", template: "ebay", mode: "balanced", created_at: hoursAgo(5), seeded: true, title: "Sample · Handmade planters on eBay: comparable listings" },
+    { run_id: "eb02c0ffee02", owner: "demo-owner", feature: "marketing_plan", template: "ebay", mode: "quick", created_at: hoursAgo(8), seeded: true, title: "Sample · eBay fees and ad budget for a $48 planter" },
   ].map((run) => ({
-    ...run, conv_id: `conv-${run.run_id}`, title: run.title || TITLES[run.feature],
-    brief: fixtureBrief(run.feature), share_token: run.run_id === "a1b2c3d4e5f6" ? "sample-share" : null,
+    ...run, template: templateOf(run.template), conv_id: `conv-${run.run_id}`, title: run.title || TITLES[run.feature],
+    brief: run.template === "ebay" ? ebayBrief(run.feature) : fixtureBrief(run.feature),
+    share_token: run.run_id === "a1b2c3d4e5f6" ? "sample-share" : null,
   }));
   const convs = {};
   for (const run of runs) {
-    convs[run.conv_id] = seedConversation(run.conv_id, run.owner, run.feature, SAMPLE_ANSWERS[run.feature], run.created_at, { run_id: run.run_id });
+    convs[run.conv_id] = seedConversation(run.conv_id, run.owner, run.feature,
+      run.template === "ebay" ? EBAY_ANSWERS : SAMPLE_ANSWERS[run.feature], run.created_at, { run_id: run.run_id, template: run.template });
   }
+  convs["conv-ebay-ready"] = seedConversation("conv-ebay-ready", "demo-owner", "competitor_scan", EBAY_ANSWERS, hoursAgo(1), { template: "ebay" });
   convs["conv-draft-01"] = seedConversation("conv-draft-01", "demo-owner", "market_check",
     ["Weekend wheel-throwing classes for beginners in Ballard."], hoursAgo(3));
   convs["conv-draft-01"].brief = { ...fixtureBrief("market_check"), business: "Weekend wheel-throwing classes for beginners in Ballard.", customer: "", stage: "", budget_usd: null, goal: "", questions: [] };
@@ -438,13 +729,13 @@ function initialState() {
     },
   };
   const teamOf = { "demo-owner": "team-clay", "demo-riley": "team-clay" };
-  return { version: 3, signedIn: false, persona: "demo-owner", runsStarted: {}, convs, runs, shares, teams, teamOf, mockups: {} };
+  return { version: STORE_VERSION, signedIn: false, persona: "demo-owner", runsStarted: {}, convs, runs, shares, teams, teamOf, mockups: {} };
 }
 
 function loadState() {
   try {
     const saved = JSON.parse(sessionStorage.getItem(STORE_KEY) || "null");
-    if (saved && saved.version === 3 && Array.isArray(saved.runs) && saved.convs && saved.teams) return saved;
+    if (saved && saved.version === STORE_VERSION && Array.isArray(saved.runs) && saved.convs && saved.teams) return saved;
   } catch { /* A blocked or malformed demo store starts a fresh sample session. */ }
   return initialState();
 }
@@ -466,8 +757,12 @@ const myTeam = () => state.teams[state.teamOf[me().sub]] || null;
 
 // ---- Simulated run progress ---------------------------------------------------
 
-function timeline(feature, total) {
-  const tasks = {
+function timeline(feature, total, template = "general") {
+  const ebayTasks = {
+    competitor_scan: ["Comparable eBay listings", "Shipping on eBay", "Listing details"],
+    marketing_plan: ["eBay fees", "Promoted Listings", "Shipping costs"],
+  };
+  const tasks = (template === "ebay" && ebayTasks[feature]) || {
     market_check: ["Buyer language", "Buying occasions", "Routes to buyers"],
     competitor_scan: ["Local studios", "Online sellers", "Shipping & costs"],
     launch_checklist: ["Business registration", "Tax & records", "Market requirements"],
@@ -496,7 +791,7 @@ function snapshot(run) {
   let stage = "planning";
   for (const [from, value] of stages) if (t >= from) stage = value;
   if (failed) stage = "researching";
-  const agents = Object.fromEntries(timeline(feature, total).map(([name, start, end, note, finished]) => {
+  const agents = Object.fromEntries(timeline(feature, total, run.template).map(([name, start, end, note, finished]) => {
     if (failed) return [name, name === "Planner" ? { status: "done", note: finished } : start <= 2 * s ? { status: "failed", note: "Too few pages could be read" } : { status: "queued", note: "" }];
     return [name, {
       status: t >= end ? "done" : t >= start && status !== "queued" ? "running" : "queued",
@@ -508,7 +803,7 @@ function snapshot(run) {
   return {
     meta: {
       run_id: run.run_id, user_sub: run.owner, owner_name: owner ? owner.name : null, conv_id: run.conv_id,
-      feature, mode: run.mode || "quick", title: run.title, brief: run.brief || fixtureBrief(feature),
+      feature, mode: run.mode || "quick", template: templateOf(run.template), title: run.title, brief: run.brief || fixtureBrief(feature),
       status, stage: status === "queued" ? null : stage, agents,
       cost_usd: done ? fixtureResult(run, finishedAt).cost.usd : Math.round(0.36 * Math.min(1, t / total) * 100) / 100,
       error: failed ? run.error : null, share_token: run.share_token || null, created_at: run.created_at,
@@ -529,7 +824,7 @@ function canRead(run) {
 function runRow(run) {
   const { meta } = snapshot(run);
   return {
-    run_id: meta.run_id, conv_id: meta.conv_id, feature: meta.feature, mode: meta.mode, title: meta.title,
+    run_id: meta.run_id, conv_id: meta.conv_id, feature: meta.feature, mode: meta.mode, template: meta.template, title: meta.title,
     status: meta.status, created_at: meta.created_at, cost_usd: meta.cost_usd, owner_name: meta.owner_name,
   };
 }
@@ -540,7 +835,7 @@ function cardsFor(subs, { withAddedBy = false } = {}) {
     .filter((run) => subs.includes(run.owner) && runStatus(run) === "done")
     .sort((a, b) => a.created_at.localeCompare(b.created_at));
   for (const run of runs) {
-    for (const entry of fixtureCards(run.cardSet || run.feature)) {
+    for (const entry of fixtureCards(cardSetOf(run))) {
       const existing = byKey.get(entry.dedupe_key);
       if (existing) {
         if (!existing.run_ids.includes(run.run_id)) existing.run_ids.push(run.run_id);
@@ -612,6 +907,7 @@ function route(method, segments, query, body) {
   if (!state.signedIn) return fail(401, "unauthorized", "Sign in to continue.");
   const user = me();
   if (a === "me" && method === "GET") return ok({ user: userView() });
+  if (a === "templates" && !b && method === "GET") return ok(templatesView());
 
   // Conversations
   if (a === "chat" && method === "POST") {
@@ -620,22 +916,27 @@ function route(method, segments, query, body) {
     let conv = body.conv_id ? state.convs[body.conv_id] : null;
     if (body.conv_id && (!conv || conv.owner !== user.sub)) return fail(404, "not_found", "Conversation not found.");
     if (!conv) {
+      const template = body.template == null ? "general" : body.template;
+      const known = templatesView().find((t) => t.id === template);
+      if (!known) return fail(400, "invalid_template", "Choose one of the listed templates.");
+      if (!known.tools.includes(featureId(body.feature))) return fail(400, "invalid_template", "This template does not offer that tool.");
+      if (!known.available) return fail(409, "template_unavailable", known.unavailable_reason);
       const mine = Object.values(state.convs).filter((x) => x.owner === user.sub);
       if (mine.length >= 20) return fail(429, "conversation_limit", "You have reached the limit of 20 conversations.");
       const now = new Date().toISOString();
-      conv = { conv_id: newId(), owner: user.sub, feature: featureId(body.feature), messages: [], brief: null, ready: false, run_id: null, created_at: now, updated_at: now };
+      conv = { conv_id: newId(), owner: user.sub, feature: featureId(body.feature), template, messages: [], brief: null, ready: false, run_id: null, created_at: now, updated_at: now };
       state.convs[conv.conv_id] = conv;
     }
     if (conv.messages.length >= 30) return fail(429, "conversation_full", "This conversation is full. Start a new one to keep going.");
     conv.messages.push({ role: "user", text: message, at: new Date().toISOString() });
-    const output = intakeReply(conv.feature, conv.messages.filter((entry) => entry.role === "user").length);
+    const output = intakeReply(conv.feature, conv.messages.filter((entry) => entry.role === "user").length, templateOf(conv.template));
     conv.messages.push({ role: "assistant", text: output.reply, at: new Date().toISOString() });
     conv.brief = conv.messages.filter((m) => m.role === "user").length === 1
       ? { ...output.brief, business: message.slice(0, 120) }
       : { ...output.brief, business: conv.brief?.business || output.brief.business };
     conv.ready = output.ready;
     conv.updated_at = new Date().toISOString();
-    return ok({ conv_id: conv.conv_id, feature: conv.feature, reply: output.reply, ready: conv.ready, brief: conv.brief, messages: conv.messages, run_id: conv.run_id });
+    return ok({ conv_id: conv.conv_id, feature: conv.feature, template: templateOf(conv.template), reply: output.reply, ready: conv.ready, brief: conv.brief, messages: conv.messages, run_id: conv.run_id });
   }
   if (a === "conversations" && !b && method === "GET") {
     const limit = Math.min(50, Number(query.get("limit")) || 50);
@@ -647,7 +948,7 @@ function route(method, segments, query, body) {
         const run = conv.run_id ? findRun(conv.run_id) : null;
         const firstUser = conv.messages.find((m) => m.role === "user");
         return {
-          conv_id: conv.conv_id, feature: conv.feature,
+          conv_id: conv.conv_id, feature: conv.feature, template: templateOf(conv.template),
           title: run?.title || conv.brief?.business || (firstUser ? firstUser.text.slice(0, 80) : "New conversation"),
           ready: conv.ready, run_id: conv.run_id || null, run_status: run ? runStatus(run) : null, updated_at: conv.updated_at,
         };
@@ -659,7 +960,7 @@ function route(method, segments, query, body) {
     if (!conv || conv.owner !== user.sub) return fail(404, "not_found", "Conversation not found.");
     const run = conv.run_id ? findRun(conv.run_id) : null;
     const { owner: _o, ...rest } = conv;
-    return ok({ ...rest, run_status: run ? runStatus(run) : null });
+    return ok({ ...rest, template: templateOf(conv.template), run_status: run ? runStatus(run) : null });
   }
 
   // Runs
@@ -671,10 +972,13 @@ function route(method, segments, query, body) {
     const mode = body.mode || "quick";
     if (!MODE_IDS.includes(mode)) return fail(400, "invalid_mode", "mode must be quick, balanced or smarter");
     if (mode === "smarter" && pageQuery.get("smarter") === "limit") return fail(429, "smarter_daily_limit", "Smarter research has reached today's limit.");
+    const template = templateOf(conv.template);
+    const tpl = templatesView().find((t) => t.id === template);
+    if (tpl && !tpl.available) return fail(409, "template_unavailable", tpl.unavailable_reason);
     if (userView().free_runs_left !== null && userView().free_runs_left <= 0) return fail(402, "free_run_used", "You have used your free reports.");
     const now = Date.now();
     const run = {
-      run_id: newId(), owner: user.sub, conv_id: conv.conv_id, feature: conv.feature, mode, brief: conv.brief,
+      run_id: newId(), owner: user.sub, conv_id: conv.conv_id, feature: conv.feature, mode, template, brief: conv.brief,
       title: conv.brief?.business ? `${TOOL_NAMES[conv.feature]}: ${conv.brief.business}`.slice(0, 90) : TITLES[conv.feature],
       created_at: new Date(now).toISOString(), startedMs: now, share_token: null,
     };

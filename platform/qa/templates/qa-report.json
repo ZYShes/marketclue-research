@@ -1,0 +1,472 @@
+{
+  "generated_at": "2026-11-04T03:07:46.386Z",
+  "axe_source": "local npm copy (CDN blocked)",
+  "checks": [
+    {
+      "ok": true,
+      "label": "#/new shows two template cards"
+    },
+    {
+      "ok": true,
+      "label": "General is the default template"
+    },
+    {
+      "ok": true,
+      "label": "eBay card shows its capability badges"
+    },
+    {
+      "ok": true,
+      "label": "template choice comes before the tools"
+    },
+    {
+      "ok": true,
+      "label": "ArrowRight selects eBay seller from the keyboard"
+    },
+    {
+      "ok": true,
+      "label": "composer hint mentions the eBay questions"
+    },
+    {
+      "ok": true,
+      "label": "the template choice is remembered after a reload"
+    },
+    {
+      "ok": true,
+      "label": "first message opens the eBay conversation"
+    },
+    {
+      "ok": true,
+      "label": "conversation shows the template badge"
+    },
+    {
+      "ok": true,
+      "label": "eBay brief becomes Ready"
+    },
+    {
+      "ok": true,
+      "label": "brief panel lists the eBay details"
+    },
+    {
+      "ok": true,
+      "label": "eBay details include the target price"
+    },
+    {
+      "ok": true,
+      "label": "Start research opens the live run"
+    },
+    {
+      "ok": true,
+      "label": "run page shows the template badge next to the depth badge"
+    },
+    {
+      "ok": true,
+      "label": "report header shows the template badge"
+    },
+    {
+      "ok": true,
+      "label": "report has the Comparable eBay listings section"
+    },
+    {
+      "ok": true,
+      "label": "listings table lists the comparable listings"
+    },
+    {
+      "ok": true,
+      "label": "listings note says asking prices, not sold prices"
+    },
+    {
+      "ok": true,
+      "label": "asking-price chart is an accessible SVG"
+    },
+    {
+      "ok": true,
+      "label": "asking-price caption says not sold prices"
+    },
+    {
+      "ok": true,
+      "label": "the report never says 'sells for'"
+    },
+    {
+      "ok": true,
+      "label": "a listing's fact card shows its label and retrieval date"
+    },
+    {
+      "ok": true,
+      "label": "marketing report has the eBay fees & ad costs section"
+    },
+    {
+      "ok": true,
+      "label": "fee breakdown lists rates and what is left"
+    },
+    {
+      "ok": true,
+      "label": "three ad-rate scenarios"
+    },
+    {
+      "ok": true,
+      "label": "ad budget shows the break-even rate and a labelled suggestion"
+    },
+    {
+      "ok": true,
+      "label": "ad budget has the Priority line"
+    },
+    {
+      "ok": true,
+      "label": "eBay costs chart is an accessible SVG"
+    },
+    {
+      "ok": true,
+      "label": "one stacked bar per scenario (What is left segment in each)"
+    },
+    {
+      "ok": true,
+      "label": "chart <desc> lists every segment per bar"
+    },
+    {
+      "ok": true,
+      "label": "Show data gives a table with one column per segment"
+    },
+    {
+      "ok": true,
+      "label": "partial fees show the incomplete note"
+    },
+    {
+      "ok": true,
+      "label": "no ad budget when fees are incomplete"
+    },
+    {
+      "ok": true,
+      "label": "no eBay costs chart when fees are incomplete"
+    },
+    {
+      "ok": true,
+      "label": "the unsourced per-order fee is left out"
+    },
+    {
+      "ok": true,
+      "label": "eBay template is disabled when not connected"
+    },
+    {
+      "ok": true,
+      "label": "disabled card shows the reason"
+    },
+    {
+      "ok": true,
+      "label": "a remembered but unavailable template falls back to General"
+    },
+    {
+      "ok": true,
+      "label": "arrow keys do not select the disabled template"
+    },
+    {
+      "ok": true,
+      "label": "the reason is announced with the disabled card"
+    },
+    {
+      "ok": true,
+      "label": "01-new-templates @1280: no axe violations"
+    },
+    {
+      "ok": true,
+      "label": "01-new-templates @1280: no horizontal scroll"
+    },
+    {
+      "ok": true,
+      "label": "02-conversation-ebay-ready @1280: no axe violations"
+    },
+    {
+      "ok": true,
+      "label": "02-conversation-ebay-ready @1280: no horizontal scroll"
+    },
+    {
+      "ok": true,
+      "label": "03-report-ebay-listings @1280: no axe violations"
+    },
+    {
+      "ok": true,
+      "label": "03-report-ebay-listings @1280: no horizontal scroll"
+    },
+    {
+      "ok": true,
+      "label": "04-report-ebay-fees @1280: no axe violations"
+    },
+    {
+      "ok": true,
+      "label": "04-report-ebay-fees @1280: no horizontal scroll"
+    },
+    {
+      "ok": true,
+      "label": "05-ebay-costs-show-data @1280: no axe violations"
+    },
+    {
+      "ok": true,
+      "label": "05-ebay-costs-show-data @1280: no horizontal scroll"
+    },
+    {
+      "ok": true,
+      "label": "06-new-ebay-not-connected @1280: no axe violations"
+    },
+    {
+      "ok": true,
+      "label": "06-new-ebay-not-connected @1280: no horizontal scroll"
+    },
+    {
+      "ok": true,
+      "label": "07-report-ebay-fees-partial @1280: no axe violations"
+    },
+    {
+      "ok": true,
+      "label": "07-report-ebay-fees-partial @1280: no horizontal scroll"
+    },
+    {
+      "ok": true,
+      "label": "01-new-templates @375: no axe violations"
+    },
+    {
+      "ok": true,
+      "label": "01-new-templates @375: no horizontal scroll"
+    },
+    {
+      "ok": true,
+      "label": "02-conversation-ebay-ready @375: no axe violations"
+    },
+    {
+      "ok": true,
+      "label": "02-conversation-ebay-ready @375: no horizontal scroll"
+    },
+    {
+      "ok": true,
+      "label": "03-report-ebay-listings @375: no axe violations"
+    },
+    {
+      "ok": true,
+      "label": "03-report-ebay-listings @375: no horizontal scroll"
+    },
+    {
+      "ok": true,
+      "label": "04-report-ebay-fees @375: no axe violations"
+    },
+    {
+      "ok": true,
+      "label": "04-report-ebay-fees @375: no horizontal scroll"
+    },
+    {
+      "ok": true,
+      "label": "05-ebay-costs-show-data @375: no axe violations"
+    },
+    {
+      "ok": true,
+      "label": "05-ebay-costs-show-data @375: no horizontal scroll"
+    },
+    {
+      "ok": true,
+      "label": "06-new-ebay-not-connected @375: no axe violations"
+    },
+    {
+      "ok": true,
+      "label": "06-new-ebay-not-connected @375: no horizontal scroll"
+    },
+    {
+      "ok": true,
+      "label": "07-report-ebay-fees-partial @375: no axe violations"
+    },
+    {
+      "ok": true,
+      "label": "07-report-ebay-fees-partial @375: no horizontal scroll"
+    },
+    {
+      "ok": true,
+      "label": "08-new-templates-zoom-200 @1280: no axe violations"
+    },
+    {
+      "ok": true,
+      "label": "08-new-templates-zoom-200 @1280: no horizontal scroll"
+    },
+    {
+      "ok": true,
+      "label": "09-report-ebay-fees-zoom-200 @1280: no axe violations"
+    },
+    {
+      "ok": true,
+      "label": "09-report-ebay-fees-zoom-200 @1280: no horizontal scroll"
+    }
+  ],
+  "pages": [
+    {
+      "name": "01-new-templates",
+      "file": "01-new-templates-1280.jpg",
+      "width": 1280,
+      "axe": [],
+      "layout": {
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "horizontalScroll": false
+      }
+    },
+    {
+      "name": "02-conversation-ebay-ready",
+      "file": "02-conversation-ebay-ready-1280.jpg",
+      "width": 1280,
+      "axe": [],
+      "layout": {
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "horizontalScroll": false
+      }
+    },
+    {
+      "name": "03-report-ebay-listings",
+      "file": "03-report-ebay-listings-1280.jpg",
+      "width": 1280,
+      "axe": [],
+      "layout": {
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "horizontalScroll": false
+      }
+    },
+    {
+      "name": "04-report-ebay-fees",
+      "file": "04-report-ebay-fees-1280.jpg",
+      "width": 1280,
+      "axe": [],
+      "layout": {
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "horizontalScroll": false
+      }
+    },
+    {
+      "name": "05-ebay-costs-show-data",
+      "file": "05-ebay-costs-show-data-1280.jpg",
+      "width": 1280,
+      "axe": [],
+      "layout": {
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "horizontalScroll": false
+      }
+    },
+    {
+      "name": "06-new-ebay-not-connected",
+      "file": "06-new-ebay-not-connected-1280.jpg",
+      "width": 1280,
+      "axe": [],
+      "layout": {
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "horizontalScroll": false
+      }
+    },
+    {
+      "name": "07-report-ebay-fees-partial",
+      "file": "07-report-ebay-fees-partial-1280.jpg",
+      "width": 1280,
+      "axe": [],
+      "layout": {
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "horizontalScroll": false
+      }
+    },
+    {
+      "name": "01-new-templates",
+      "file": "01-new-templates-375.jpg",
+      "width": 375,
+      "axe": [],
+      "layout": {
+        "scrollWidth": 375,
+        "clientWidth": 375,
+        "horizontalScroll": false
+      }
+    },
+    {
+      "name": "02-conversation-ebay-ready",
+      "file": "02-conversation-ebay-ready-375.jpg",
+      "width": 375,
+      "axe": [],
+      "layout": {
+        "scrollWidth": 375,
+        "clientWidth": 375,
+        "horizontalScroll": false
+      }
+    },
+    {
+      "name": "03-report-ebay-listings",
+      "file": "03-report-ebay-listings-375.jpg",
+      "width": 375,
+      "axe": [],
+      "layout": {
+        "scrollWidth": 375,
+        "clientWidth": 375,
+        "horizontalScroll": false
+      }
+    },
+    {
+      "name": "04-report-ebay-fees",
+      "file": "04-report-ebay-fees-375.jpg",
+      "width": 375,
+      "axe": [],
+      "layout": {
+        "scrollWidth": 375,
+        "clientWidth": 375,
+        "horizontalScroll": false
+      }
+    },
+    {
+      "name": "05-ebay-costs-show-data",
+      "file": "05-ebay-costs-show-data-375.jpg",
+      "width": 375,
+      "axe": [],
+      "layout": {
+        "scrollWidth": 375,
+        "clientWidth": 375,
+        "horizontalScroll": false
+      }
+    },
+    {
+      "name": "06-new-ebay-not-connected",
+      "file": "06-new-ebay-not-connected-375.jpg",
+      "width": 375,
+      "axe": [],
+      "layout": {
+        "scrollWidth": 375,
+        "clientWidth": 375,
+        "horizontalScroll": false
+      }
+    },
+    {
+      "name": "07-report-ebay-fees-partial",
+      "file": "07-report-ebay-fees-partial-375.jpg",
+      "width": 375,
+      "axe": [],
+      "layout": {
+        "scrollWidth": 375,
+        "clientWidth": 375,
+        "horizontalScroll": false
+      }
+    },
+    {
+      "name": "08-new-templates-zoom-200",
+      "file": "08-new-templates-zoom-200-1280.jpg",
+      "width": 1280,
+      "axe": [],
+      "layout": {
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "horizontalScroll": false
+      }
+    },
+    {
+      "name": "09-report-ebay-fees-zoom-200",
+      "file": "09-report-ebay-fees-zoom-200-1280.jpg",
+      "width": 1280,
+      "axe": [],
+      "layout": {
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "horizontalScroll": false
+      }
+    }
+  ]
+}
