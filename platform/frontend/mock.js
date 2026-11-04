@@ -13,9 +13,15 @@
 // &ebay=off shows the eBay seller template as not connected (409 template_unavailable);
 // &fees=partial makes the eBay fee sample incomplete (no per-order fee, no ad budget).
 // eBay samples (SPEC v4) use invented listings on example.com, never real eBay items.
+// Projects (SPEC v5): the owner has a personal project "Handmade ceramic planters" (runs at every stage),
+// a team project "Planters on eBay" in "Clay & Leaf Studio" (with a report by Riley), and an archived
+// personal project. The owner is in two teams: owns "Clay & Leaf Studio", member of "North Market Makers".
 
-const STORE_KEY = "mc_mock_state_v4";
-const STORE_VERSION = 4;
+const STORE_KEY = "mc_mock_state_v5";
+const STORE_VERSION = 5;
+const PROJECT_LIMIT = 50;
+const TEAM_LIMIT = 10;
+const EARLIER_LABEL = "from an earlier report in this project";
 const TEMPLATES = [
   {
     id: "general", name: "General",
@@ -687,16 +693,17 @@ function seedConversation(id, owner, feature, answers, when, extra = {}) {
 function initialState() {
   const now = Date.now();
   const runs = [
-    { run_id: "a1b2c3d4e5f6", owner: "demo-owner", feature: "marketing_plan", mode: "smarter", created_at: hoursAgo(1.2), seeded: true },
-    { run_id: "f0e1d2c3b4a5", owner: "demo-owner", feature: "competitor_scan", mode: "quick", created_at: new Date(now - 4000).toISOString(), startedMs: now - 4000, title: "Sample · Saucer prices at Seattle plant shops" },
-    { run_id: "c1d2e3f4a5b6", owner: "demo-owner", feature: "competitor_scan", mode: "quick", created_at: daysAgo(2), seeded: true },
-    { run_id: "d1e2f3a4b5c6", owner: "demo-owner", feature: "launch_checklist", mode: "balanced", created_at: daysAgo(4), seeded: true },
+    { run_id: "a1b2c3d4e5f6", owner: "demo-owner", feature: "marketing_plan", mode: "smarter", created_at: hoursAgo(1.2), seeded: true, project_id: "proj-planters" },
+    { run_id: "f0e1d2c3b4a5", owner: "demo-owner", feature: "competitor_scan", mode: "quick", created_at: new Date(now - 4000).toISOString(), startedMs: now - 4000, title: "Sample · Saucer prices at Seattle plant shops", project_id: "proj-planters" },
+    { run_id: "c1d2e3f4a5b6", owner: "demo-owner", feature: "competitor_scan", mode: "quick", created_at: daysAgo(2), seeded: true, project_id: "proj-planters" },
+    { run_id: "d1e2f3a4b5c6", owner: "demo-owner", feature: "launch_checklist", mode: "balanced", created_at: daysAgo(4), seeded: true, project_id: "proj-planters" },
     { run_id: "e9f8a7b6c5d4", owner: "demo-owner", feature: "market_check", mode: "quick", created_at: daysAgo(5), seeded: true, failed: true, title: "Sample · Who buys glaze workshops?", error: "The research agents could not reach enough public pages. Try again with a narrower question." },
     { run_id: "b1c2d3e4f5a6", owner: "demo-owner", feature: "market_check", mode: "quick", created_at: daysAgo(12), seeded: true },
-    { run_id: "aa11bb22cc33", owner: "demo-riley", feature: "competitor_scan", cardSet: "riley", mode: "quick", created_at: daysAgo(3), seeded: true, title: "Sample · Planter prices across online shops" },
+    { run_id: "aa11bb22cc33", owner: "demo-riley", feature: "competitor_scan", cardSet: "riley", mode: "quick", created_at: daysAgo(3), seeded: true, title: "Sample · Planter prices across online shops", project_id: "proj-ebay" },
     { run_id: "dd44ee55ff66", owner: "demo-member", feature: "market_check", mode: "quick", created_at: daysAgo(6), seeded: true, title: "Sample · Who buys handmade planters? (Sam)" },
-    { run_id: "eb01c0ffee01", owner: "demo-owner", feature: "competitor_scan", template: "ebay", mode: "balanced", created_at: hoursAgo(5), seeded: true, title: "Sample · Handmade planters on eBay: comparable listings" },
-    { run_id: "eb02c0ffee02", owner: "demo-owner", feature: "marketing_plan", template: "ebay", mode: "quick", created_at: hoursAgo(8), seeded: true, title: "Sample · eBay fees and ad budget for a $48 planter" },
+    { run_id: "eb01c0ffee01", owner: "demo-owner", feature: "competitor_scan", template: "ebay", mode: "balanced", created_at: hoursAgo(5), seeded: true, title: "Sample · Handmade planters on eBay: comparable listings", project_id: "proj-ebay" },
+    { run_id: "eb02c0ffee02", owner: "demo-owner", feature: "marketing_plan", template: "ebay", mode: "quick", created_at: hoursAgo(8), seeded: true, title: "Sample · eBay fees and ad budget for a $48 planter", project_id: "proj-ebay" },
+    { run_id: "cc77dd88ee99", owner: "demo-owner", feature: "market_check", mode: "quick", created_at: daysAgo(30), seeded: true, title: "Sample · Who books weekend pottery classes?", project_id: "proj-classes" },
   ].map((run) => ({
     ...run, template: templateOf(run.template), conv_id: `conv-${run.run_id}`, title: run.title || TITLES[run.feature],
     brief: run.template === "ebay" ? ebayBrief(run.feature) : fixtureBrief(run.feature),
@@ -705,7 +712,8 @@ function initialState() {
   const convs = {};
   for (const run of runs) {
     convs[run.conv_id] = seedConversation(run.conv_id, run.owner, run.feature,
-      run.template === "ebay" ? EBAY_ANSWERS : SAMPLE_ANSWERS[run.feature], run.created_at, { run_id: run.run_id, template: run.template });
+      run.template === "ebay" ? EBAY_ANSWERS : SAMPLE_ANSWERS[run.feature], run.created_at,
+      { run_id: run.run_id, template: run.template, project_id: run.project_id || null });
   }
   convs["conv-ebay-ready"] = seedConversation("conv-ebay-ready", "demo-owner", "competitor_scan", EBAY_ANSWERS, hoursAgo(1), { template: "ebay" });
   convs["conv-draft-01"] = seedConversation("conv-draft-01", "demo-owner", "market_check",
@@ -728,14 +736,38 @@ function initialState() {
       ],
     },
   };
-  const teamOf = { "demo-owner": "team-clay", "demo-riley": "team-clay" };
-  return { version: STORE_VERSION, signedIn: false, persona: "demo-owner", runsStarted: {}, convs, runs, shares, teams, teamOf, mockups: {} };
+  teams["team-north"] = {
+    team_id: "team-north", name: "North Market Makers", owner_sub: "demo-riley", created_at: daysAgo(40),
+    members: [
+      { sub: "demo-riley", role: "owner", joined_at: daysAgo(40) },
+      { sub: "demo-owner", role: "member", joined_at: daysAgo(15) },
+    ],
+    invites: [],
+  };
+  const projects = {
+    "proj-planters": {
+      project_id: "proj-planters", name: "Handmade ceramic planters", owner_sub: "demo-owner", team_id: null,
+      brief: { business: "Handmade stoneware planters with drainage holes and saucers", customer: "Seattle indoor-plant owners and gift buyers", location: "Seattle, WA", stage: "Testing at weekend markets", budget_usd: 600 },
+      default_template: "general", created_at: daysAgo(14), updated_at: hoursAgo(1.2), archived: false,
+    },
+    "proj-ebay": {
+      project_id: "proj-ebay", name: "Planters on eBay", owner_sub: "demo-owner", team_id: "team-clay",
+      brief: { business: "Handmade 6-inch stoneware planters with saucers", customer: "US plant owners shopping on eBay", location: "Ships from Seattle, WA", stage: null, budget_usd: 300 },
+      default_template: "ebay", created_at: daysAgo(6), updated_at: hoursAgo(5), archived: false,
+    },
+    "proj-classes": {
+      project_id: "proj-classes", name: "Wheel-throwing classes", owner_sub: "demo-owner", team_id: null,
+      brief: { business: "Weekend wheel-throwing classes for beginners", customer: null, location: "Ballard, Seattle", stage: "Idea", budget_usd: null },
+      default_template: "general", created_at: daysAgo(31), updated_at: daysAgo(29), archived: true,
+    },
+  };
+  return { version: STORE_VERSION, signedIn: false, persona: "demo-owner", runsStarted: {}, convs, runs, shares, teams, projects, mockups: {} };
 }
 
 function loadState() {
   try {
     const saved = JSON.parse(sessionStorage.getItem(STORE_KEY) || "null");
-    if (saved && saved.version === STORE_VERSION && Array.isArray(saved.runs) && saved.convs && saved.teams) return saved;
+    if (saved && saved.version === STORE_VERSION && Array.isArray(saved.runs) && saved.convs && saved.teams && saved.projects) return saved;
   } catch { /* A blocked or malformed demo store starts a fresh sample session. */ }
   return initialState();
 }
@@ -751,9 +783,141 @@ const me = () => USERS[state.persona];
 function userView() {
   const u = me();
   const started = state.runsStarted[u.sub] || 0;
-  return { ...u, team_id: state.teamOf[u.sub] || null, free_runs_left: u.is_owner ? null : Math.max(0, FREE_RUNS - started) };
+  return { ...u, free_runs_left: u.is_owner ? null : Math.max(0, FREE_RUNS - started) };
 }
-const myTeam = () => state.teams[state.teamOf[me().sub]] || null;
+
+// ---- Teams and projects (SPEC v5) ---------------------------------------------------
+
+const memberOf = (team, sub) => !!team && team.members.some((m) => m.sub === sub);
+function teamsOf(sub) {
+  const joined = (t) => t.members.find((m) => m.sub === sub)?.joined_at || "";
+  return Object.values(state.teams).filter((t) => memberOf(t, sub)).sort((a, b) => joined(a).localeCompare(joined(b)));
+}
+const firstTeam = () => teamsOf(me().sub)[0] || null;
+const findProject = (id) => (id && state.projects[id]) || null;
+function canSeeProject(p, sub = me().sub) {
+  if (!p) return false;
+  return p.team_id ? memberOf(state.teams[p.team_id], sub) : p.owner_sub === sub;
+}
+function canManageProject(p, sub = me().sub) {
+  return canSeeProject(p, sub) && (p.owner_sub === sub || (!!p.team_id && state.teams[p.team_id]?.owner_sub === sub));
+}
+function projectRole(p, sub = me().sub) {
+  if (p.owner_sub === sub) return "owner";
+  if (p.team_id && state.teams[p.team_id]?.owner_sub === sub) return "team_owner";
+  return "member";
+}
+const teamRef = (p) => (p.team_id && state.teams[p.team_id] ? { team_id: p.team_id, name: state.teams[p.team_id].name } : null);
+const projectRuns = (p) => state.runs.filter((run) => run.project_id === p.project_id);
+const visibleInProject = (run) => run.owner === me().sub || runStatus(run) === "done";
+
+function projectRow(p) {
+  const runs = projectRuns(p);
+  const done = runs.filter((run) => runStatus(run) === "done");
+  const stages = Object.fromEntries(Object.keys(TOOL_NAMES).map((f) => [f, done.filter((run) => run.feature === f).length]));
+  const last = runs.filter(visibleInProject).map((run) => run.created_at).sort().pop() || null;
+  return {
+    project_id: p.project_id, name: p.name, team: teamRef(p), role: projectRole(p), can_manage: canManageProject(p),
+    archived: !!p.archived, default_template: p.default_template || "general", stages, last_run_at: last, updated_at: p.updated_at,
+  };
+}
+
+function listProjects({ archived = false, teamId = null } = {}) {
+  const sub = me().sub;
+  return Object.values(state.projects)
+    .filter((p) => canSeeProject(p, sub) && (archived || !p.archived) && (!teamId || p.team_id === teamId))
+    .map(projectRow)
+    .sort((a, b) => String(b.last_run_at || b.updated_at).localeCompare(String(a.last_run_at || a.updated_at)));
+}
+
+function takeawayText(run) {
+  const result = snapshot(run).result;
+  const text = result?.takeaway?.text || "";
+  return text.length > 300 ? `${text.slice(0, 297)}…` : text;
+}
+
+function projectRunRow(run) {
+  const meta = snapshot(run).meta;
+  return {
+    run_id: run.run_id, title: meta.title, status: meta.status, feature: meta.feature, mode: meta.mode, template: meta.template,
+    created_at: meta.created_at, takeaway: meta.status === "done" ? takeawayText(run) : null,
+    user_sub: run.owner, owner_name: meta.owner_name, mine: run.owner === me().sub,
+  };
+}
+
+function convRow(conv) {
+  const run = conv.run_id ? findRun(conv.run_id) : null;
+  const firstUser = conv.messages.find((m) => m.role === "user");
+  return {
+    conv_id: conv.conv_id, feature: conv.feature, template: templateOf(conv.template), project_id: conv.project_id || null,
+    title: run?.title || conv.brief?.business || (firstUser ? firstUser.text.slice(0, 80) : "New conversation"),
+    ready: conv.ready, run_id: conv.run_id || null, run_status: run ? runStatus(run) : null, updated_at: conv.updated_at,
+  };
+}
+
+function projectDetailView(p) {
+  const runs = projectRuns(p).filter(visibleInProject).sort((a, b) => b.created_at.localeCompare(a.created_at));
+  const stages = {};
+  for (const f of Object.keys(TOOL_NAMES)) {
+    const done = runs.filter((run) => run.feature === f && runStatus(run) === "done");
+    const latest = done[0] || null;
+    stages[f] = {
+      count: done.length,
+      latest: latest ? {
+        run_id: latest.run_id, title: latest.title, takeaway: takeawayText(latest), created_at: latest.created_at,
+        mode: latest.mode || "quick", template: templateOf(latest.template),
+      } : null,
+    };
+  }
+  const conversations = Object.values(state.convs)
+    .filter((conv) => conv.owner === me().sub && conv.project_id === p.project_id)
+    .sort((x, y) => y.updated_at.localeCompare(x.updated_at)).map(convRow);
+  return {
+    project: {
+      project_id: p.project_id, name: p.name, owner_sub: p.owner_sub, team: teamRef(p), brief: { ...p.brief },
+      default_template: p.default_template || "general", archived: !!p.archived, created_at: p.created_at, updated_at: p.updated_at,
+      role: projectRole(p), can_manage: canManageProject(p),
+    },
+    stages, runs: runs.map(projectRunRow), conversations,
+  };
+}
+
+function projectCards(p) {
+  const byKey = new Map();
+  const runs = projectRuns(p).filter((run) => runStatus(run) === "done").sort((a, b) => a.created_at.localeCompare(b.created_at));
+  for (const run of runs) {
+    for (const entry of fixtureCards(cardSetOf(run))) {
+      const existing = byKey.get(entry.dedupe_key);
+      if (existing) {
+        if (!existing.run_ids.includes(run.run_id)) existing.run_ids.push(run.run_id);
+        continue;
+      }
+      byKey.set(entry.dedupe_key, {
+        ...entry, run_ids: [run.run_id], stale: Date.now() - new Date(entry.captured_at).getTime() > 90 * DAY,
+        added_by: USERS[run.owner]?.name || "Teammate", added_by_sub: run.owner,
+      });
+    }
+  }
+  return [...byKey.values()];
+}
+
+// A report in a project cites one sourced card from the most recent earlier finished report in it.
+function withProject(run, result) {
+  const p = findProject(run.project_id);
+  if (!p || !result) return result;
+  const earlierRun = projectRuns(p)
+    .filter((other) => other.run_id !== run.run_id && other.created_at < run.created_at && runStatus(other) === "done")
+    .sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
+  const own = new Set((result.cards || []).map((c) => c.card_id));
+  const earlier = earlierRun ? fixtureCards(cardSetOf(earlierRun)).find((c) => c.type === "sourced" && !own.has(c.card_id)) : null;
+  const out = { ...result, project: { project_id: p.project_id, name: p.name, team_id: p.team_id, reused: null, earlier_cards: 0 } };
+  if (!earlier) return out;
+  out.cards = [...(result.cards || []), { ...earlier, earlier: true, label: EARLIER_LABEL }];
+  out.findings = (result.findings || []).map((f, i) => (i === 0 ? { ...f, card_ids: [...(f.card_ids || []), earlier.card_id] } : f));
+  out.project.reused = `“${earlierRun.title}” already answered part of this question, so this run cites its fact card instead of researching it again.`;
+  out.project.earlier_cards = 1;
+  return out;
+}
 
 // ---- Simulated run progress ---------------------------------------------------
 
@@ -802,7 +966,7 @@ function snapshot(run) {
   const owner = USERS[run.owner];
   return {
     meta: {
-      run_id: run.run_id, user_sub: run.owner, owner_name: owner ? owner.name : null, conv_id: run.conv_id,
+      run_id: run.run_id, user_sub: run.owner, owner_name: owner ? owner.name : null, conv_id: run.conv_id, project_id: run.project_id || null,
       feature, mode: run.mode || "quick", template: templateOf(run.template), title: run.title, brief: run.brief || fixtureBrief(feature),
       status, stage: status === "queued" ? null : stage, agents,
       cost_usd: done ? fixtureResult(run, finishedAt).cost.usd : Math.round(0.36 * Math.min(1, t / total) * 100) / 100,
@@ -815,17 +979,17 @@ function snapshot(run) {
 const findRun = (id) => state.runs.find((run) => run.run_id === id) || null;
 const runStatus = (run) => snapshot(run).meta.status;
 
+// A done run is readable by everyone who can see its project; unfiled runs stay private (SPEC v5).
 function canRead(run) {
   if (run.owner === me().sub) return true;
-  const team = myTeam();
-  return !!team && team.members.some((m) => m.sub === run.owner) && runStatus(run) === "done";
+  return runStatus(run) === "done" && canSeeProject(findProject(run.project_id));
 }
 
 function runRow(run) {
   const { meta } = snapshot(run);
   return {
     run_id: meta.run_id, conv_id: meta.conv_id, feature: meta.feature, mode: meta.mode, template: meta.template, title: meta.title,
-    status: meta.status, created_at: meta.created_at, cost_usd: meta.cost_usd, owner_name: meta.owner_name,
+    status: meta.status, created_at: meta.created_at, cost_usd: meta.cost_usd, owner_name: meta.owner_name, project_id: run.project_id || null,
   };
 }
 
@@ -865,10 +1029,75 @@ function teamView(team) {
     team: { team_id: team.team_id, name: team.name, owner_sub: team.owner_sub, created_at: team.created_at },
     role,
     members: team.members.map((m) => ({ ...USERS[m.sub], ...m, email: USERS[m.sub]?.email, name: USERS[m.sub]?.name })),
-    invites: role === "owner" ? team.invites.filter((i) => i.status === "pending").map((i) => ({ ...i, invite_url: inviteUrl(i.token) })) : undefined,
+    invites: role === "owner" ? team.invites.filter((i) => i.status === "pending").map((i) => ({ ...i, invite_url: inviteUrl(i.token) })) : [],
+    projects: listProjects({ teamId: team.team_id }),
   };
 }
 const inviteUrl = (token) => `${location.origin}${location.pathname}?mock=1#/join/${token}`;
+
+function teamListRow(team) {
+  const mine = team.members.find((m) => m.sub === me().sub);
+  return {
+    team_id: team.team_id, name: team.name, role: team.owner_sub === me().sub ? "owner" : "member",
+    owner_sub: team.owner_sub, joined_at: mine?.joined_at || null, member_count: team.members.length,
+  };
+}
+
+function createTeam(name) {
+  if (!name) return fail(400, "bad_request", "Enter a team name.");
+  if (teamsOf(me().sub).length >= TEAM_LIMIT) return fail(429, "team_limit", "You can be in at most 10 teams.");
+  const id = `team-${newId()}`;
+  const now = new Date().toISOString();
+  state.teams[id] = { team_id: id, name: name.slice(0, 80), owner_sub: me().sub, created_at: now, members: [{ sub: me().sub, role: "owner", joined_at: now }], invites: [] };
+  return ok(teamView(state.teams[id]));
+}
+
+// Team actions shared by /teams/{id}/… and the old /team/… routes (first team).
+function teamAction(team, method, b, c, query, body) {
+  const user = me();
+  const isOwner = team.owner_sub === user.sub;
+  if (!b && method === "GET") return ok(teamView(team));
+  if (b === "invites" && !c && method === "POST") {
+    if (!isOwner) return fail(403, "team_owner_only", "Only the team owner can invite people.");
+    const email = String(body.email || "").trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return fail(400, "invalid_email", "Enter a valid email address.");
+    if (team.members.some((m) => USERS[m.sub]?.email.toLowerCase() === email)) return fail(409, "already_member", "That person is already in the team.");
+    const token = newId() + newId();
+    team.invites.push({ token, email, created_at: new Date().toISOString(), expires_at: new Date(Date.now() + 7 * DAY).toISOString(), status: "pending" });
+    return ok({ token, invite_url: inviteUrl(token), emailed: false });
+  }
+  if (b === "invites" && c && method === "DELETE") {
+    if (!isOwner) return fail(403, "team_owner_only", "Only the team owner can revoke invites.");
+    const inv = team.invites.find((i) => i.token === c);
+    if (!inv) return fail(404, "not_found", "Invite not found.");
+    inv.status = "revoked";
+    return ok({ ok: true });
+  }
+  if (b === "members" && c && method === "DELETE") {
+    if (!isOwner) return fail(403, "team_owner_only", "Only the team owner can remove members.");
+    if (c === user.sub) return fail(400, "cannot_remove_owner", "The owner cannot remove themself.");
+    team.members = team.members.filter((m) => m.sub !== c);
+    return ok({ ok: true });
+  }
+  if (b === "leave" && method === "POST") {
+    if (isOwner) return fail(403, "owner_cannot_leave", "The owner cannot leave the team.");
+    team.members = team.members.filter((m) => m.sub !== user.sub);
+    return ok({ ok: true });
+  }
+  // Team sharing is per project: runs and cards of the team's projects only.
+  const teamProjects = Object.values(state.projects).filter((p) => p.team_id === team.team_id);
+  if (b === "runs" && method === "GET") {
+    const runs = state.runs.filter((run) => teamProjects.some((p) => p.project_id === run.project_id) && runStatus(run) === "done")
+      .map(runRow).sort((x, y) => y.created_at.localeCompare(x.created_at));
+    return ok({ runs });
+  }
+  if (b === "cards" && method === "GET") {
+    const byKey = new Map();
+    for (const p of teamProjects) for (const entry of projectCards(p)) if (!byKey.has(entry.dedupe_key)) byKey.set(entry.dedupe_key, entry);
+    return ok({ cards: filterCards([...byKey.values()], query) });
+  }
+  return fail(404, "not_found", "No such endpoint in mock mode.");
+}
 
 // ---- HTTP-shaped mock router ------------------------------------------------------
 
@@ -916,7 +1145,9 @@ function route(method, segments, query, body) {
     let conv = body.conv_id ? state.convs[body.conv_id] : null;
     if (body.conv_id && (!conv || conv.owner !== user.sub)) return fail(404, "not_found", "Conversation not found.");
     if (!conv) {
-      const template = body.template == null ? "general" : body.template;
+      const project = body.project_id ? findProject(body.project_id) : null;
+      if (body.project_id && !canSeeProject(project)) return fail(404, "project_not_found", "Project not found.");
+      const template = body.template == null ? (project?.default_template || "general") : body.template;
       const known = templatesView().find((t) => t.id === template);
       if (!known) return fail(400, "invalid_template", "Choose one of the listed templates.");
       if (!known.tools.includes(featureId(body.feature))) return fail(400, "invalid_template", "This template does not offer that tool.");
@@ -924,19 +1155,26 @@ function route(method, segments, query, body) {
       const mine = Object.values(state.convs).filter((x) => x.owner === user.sub);
       if (mine.length >= 20) return fail(429, "conversation_limit", "You have reached the limit of 20 conversations.");
       const now = new Date().toISOString();
-      conv = { conv_id: newId(), owner: user.sub, feature: featureId(body.feature), template, messages: [], brief: null, ready: false, run_id: null, created_at: now, updated_at: now };
+      conv = { conv_id: newId(), owner: user.sub, feature: featureId(body.feature), template, project_id: project ? project.project_id : null, messages: [], brief: null, ready: false, run_id: null, created_at: now, updated_at: now };
       state.convs[conv.conv_id] = conv;
     }
     if (conv.messages.length >= 30) return fail(429, "conversation_full", "This conversation is full. Start a new one to keep going.");
     conv.messages.push({ role: "user", text: message, at: new Date().toISOString() });
-    const output = intakeReply(conv.feature, conv.messages.filter((entry) => entry.role === "user").length, templateOf(conv.template));
+    // A project with a brief needs one question fewer: the research lead already knows those facts.
+    const project = findProject(conv.project_id);
+    const known = project && project.brief?.business ? 1 : 0;
+    const answered = conv.messages.filter((entry) => entry.role === "user").length;
+    const output = intakeReply(conv.feature, answered + known, templateOf(conv.template));
+    const reply = known && answered === 1 ? `I already know this project's brief, so I have one question fewer. ${output.reply}` : output.reply;
+    output.reply = reply;
     conv.messages.push({ role: "assistant", text: output.reply, at: new Date().toISOString() });
-    conv.brief = conv.messages.filter((m) => m.role === "user").length === 1
-      ? { ...output.brief, business: message.slice(0, 120) }
-      : { ...output.brief, business: conv.brief?.business || output.brief.business };
+    const fromProject = project ? Object.fromEntries(Object.entries(project.brief || {}).filter(([, v]) => v != null && v !== "")) : {};
+    conv.brief = answered === 1
+      ? { ...output.brief, ...fromProject, business: fromProject.business || message.slice(0, 120) }
+      : { ...output.brief, ...fromProject, business: conv.brief?.business || fromProject.business || output.brief.business };
     conv.ready = output.ready;
     conv.updated_at = new Date().toISOString();
-    return ok({ conv_id: conv.conv_id, feature: conv.feature, template: templateOf(conv.template), reply: output.reply, ready: conv.ready, brief: conv.brief, messages: conv.messages, run_id: conv.run_id });
+    return ok({ conv_id: conv.conv_id, feature: conv.feature, template: templateOf(conv.template), project_id: conv.project_id || null, reply: output.reply, ready: conv.ready, brief: conv.brief, messages: conv.messages, run_id: conv.run_id });
   }
   if (a === "conversations" && !b && method === "GET") {
     const limit = Math.min(50, Number(query.get("limit")) || 50);
@@ -944,16 +1182,17 @@ function route(method, segments, query, body) {
       .filter((conv) => conv.owner === user.sub)
       .sort((x, y) => y.updated_at.localeCompare(x.updated_at))
       .slice(0, limit)
-      .map((conv) => {
-        const run = conv.run_id ? findRun(conv.run_id) : null;
-        const firstUser = conv.messages.find((m) => m.role === "user");
-        return {
-          conv_id: conv.conv_id, feature: conv.feature, template: templateOf(conv.template),
-          title: run?.title || conv.brief?.business || (firstUser ? firstUser.text.slice(0, 80) : "New conversation"),
-          ready: conv.ready, run_id: conv.run_id || null, run_status: run ? runStatus(run) : null, updated_at: conv.updated_at,
-        };
-      });
+      .map(convRow);
     return ok({ conversations });
+  }
+  if (a === "conversations" && b && method === "PATCH") {
+    const conv = state.convs[b];
+    if (!conv || conv.owner !== user.sub) return fail(404, "not_found", "Conversation not found.");
+    const target = body.project_id ? findProject(body.project_id) : null;
+    if (body.project_id && !canSeeProject(target)) return fail(404, "project_not_found", "Project not found.");
+    conv.project_id = target ? target.project_id : null;
+    const { owner: _o, ...rest } = conv;
+    return ok({ ...rest, template: templateOf(conv.template), run_status: conv.run_id ? runStatus(findRun(conv.run_id)) : null });
   }
   if (a === "conversations" && b && method === "GET") {
     const conv = state.convs[b];
@@ -980,7 +1219,7 @@ function route(method, segments, query, body) {
     const run = {
       run_id: newId(), owner: user.sub, conv_id: conv.conv_id, feature: conv.feature, mode, template, brief: conv.brief,
       title: conv.brief?.business ? `${TOOL_NAMES[conv.feature]}: ${conv.brief.business}`.slice(0, 90) : TITLES[conv.feature],
-      created_at: new Date(now).toISOString(), startedMs: now, share_token: null,
+      created_at: new Date(now).toISOString(), startedMs: now, share_token: null, project_id: conv.project_id || null,
     };
     state.runs.unshift(run);
     conv.run_id = run.run_id;
@@ -998,7 +1237,18 @@ function route(method, segments, query, body) {
     if (!run || !canRead(run)) return fail(404, "not_found", "Run not found.");
     if (!c && method === "GET") {
       const { meta, result } = snapshot(run);
-      return ok({ run: meta, result });
+      const project = findProject(run.project_id);
+      return ok({
+        run: meta, result: withProject(run, result), access: run.owner === user.sub ? "owner" : "project",
+        project: project && canSeeProject(project) ? { project_id: project.project_id, name: project.name, team_id: project.team_id } : null,
+      });
+    }
+    if (!c && method === "PATCH") {
+      if (run.owner !== user.sub) return fail(403, "forbidden", "Only the author can move this report.");
+      const target = body.project_id ? findProject(body.project_id) : null;
+      if (body.project_id && !canSeeProject(target)) return fail(404, "project_not_found", "Project not found.");
+      run.project_id = target ? target.project_id : null;
+      return ok({ run: snapshot(run).meta });
     }
     if (c === "share" && method === "POST") {
       if (run.owner !== user.sub) return fail(403, "forbidden", "Only the author can share this report.");
@@ -1032,72 +1282,78 @@ function route(method, segments, query, body) {
   // Fact cards
   if (a === "cards" && method === "GET") return ok({ cards: filterCards(cardsFor([user.sub]), query) });
 
-  // Teams
-  if (a === "team") {
-    const team = myTeam();
-    if (!b && method === "GET") return team ? ok(teamView(team)) : ok({ team: null, role: null, members: [], invites: [] });
-    if (!b && method === "POST") {
-      if (team) return fail(403, "already_in_team", "You are already in a team.");
-      const name = String(body.name || "").trim();
-      if (!name) return fail(400, "bad_request", "Enter a team name.");
-      const id = `team-${newId()}`;
-      state.teams[id] = { team_id: id, name: name.slice(0, 80), owner_sub: user.sub, created_at: new Date().toISOString(), members: [{ sub: user.sub, role: "owner", joined_at: new Date().toISOString() }], invites: [] };
-      state.teamOf[user.sub] = id;
-      return ok(teamView(state.teams[id]));
+  // Projects (SPEC v5)
+  if (a === "projects" && !b && method === "GET") return ok(listProjects({ archived: query.get("archived") === "1" }));
+  if (a === "projects" && !b && method === "POST") {
+    const name = String(body.name || "").trim().slice(0, 80);
+    if (!name) return fail(400, "invalid_request", "Enter a project name.");
+    if (body.team_id && !memberOf(state.teams[body.team_id], user.sub)) return fail(404, "no_team", "You are not in that team.");
+    const created = Object.values(state.projects).filter((p) => p.owner_sub === user.sub).length;
+    if (created >= PROJECT_LIMIT) return fail(429, "project_limit", "You have reached the limit of 50 projects.");
+    const now = new Date().toISOString();
+    const brief = { business: null, customer: null, location: null, stage: null, budget_usd: null, ...(body.brief || {}) };
+    const p = {
+      project_id: `proj-${newId()}`, name, owner_sub: user.sub, team_id: body.team_id || null, brief,
+      default_template: templateOf(body.default_template), created_at: now, updated_at: now, archived: false,
+    };
+    state.projects[p.project_id] = p;
+    return ok(projectDetailView(p));
+  }
+  if (a === "projects" && b) {
+    const p = findProject(b);
+    if (!p || !canSeeProject(p)) return fail(404, "project_not_found", "Project not found.");
+    if (!c && method === "GET") return ok(projectDetailView(p));
+    if (!c && method === "PATCH") {
+      if (!canManageProject(p)) return fail(403, "project_owner_only", "Only the project owner or the team owner can change this project.");
+      if (body.name != null) {
+        const name = String(body.name).trim().slice(0, 80);
+        if (!name) return fail(400, "invalid_request", "Enter a project name.");
+        p.name = name;
+      }
+      if (body.brief && typeof body.brief === "object") {
+        for (const key of ["business", "customer", "location", "stage", "budget_usd"]) if (key in body.brief) p.brief[key] = body.brief[key];
+      }
+      if ("team_id" in body) {
+        if (body.team_id && !memberOf(state.teams[body.team_id], user.sub)) return fail(404, "no_team", "You are not in that team.");
+        p.team_id = body.team_id || null;
+      }
+      if ("archived" in body) p.archived = !!body.archived;
+      if (body.default_template) p.default_template = templateOf(body.default_template);
+      p.updated_at = new Date().toISOString();
+      return ok(projectDetailView(p));
     }
+    if (c === "cards" && method === "GET") return ok({ cards: filterCards(projectCards(p), query) });
+  }
+
+  // Teams: a person can be in several (SPEC v5); the old /team routes act on the first team joined.
+  if (a === "teams" && !b && method === "GET") return ok(teamsOf(user.sub).map(teamListRow));
+  if (a === "teams" && !b && method === "POST") return createTeam(String(body.name || "").trim());
+  if (a === "teams" && b) {
+    const team = state.teams[b];
+    if (!memberOf(team, user.sub)) return fail(404, "no_team", "You are not in that team.");
+    return teamAction(team, method, c, segments[3], query, body);
+  }
+  if (a === "team") {
+    const team = firstTeam();
+    if (!b && method === "GET" && !team) return ok({ team: null, role: null, members: [], invites: [], projects: [] });
+    if (!b && method === "POST") return createTeam(String(body.name || "").trim());
     if (b === "join" && method === "POST") {
-      if (team) return fail(409, "already_in_team", "You are already in a team.");
       for (const t of Object.values(state.teams)) {
         const inv = t.invites.find((i) => i.token === body.token);
         if (!inv) continue;
+        if (memberOf(t, user.sub)) return ok(teamView(t));
         if (inv.status === "revoked") return fail(410, "invite_revoked", "This invite was revoked.");
         if (inv.status !== "pending" || new Date(inv.expires_at).getTime() < Date.now()) return fail(410, "invite_expired", "This invite has expired.");
         if (inv.email.toLowerCase() !== user.email.toLowerCase()) return fail(403, "invite_email_mismatch", "This invite is for a different email address.");
+        if (teamsOf(user.sub).length >= TEAM_LIMIT) return fail(429, "team_limit", "You can be in at most 10 teams.");
         inv.status = "accepted";
         t.members.push({ sub: user.sub, role: "member", joined_at: new Date().toISOString() });
-        state.teamOf[user.sub] = t.team_id;
         return ok(teamView(t));
       }
-      return fail(404, "not_found", "Invite not found.");
+      return fail(404, "invite_not_found", "Invite not found.");
     }
-    if (!team) return fail(404, "not_in_team", "You are not in a team.");
-    const isOwner = team.owner_sub === user.sub;
-    if (b === "invites" && !c && method === "POST") {
-      if (!isOwner) return fail(403, "forbidden", "Only the team owner can invite people.");
-      const email = String(body.email || "").trim().toLowerCase();
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return fail(400, "bad_request", "Enter a valid email address.");
-      if (team.members.some((m) => USERS[m.sub]?.email.toLowerCase() === email)) return fail(409, "already_member", "That person is already in the team.");
-      const token = newId() + newId();
-      team.invites.push({ token, email, created_at: new Date().toISOString(), expires_at: new Date(Date.now() + 7 * DAY).toISOString(), status: "pending" });
-      return ok({ token, invite_url: inviteUrl(token), emailed: false });
-    }
-    if (b === "invites" && c && method === "DELETE") {
-      if (!isOwner) return fail(403, "forbidden", "Only the team owner can revoke invites.");
-      const inv = team.invites.find((i) => i.token === c);
-      if (!inv) return fail(404, "not_found", "Invite not found.");
-      inv.status = "revoked";
-      return ok({ ok: true });
-    }
-    if (b === "members" && c && method === "DELETE") {
-      if (!isOwner) return fail(403, "forbidden", "Only the team owner can remove members.");
-      if (c === user.sub) return fail(400, "cannot_remove_self", "The owner cannot remove themself.");
-      team.members = team.members.filter((m) => m.sub !== c);
-      delete state.teamOf[c];
-      return ok({ ok: true });
-    }
-    if (b === "leave" && method === "POST") {
-      if (isOwner) return fail(400, "owner_cannot_leave", "The owner cannot leave the team.");
-      team.members = team.members.filter((m) => m.sub !== user.sub);
-      delete state.teamOf[user.sub];
-      return ok({ ok: true });
-    }
-    const subs = team.members.map((m) => m.sub);
-    if (b === "runs" && method === "GET") {
-      const runs = state.runs.filter((run) => subs.includes(run.owner) && runStatus(run) === "done").map(runRow);
-      runs.sort((x, y) => y.created_at.localeCompare(x.created_at));
-      return ok({ runs });
-    }
-    if (b === "cards" && method === "GET") return ok({ cards: filterCards(cardsFor(subs, { withAddedBy: true }), query) });
+    if (!team) return fail(404, "no_team", "You are not in a team.");
+    return teamAction(team, method, b, c, query, body);
   }
   return fail(404, "not_found", "No such endpoint in mock mode.");
 }

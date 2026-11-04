@@ -21,8 +21,20 @@ function capturedText(card) {
   return `${isListingCard(card) ? "Retrieved" : "Captured"} ${date}`;
 }
 
+// Source badges after the type badge: eBay listing (asking price, date) and/or "from an earlier report".
 function listingBadge(card) {
-  return isListingCard(card) ? h("span", { class: "badge badge-listing" }, card.label || "eBay listing (asking price)") : null;
+  const listing = isListingCard(card)
+    ? h("span", { class: "badge badge-listing" }, (card.earlier ? null : card.label) || "eBay listing (asking price)")
+    : null;
+  return [listing, earlierBadge(card)].filter(Boolean);
+}
+
+// Cards reused from an earlier report in the same project keep their original capture date (SPEC v5).
+const EARLIER_LABEL = "from an earlier report in this project";
+function earlierBadge(card) {
+  if (!card || !card.earlier) return null;
+  const text = String(card.label || EARLIER_LABEL);
+  return h("span", { class: "badge badge-earlier" }, text.charAt(0).toUpperCase() + text.slice(1));
 }
 
 function fmtPct(v) {
@@ -94,7 +106,7 @@ const TOOL_SECTION = {
   marketing_plan: { id: "r-plan", title: "Marketing plan" },
 };
 
-export function renderReport(result = {}, { run = null, shared = false, actions = null, mockups = null } = {}) {
+export function renderReport(result = {}, { run = null, shared = false, actions = null, mockups = null, crumb = null } = {}) {
   const cards = list(result.cards).filter(Boolean);
   const index = new Map(cards.map((card, i) => [card.card_id, { card, n: i + 1 }]));
   const feature = featureById(result.feature || result.brief?.feature || run?.brief?.feature || run?.feature);
@@ -264,14 +276,25 @@ export function renderReport(result = {}, { run = null, shared = false, actions 
       },
     }, s.title)))));
 
+  const projectInfo = result.project && typeof result.project === "object" ? result.project : null;
+  const earlierCount = cards.filter((card) => card.earlier).length;
+  const projectNote = !shared && projectInfo && (projectInfo.reused || earlierCount)
+    ? h("p", { class: "project-note" },
+        h("strong", {}, "Builds on this project. "),
+        projectInfo.reused ? String(projectInfo.reused) : "",
+        earlierCount ? ` ${plural(earlierCount, "fact card")} from earlier reports ${earlierCount === 1 ? "is" : "are"} cited with ${earlierCount === 1 ? "its" : "their"} original date.` : "")
+    : null;
+
   return h("article", { class: "report" },
     h("header", { class: "report-head" },
+      shared ? null : crumb,
       h("p", { class: "eyebrow tool-eyebrow" }, shared ? "Shared report · read only · " : "", `${stageLabel(feature)} · ${feature.name}`),
       h("h1", { class: "report-title", tabindex: "-1" }, result.title || run?.title || "Your report"),
       h("p", { class: "report-meta" },
         meta.filter(Boolean).join(" · "),
         mode ? h("span", { class: `badge badge-mode` }, `${mode.name} research`) : null,
         isGeneralTemplate(templateId) ? null : templateBadge(templateName(templateId))),
+      projectNote,
       actions ? h("div", { class: "report-actions" }, actions) : null,
       h("p", { class: "legend" },
         h("span", { class: "legend-item" }, kindBadge("sourced"), " exact quote on a captured page"),
@@ -285,8 +308,8 @@ export function renderReport(result = {}, { run = null, shared = false, actions 
 // Numbered source chip: hover/focus shows a preview card, click opens the full fact card.
 export function sourceChip(card, n) {
   const chipEl = h("button", {
-    type: "button", class: `chip ${card.type === "sourced" ? "chip-sourced" : "chip-unverified"}`,
-    "aria-label": `Source ${n}: ${card.claim || card.source_title || "fact card"}`,
+    type: "button", class: `chip ${card.type === "sourced" ? "chip-sourced" : "chip-unverified"}${card.earlier ? " chip-earlier" : ""}`,
+    "aria-label": `Source ${n}: ${card.claim || card.source_title || "fact card"}${card.earlier ? ` (${card.label || EARLIER_LABEL})` : ""}`,
     "aria-haspopup": "dialog",
     onclick: () => { hideHovercard(); openCardPanel(card, n); },
   }, String(n));

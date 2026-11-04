@@ -34,7 +34,7 @@ export function viewReports(isCurrent) {
   });
   main.replaceChildren(page(
     pageHeader({
-      title: "My reports", lede: "Finished and running research. Team shows finished reports from everyone in your team.",
+      title: "My reports", lede: "Finished and running research. Team shows finished reports in your team's projects.",
       actions: h("a", { class: "btn btn-primary", href: "#/new" }, "New research"),
     }),
     h("div", { class: "toolbar-row" }, toggle),
@@ -61,7 +61,7 @@ export function viewReports(isCurrent) {
   function render(runs) {
     if (!runs.length) {
       body.replaceChildren(scope === "team"
-        ? emptyState({ title: "No team reports yet", text: "Finished reports from your teammates will appear here." })
+        ? emptyState({ title: "No team reports yet", text: "Finished reports in your team's projects will appear here." })
         : emptyState({
             title: "No research yet", text: "Your reports will appear here. The first one is free.",
             action: h("a", { class: "btn btn-primary", href: "#/new" }, "Start your first report"),
@@ -191,7 +191,7 @@ export function viewLibrary(isCurrent) {
   function render(cards, filtered) {
     if (!allCards.length) {
       grid.replaceChildren(scope === "team"
-        ? emptyState({ title: "No team fact cards yet", text: "Cards from your teammates' finished reports will appear here." })
+        ? emptyState({ title: "No team fact cards yet", text: "Cards from finished reports in your team's projects will appear here." })
         : emptyState({
             title: "No fact cards yet", text: "Cards appear here after your first report finishes.",
             action: h("a", { class: "btn btn-primary", href: "#/new" }, "Start research"),

@@ -14,10 +14,11 @@ import { viewNew, viewConversation } from "./research.js";
 import { viewRun, viewShared } from "./run.js";
 import { viewLibrary, viewReports } from "./library.js";
 import { viewTeam, viewJoin } from "./team.js";
+import { viewProject } from "./projects.js";
 import { closeCardPanel, hideHovercard } from "./report.js";
 
 const cfg = window.MC_CONFIG || {};
-const PROTECTED = new Set(["home", "new", "c", "runs", "library", "team"]);
+const PROTECTED = new Set(["home", "new", "c", "runs", "library", "team", "p"]);
 
 let cleanup = null;
 let renderSeq = 0;
@@ -57,6 +58,7 @@ async function router() {
   if (!head) result = viewLanding();
   else if (head === "new" && (!arg || isFeature(arg))) result = viewNew(isCurrent, arg || null);
   else if (head === "c" && arg) result = viewConversation(arg, isCurrent);
+  else if (head === "p" && arg) result = viewProject(arg, isCurrent);
   else if (head === "runs" && arg) result = viewRun(arg, isCurrent);
   else if (head === "runs") result = viewReports(isCurrent);
   else if (head === "library") result = viewLibrary(isCurrent);
