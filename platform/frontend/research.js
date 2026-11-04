@@ -16,6 +16,10 @@ import {
   GENERAL_FALLBACK, templateIcon, fetchTemplates, rememberTemplate, lastTemplate, capabilityBadges,
 } from "./templates.js";
 import { refreshHistory, getHistory, onHistory, historyRow, groupHistory } from "./shell.js";
+import {
+  refreshProjects, getProjects, onProjects, projectById, projectDetail, lastProjectId, rememberProject,
+  briefLine, newProjectForm, projectCrumb,
+} from "./projects.js";
 
 const TOOL_ICONS = {
   market_check: '<circle cx="10" cy="10" r="6.5"/><path d="m15 15 6 6M7.5 10h5m-2.5-2.5v5"/>',
@@ -61,6 +65,107 @@ export function viewNew(isCurrent, featureArg) {
   const messageStep = h("span", { class: "step-badge", "aria-hidden": "true" }, "2");
   const toolNote = h("p", { class: "field-hint tool-note", hidden: true });
   const currentTemplate = () => (templates || []).find((t) => t.id === template) || GENERAL_FALLBACK;
+
+  // Project (SPEC v5): the project you came from, else the last used, else none.
+  const cameFrom = query.get("project") || "";
+  let projectId = cameFrom || lastProjectId() || "";
+  let extraProject = null; // a project from the link that is not in the list (e.g. archived)
+  const projectSel = h("select", { id: "project-select", "aria-describedby": "project-hint" },
+    h("option", { value: "" }, "No project"));
+  const projectHint = h("p", { class: "field-hint", id: "project-hint" },
+    "Reports in a project build on each other: the research lead reads its brief, reports and fact cards.");
+  const newProjectSlot = h("div", { class: "new-project-inline surface", id: "new-project-inline", hidden: true });
+  const newProjectBtn = h("button", {
+    type: "button", class: "btn btn-secondary", "aria-expanded": "false", "aria-controls": "new-project-inline",
+  }, icon("plus"), "New project");
+  const known = h("p", { class: "known-brief", id: "known-brief", hidden: true });
+  const projectSlot = h("div", { class: "project-picker" },
+    h("label", { for: "project-select", class: "step-legend" }, "Project"),
+    h("div", { class: "input-row" }, projectSel, newProjectBtn),
+    projectHint, newProjectSlot);
+
+  function projectOptions() {
+    const all = getProjects();
+    const list = (all || []).filter((p) => !p.archived);
+    if (extraProject && !list.some((p) => p.project_id === extraProject.project_id)) list.push(extraProject);
+    // Forget a remembered project that is gone; the one from the link is checked by updateKnown().
+    if (all != null && projectId && projectId !== cameFrom && !list.some((p) => p.project_id === projectId)) projectId = "";
+    projectSel.replaceChildren(
+      h("option", { value: "" }, "No project"),
+      ...list.map((p) => h("option", { value: p.project_id }, p.team ? `${p.name} · Team: ${p.team.name}` : `${p.name} · Personal`)));
+    projectSel.value = list.some((p) => p.project_id === projectId) ? projectId : "";
+  }
+
+  let knownSeq = 0;
+  function updateKnown({ applyTemplate = false } = {}) {
+    const mine = ++knownSeq;
+    const describe = (withKnown) => input.setAttribute("aria-describedby", withKnown ? "known-brief first-message-hint" : "first-message-hint");
+    if (!projectId) {
+      known.hidden = true;
+      describe(false);
+      return;
+    }
+    projectDetail(projectId).then((data) => {
+      if (mine !== knownSeq || !isCurrent()) return;
+      const project = data.project || {};
+      const line = briefLine(project.brief);
+      known.replaceChildren(h("strong", {}, "We already know: "), line);
+      known.hidden = !line;
+      describe(!!line);
+      const preferred = project.default_template;
+      if (applyTemplate && preferred && preferred !== template) {
+        const ok = !templates || templates.some((t) => t.id === preferred && t.available);
+        if (ok) {
+          if (templates) {
+            const radio = document.getElementById(`template-${preferred}`);
+            if (radio) radio.checked = true;
+          }
+          selectTemplate(preferred);
+        }
+      }
+    }).catch((err) => {
+      if (mine !== knownSeq || !isCurrent()) return;
+      known.hidden = true;
+      describe(false);
+      if (err.status === 404 && projectId === cameFrom) {
+        projectId = "";
+        projectOptions();
+      }
+    });
+  }
+
+  projectSel.addEventListener("change", () => {
+    projectId = projectSel.value;
+    rememberProject(projectId);
+    updateKnown({ applyTemplate: true });
+  });
+  newProjectBtn.addEventListener("click", () => {
+    const open = newProjectSlot.hidden;
+    newProjectSlot.hidden = !open;
+    newProjectBtn.setAttribute("aria-expanded", String(open));
+    if (!open) { newProjectSlot.replaceChildren(); return; }
+    newProjectSlot.replaceChildren(newProjectForm({
+      idPrefix: "npi",
+      onCreated: (project) => {
+        if (!isCurrent()) return;
+        projectId = project.project_id;
+        rememberProject(projectId);
+        newProjectSlot.hidden = true;
+        newProjectSlot.replaceChildren();
+        newProjectBtn.setAttribute("aria-expanded", "false");
+        projectOptions();
+        updateKnown();
+        projectSel.focus();
+        announce(`Project ${project.name} created and chosen.`);
+      },
+      onCancel: () => {
+        newProjectSlot.hidden = true;
+        newProjectSlot.replaceChildren();
+        newProjectBtn.setAttribute("aria-expanded", "false");
+        newProjectBtn.focus();
+      },
+    }));
+  });
 
   function updateComposer() {
     const feature = featureById(selected);
@@ -185,6 +290,7 @@ export function viewNew(isCurrent, featureArg) {
       toolNote),
     h("div", { class: "first-message" },
       h("label", { for: "first-message", class: "step-legend" }, messageStep, "Describe your business"),
+      known,
       hint,
       h("div", { class: "composer-box" }, input,
         h("div", { class: "composer-foot" },
@@ -213,9 +319,12 @@ export function viewNew(isCurrent, featureArg) {
     sendBtn.textContent = "Starting…";
     error.textContent = "";
     try {
-      const data = await api("/chat", { method: "POST", body: { message: text, feature: selected, template } });
+      const body = { message: text, feature: selected, template };
+      if (projectId) body.project_id = projectId;
+      const data = await api("/chat", { method: "POST", body });
       if (!isCurrent()) return;
-      const conv = normalizeConv({ ...data, feature: data.feature || selected, template: data.template || template });
+      if (projectId) rememberProject(projectId);
+      const conv = normalizeConv({ ...data, feature: data.feature || selected, template: data.template || template, project_id: data.project_id || projectId || null });
       state.convCache.set(conv.conv_id, conv);
       setOpenConv(conv.conv_id);
       refreshHistory();
@@ -228,6 +337,11 @@ export function viewNew(isCurrent, featureArg) {
       sendBtn.replaceChildren("Start conversation", icon("arrow"));
       // The template went away since the page loaded: show its new state (General is then chosen).
       if (err.code === "template_unavailable") loadTemplates();
+      if (err.code === "project_not_found") {
+        projectId = "";
+        rememberProject("");
+        refreshProjects().then(() => { if (isCurrent()) { projectOptions(); updateKnown(); } });
+      }
     }
   }
   form.addEventListener("submit", (ev) => { ev.preventDefault(); start(); });
@@ -274,7 +388,8 @@ export function viewNew(isCurrent, featureArg) {
       if (st && item.status !== st) return false;
       if (!q) return true;
       const feature = item.feature ? featureById(item.feature) : null;
-      return [item.title, feature?.name, feature?.stage].some((v) => v && v.toLowerCase().includes(q));
+      const projectName = item.project_id ? projectById(item.project_id)?.name : null;
+      return [item.title, feature?.name, feature?.stage, projectName].some((v) => v && v.toLowerCase().includes(q));
     });
     count.textContent = q || st ? `${plural(filtered.length, "item")} of ${items.length}` : plural(items.length, "item");
     if (!items.length) {
@@ -306,7 +421,7 @@ export function viewNew(isCurrent, featureArg) {
   const t = tabs({
     id: "new", label: "Start or continue research", selected: selectedTab,
     items: [
-      { key: "new", label: "New", render: () => [resumeSlot, form] },
+      { key: "new", label: "New", render: () => [resumeSlot, projectSlot, form] },
       { key: "existing", label: "Existing", render: () => existingPanel },
     ],
     onSelect: (key) => { selectedTab = key; setRouteQuery({ tab: key === "existing" ? "existing" : null }); },
@@ -316,20 +431,37 @@ export function viewNew(isCurrent, featureArg) {
     pageHeader({
       eyebrow: firstName ? `Welcome back, ${firstName}` : "New research",
       title: "What do you want to find out?",
-      lede: "Pick a template and a tool, describe your business, and agents read public sources. Every statement comes back Sourced, an Assumption or an Estimate.",
+      lede: "Choose a project if this builds on earlier research, pick a template and a tool, and describe your business. Every statement comes back Sourced, an Assumption or an Estimate.",
     }),
     h("div", { class: "tabs-wrap" }, t.list, t.panels)));
 
   renderResume(getHistory());
   renderExisting();
   loadTemplates();
+  projectOptions();
+  updateKnown({ applyTemplate: !!cameFrom });
+  if (cameFrom && !projectById(cameFrom)) {
+    projectDetail(cameFrom).then((data) => {
+      if (!isCurrent() || !data.project || projectById(cameFrom)) return;
+      extraProject = { ...data.project };
+      projectOptions();
+    }).catch(() => {});
+  }
   const off = onHistory((items) => {
     if (!isCurrent()) return;
     renderResume(items);
     renderExisting();
   });
+  const offProjects = onProjects(() => {
+    if (!isCurrent()) return;
+    const before = projectId;
+    projectOptions();
+    if (projectId !== before) updateKnown();
+    renderExisting();
+  });
   refreshHistory();
-  return () => off();
+  refreshProjects();
+  return () => { off(); offProjects(); };
 }
 
 // ---- #/c/<conv_id> -----------------------------------------------------------
@@ -344,6 +476,7 @@ function normalizeConv(c) {
     ready: !!c.ready,
     run_id: c.run_id || null,
     run_status: c.run_status || null,
+    project_id: c.project_id || null,
     title: c.title || null,
     updated_at: c.updated_at || null,
   };
@@ -418,6 +551,7 @@ function renderConversation(initial, isCurrent) {
     h("div", { class: "conv-layout" },
       h("section", { class: "conv-main", "aria-labelledby": "conv-title" },
         h("header", { class: "conv-head" },
+          conv.project_id ? projectCrumb(conv.project_id, feature.id) : null,
           h("p", { class: "eyebrow tool-eyebrow" }, toolIcon(feature.id, 18), `${stageLabel(feature)} · ${feature.name}`),
           titleEl,
           isGeneralTemplate(conv.template) ? null

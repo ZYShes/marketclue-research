@@ -85,11 +85,22 @@ def reply_schema(template):
     return {**REPLY_SCHEMA, "properties": {**REPLY_SCHEMA["properties"], "brief": {"anyOf": [brief, {"type": "null"}]}}}
 
 
-def system_prompt(spec, template):
+PROJECT_SYSTEM = """
+
+This conversation belongs to a project the founder already works on. What MarketClue already knows:
+{context}
+
+Use what the project already says in the brief and do not ask for it again; ask only about what is still
+missing for this tool, so continuing a project needs fewer questions."""
+
+
+def system_prompt(spec, template, project_context=None):
     prompt = SYSTEM.format(**spec)
     if template["intake_needs"]:
         prompt += TEMPLATE_SYSTEM.format(name=template["name"], needs=template["intake_needs"],
                                          field=" and ".join(template["brief_fields"]) or "extra")
+    if project_context:
+        prompt += PROJECT_SYSTEM.format(context=project_context)
     return prompt
 
 
@@ -115,9 +126,10 @@ def chat(conv, message):
     # The history is rebuilt from stored text in the same order every turn, so this request starts with exactly
     # the bytes of the previous one: with caching on, each turn reads the earlier conversation from the cache.
     # Keep the system prompt, schema and effort fixed per feature and template - changing any of them (or adding
-    # a date or user name to the system prompt) would break the shared prefix.
-    out = claude.json_call(None, system=system_prompt(spec, template), prompt=None, schema=reply_schema(template),
-                           effort="low", messages=messages, cache=True)
+    # a date or user name to the system prompt) would break the shared prefix. The project context is stored on
+    # the conversation, so it stays the same from turn to turn.
+    out = claude.json_call(None, system=system_prompt(spec, template, conv.get("project_context")), prompt=None,
+                           schema=reply_schema(template), effort="low", messages=messages, cache=True)
     brief = out.get("brief") if out.get("ready") else None
     if brief:
         brief["questions"] = [q for q in brief.get("questions", []) if q.strip()][:4]

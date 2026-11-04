@@ -1,0 +1,676 @@
+{
+  "generated_at": "2026-11-04T04:29:08.707Z",
+  "axe_source": "local npm copy (CDN blocked)",
+  "checks": [
+    {
+      "ok": true,
+      "label": "sidebar lists the personal project"
+    },
+    {
+      "ok": true,
+      "label": "sidebar lists the team project with its team tag"
+    },
+    {
+      "ok": true,
+      "label": "archived projects are hidden from the sidebar"
+    },
+    {
+      "ok": true,
+      "label": "Recent rows show their project name"
+    },
+    {
+      "ok": true,
+      "label": "a sidebar project opens #/p/<id>"
+    },
+    {
+      "ok": true,
+      "label": "the open project is marked current in the sidebar"
+    },
+    {
+      "ok": true,
+      "label": "project page shows the project name"
+    },
+    {
+      "ok": true,
+      "label": "project page says Personal"
+    },
+    {
+      "ok": true,
+      "label": "journey strip has four stage cards"
+    },
+    {
+      "ok": true,
+      "label": "stage cards are Discover, Compare, Prepare, Grow"
+    },
+    {
+      "ok": true,
+      "label": "an empty stage says Not started with a Start link"
+    },
+    {
+      "ok": true,
+      "label": "a started stage shows its latest report title"
+    },
+    {
+      "ok": true,
+      "label": "a started stage shows the one-line takeaway"
+    },
+    {
+      "ok": true,
+      "label": "Reports tab lists the project's reports (done + own running)"
+    },
+    {
+      "ok": true,
+      "label": "stage filter narrows Reports to Compare"
+    },
+    {
+      "ok": true,
+      "label": "the viewer's own unfinished run shows its status"
+    },
+    {
+      "ok": true,
+      "label": "project brief box shows the five fields"
+    },
+    {
+      "ok": true,
+      "label": "ArrowRight moves to the Fact cards tab"
+    },
+    {
+      "ok": true,
+      "label": "Fact cards tab lists the project's knowledge base (12)"
+    },
+    {
+      "ok": true,
+      "label": "fact card search narrows the list (4 of 12)"
+    },
+    {
+      "ok": true,
+      "label": "editing the project brief saves the new stage"
+    },
+    {
+      "ok": true,
+      "label": "team project shows its team"
+    },
+    {
+      "ok": true,
+      "label": "Start (keyboard) opens New research for that stage and project"
+    },
+    {
+      "ok": true,
+      "label": "the stage's tool is preselected"
+    },
+    {
+      "ok": true,
+      "label": "the project is preselected"
+    },
+    {
+      "ok": true,
+      "label": "the first message box says “We already know: …”"
+    },
+    {
+      "ok": true,
+      "label": "the project's default template (eBay seller) is chosen"
+    },
+    {
+      "ok": true,
+      "label": "first message opens the conversation"
+    },
+    {
+      "ok": true,
+      "label": "conversation shows the project breadcrumb"
+    },
+    {
+      "ok": true,
+      "label": "the research lead uses the project brief and asks fewer questions"
+    },
+    {
+      "ok": true,
+      "label": "brief is Ready after two answers instead of three"
+    },
+    {
+      "ok": true,
+      "label": "Start research opens the live run"
+    },
+    {
+      "ok": true,
+      "label": "run page breadcrumb reads Project › Discover"
+    },
+    {
+      "ok": true,
+      "label": "report keeps the breadcrumb"
+    },
+    {
+      "ok": true,
+      "label": "report says it builds on the project"
+    },
+    {
+      "ok": true,
+      "label": "an earlier project card is labelled in All fact cards"
+    },
+    {
+      "ok": true,
+      "label": "earlier-card label reads “From an earlier report in this project”"
+    },
+    {
+      "ok": true,
+      "label": "the project's Discover stage now shows the new report"
+    },
+    {
+      "ok": true,
+      "label": "+ New project expands the inline form"
+    },
+    {
+      "ok": true,
+      "label": "Belongs to offers Personal and both teams"
+    },
+    {
+      "ok": true,
+      "label": "the inline form closes after creating"
+    },
+    {
+      "ok": true,
+      "label": "the new project is chosen in the Project select"
+    },
+    {
+      "ok": true,
+      "label": "the new project appears in the sidebar"
+    },
+    {
+      "ok": true,
+      "label": "an unfiled report has no breadcrumb"
+    },
+    {
+      "ok": true,
+      "label": "Move to project opens a dialog"
+    },
+    {
+      "ok": true,
+      "label": "moving into a personal project says it stays private"
+    },
+    {
+      "ok": true,
+      "label": "moving into a team project says the team can read it"
+    },
+    {
+      "ok": true,
+      "label": "the move dialog is gone after moving"
+    },
+    {
+      "ok": true,
+      "label": "after moving, the report breadcrumb shows Project › Discover"
+    },
+    {
+      "ok": true,
+      "label": "the project's Discover stage now has the moved report"
+    },
+    {
+      "ok": true,
+      "label": "Show archived lists the archived project"
+    },
+    {
+      "ok": true,
+      "label": "an archived project page says it is archived"
+    },
+    {
+      "ok": true,
+      "label": "team picker lists both teams"
+    },
+    {
+      "ok": true,
+      "label": "the team page lists the team's projects"
+    },
+    {
+      "ok": true,
+      "label": "choosing a team keeps it in the address"
+    },
+    {
+      "ok": true,
+      "label": "the picker opens the other team as a member"
+    },
+    {
+      "ok": true,
+      "label": "a member can leave that team"
+    },
+    {
+      "ok": true,
+      "label": "a non-member cannot open the team project"
+    },
+    {
+      "ok": true,
+      "label": "a non-member cannot open a report filed in the team project"
+    },
+    {
+      "ok": true,
+      "label": "joining opens that team"
+    },
+    {
+      "ok": true,
+      "label": "after joining, the team project appears in the sidebar"
+    },
+    {
+      "ok": true,
+      "label": "after joining, the member can read the team project's finished report"
+    },
+    {
+      "ok": true,
+      "label": "Move to project is only for the report's author"
+    },
+    {
+      "ok": true,
+      "label": "a member cannot manage the team project"
+    },
+    {
+      "ok": true,
+      "label": "a member cannot edit the project brief"
+    },
+    {
+      "ok": true,
+      "label": "01-project-page @1280: no axe violations"
+    },
+    {
+      "ok": true,
+      "label": "01-project-page @1280: no horizontal scroll"
+    },
+    {
+      "ok": true,
+      "label": "01-project-page @1280: no targets under 44 px"
+    },
+    {
+      "ok": true,
+      "label": "02-project-fact-cards @1280: no axe violations"
+    },
+    {
+      "ok": true,
+      "label": "02-project-fact-cards @1280: no horizontal scroll"
+    },
+    {
+      "ok": true,
+      "label": "02-project-fact-cards @1280: no targets under 44 px"
+    },
+    {
+      "ok": true,
+      "label": "03-new-research-project @1280: no axe violations"
+    },
+    {
+      "ok": true,
+      "label": "03-new-research-project @1280: no horizontal scroll"
+    },
+    {
+      "ok": true,
+      "label": "03-new-research-project @1280: no targets under 44 px"
+    },
+    {
+      "ok": true,
+      "label": "04-report-in-project @1280: no axe violations"
+    },
+    {
+      "ok": true,
+      "label": "04-report-in-project @1280: no horizontal scroll"
+    },
+    {
+      "ok": true,
+      "label": "04-report-in-project @1280: no targets under 44 px"
+    },
+    {
+      "ok": true,
+      "label": "05-move-dialog @1280: no axe violations"
+    },
+    {
+      "ok": true,
+      "label": "05-move-dialog @1280: no horizontal scroll"
+    },
+    {
+      "ok": true,
+      "label": "05-move-dialog @1280: no targets under 44 px"
+    },
+    {
+      "ok": true,
+      "label": "06-team-picker @1280: no axe violations"
+    },
+    {
+      "ok": true,
+      "label": "06-team-picker @1280: no horizontal scroll"
+    },
+    {
+      "ok": true,
+      "label": "06-team-picker @1280: no targets under 44 px"
+    },
+    {
+      "ok": true,
+      "label": "07-project-settings @1280: no axe violations"
+    },
+    {
+      "ok": true,
+      "label": "07-project-settings @1280: no horizontal scroll"
+    },
+    {
+      "ok": true,
+      "label": "07-project-settings @1280: no targets under 44 px"
+    },
+    {
+      "ok": true,
+      "label": "08-sidebar-projects @1280: no axe violations"
+    },
+    {
+      "ok": true,
+      "label": "08-sidebar-projects @1280: no horizontal scroll"
+    },
+    {
+      "ok": true,
+      "label": "08-sidebar-projects @1280: no targets under 44 px"
+    },
+    {
+      "ok": true,
+      "label": "01-project-page @375: no axe violations"
+    },
+    {
+      "ok": true,
+      "label": "01-project-page @375: no horizontal scroll"
+    },
+    {
+      "ok": true,
+      "label": "01-project-page @375: no targets under 44 px"
+    },
+    {
+      "ok": true,
+      "label": "02-project-fact-cards @375: no axe violations"
+    },
+    {
+      "ok": true,
+      "label": "02-project-fact-cards @375: no horizontal scroll"
+    },
+    {
+      "ok": true,
+      "label": "02-project-fact-cards @375: no targets under 44 px"
+    },
+    {
+      "ok": true,
+      "label": "03-new-research-project @375: no axe violations"
+    },
+    {
+      "ok": true,
+      "label": "03-new-research-project @375: no horizontal scroll"
+    },
+    {
+      "ok": true,
+      "label": "03-new-research-project @375: no targets under 44 px"
+    },
+    {
+      "ok": true,
+      "label": "04-report-in-project @375: no axe violations"
+    },
+    {
+      "ok": true,
+      "label": "04-report-in-project @375: no horizontal scroll"
+    },
+    {
+      "ok": true,
+      "label": "04-report-in-project @375: no targets under 44 px"
+    },
+    {
+      "ok": true,
+      "label": "05-move-dialog @375: no axe violations"
+    },
+    {
+      "ok": true,
+      "label": "05-move-dialog @375: no horizontal scroll"
+    },
+    {
+      "ok": true,
+      "label": "05-move-dialog @375: no targets under 44 px"
+    },
+    {
+      "ok": true,
+      "label": "06-team-picker @375: no axe violations"
+    },
+    {
+      "ok": true,
+      "label": "06-team-picker @375: no horizontal scroll"
+    },
+    {
+      "ok": true,
+      "label": "06-team-picker @375: no targets under 44 px"
+    },
+    {
+      "ok": true,
+      "label": "07-project-settings @375: no axe violations"
+    },
+    {
+      "ok": true,
+      "label": "07-project-settings @375: no horizontal scroll"
+    },
+    {
+      "ok": true,
+      "label": "07-project-settings @375: no targets under 44 px"
+    },
+    {
+      "ok": true,
+      "label": "08-sidebar-projects-drawer @375: no axe violations"
+    },
+    {
+      "ok": true,
+      "label": "08-sidebar-projects-drawer @375: no horizontal scroll"
+    },
+    {
+      "ok": true,
+      "label": "08-sidebar-projects-drawer @375: no targets under 44 px"
+    },
+    {
+      "ok": true,
+      "label": "09-project-page-zoom-200 @1280: no axe violations"
+    },
+    {
+      "ok": true,
+      "label": "09-project-page-zoom-200 @1280: no horizontal scroll"
+    },
+    {
+      "ok": true,
+      "label": "09-project-page-zoom-200 @1280: no targets under 44 px"
+    }
+  ],
+  "pages": [
+    {
+      "name": "01-project-page",
+      "file": "01-project-page-1280.jpg",
+      "width": 1280,
+      "axe": [],
+      "layout": {
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "horizontalScroll": false
+      },
+      "small_targets": []
+    },
+    {
+      "name": "02-project-fact-cards",
+      "file": "02-project-fact-cards-1280.jpg",
+      "width": 1280,
+      "axe": [],
+      "layout": {
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "horizontalScroll": false
+      },
+      "small_targets": []
+    },
+    {
+      "name": "03-new-research-project",
+      "file": "03-new-research-project-1280.jpg",
+      "width": 1280,
+      "axe": [],
+      "layout": {
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "horizontalScroll": false
+      },
+      "small_targets": []
+    },
+    {
+      "name": "04-report-in-project",
+      "file": "04-report-in-project-1280.jpg",
+      "width": 1280,
+      "axe": [],
+      "layout": {
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "horizontalScroll": false
+      },
+      "small_targets": []
+    },
+    {
+      "name": "05-move-dialog",
+      "file": "05-move-dialog-1280.jpg",
+      "width": 1280,
+      "axe": [],
+      "layout": {
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "horizontalScroll": false
+      },
+      "small_targets": []
+    },
+    {
+      "name": "06-team-picker",
+      "file": "06-team-picker-1280.jpg",
+      "width": 1280,
+      "axe": [],
+      "layout": {
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "horizontalScroll": false
+      },
+      "small_targets": []
+    },
+    {
+      "name": "07-project-settings",
+      "file": "07-project-settings-1280.jpg",
+      "width": 1280,
+      "axe": [],
+      "layout": {
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "horizontalScroll": false
+      },
+      "small_targets": []
+    },
+    {
+      "name": "08-sidebar-projects",
+      "file": "08-sidebar-projects-1280.jpg",
+      "width": 1280,
+      "axe": [],
+      "layout": {
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "horizontalScroll": false
+      },
+      "small_targets": []
+    },
+    {
+      "name": "01-project-page",
+      "file": "01-project-page-375.jpg",
+      "width": 375,
+      "axe": [],
+      "layout": {
+        "scrollWidth": 375,
+        "clientWidth": 375,
+        "horizontalScroll": false
+      },
+      "small_targets": []
+    },
+    {
+      "name": "02-project-fact-cards",
+      "file": "02-project-fact-cards-375.jpg",
+      "width": 375,
+      "axe": [],
+      "layout": {
+        "scrollWidth": 375,
+        "clientWidth": 375,
+        "horizontalScroll": false
+      },
+      "small_targets": []
+    },
+    {
+      "name": "03-new-research-project",
+      "file": "03-new-research-project-375.jpg",
+      "width": 375,
+      "axe": [],
+      "layout": {
+        "scrollWidth": 375,
+        "clientWidth": 375,
+        "horizontalScroll": false
+      },
+      "small_targets": []
+    },
+    {
+      "name": "04-report-in-project",
+      "file": "04-report-in-project-375.jpg",
+      "width": 375,
+      "axe": [],
+      "layout": {
+        "scrollWidth": 375,
+        "clientWidth": 375,
+        "horizontalScroll": false
+      },
+      "small_targets": []
+    },
+    {
+      "name": "05-move-dialog",
+      "file": "05-move-dialog-375.jpg",
+      "width": 375,
+      "axe": [],
+      "layout": {
+        "scrollWidth": 375,
+        "clientWidth": 375,
+        "horizontalScroll": false
+      },
+      "small_targets": []
+    },
+    {
+      "name": "06-team-picker",
+      "file": "06-team-picker-375.jpg",
+      "width": 375,
+      "axe": [],
+      "layout": {
+        "scrollWidth": 375,
+        "clientWidth": 375,
+        "horizontalScroll": false
+      },
+      "small_targets": []
+    },
+    {
+      "name": "07-project-settings",
+      "file": "07-project-settings-375.jpg",
+      "width": 375,
+      "axe": [],
+      "layout": {
+        "scrollWidth": 375,
+        "clientWidth": 375,
+        "horizontalScroll": false
+      },
+      "small_targets": []
+    },
+    {
+      "name": "08-sidebar-projects-drawer",
+      "file": "08-sidebar-projects-drawer-375.jpg",
+      "width": 375,
+      "axe": [],
+      "layout": {
+        "scrollWidth": 375,
+        "clientWidth": 375,
+        "horizontalScroll": false
+      },
+      "small_targets": []
+    },
+    {
+      "name": "09-project-page-zoom-200",
+      "file": "09-project-page-zoom-200-1280.jpg",
+      "width": 1280,
+      "axe": [],
+      "layout": {
+        "scrollWidth": 1280,
+        "clientWidth": 1280,
+        "horizontalScroll": false
+      },
+      "small_targets": []
+    }
+  ]
+}

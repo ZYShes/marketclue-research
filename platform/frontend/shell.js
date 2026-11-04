@@ -6,6 +6,10 @@ import {
 import { api } from "./api.js";
 import { state, runsLeftText } from "./core.js";
 import { featureById } from "./features.js";
+import {
+  refreshProjects, getProjects, onProjects, projectById, projectsFailed, resetProjects, openNewProjectDialog,
+  projectHref, archivedShown, setShowArchived,
+} from "./projects.js";
 
 const shellEl = document.getElementById("shell");
 const topbarEl = document.getElementById("topbar");
@@ -51,13 +55,14 @@ export function mergeHistory(convs, runs) {
       seen.add(c.run_id);
       items.push({
         key: `run:${c.run_id}`, type: "report", id: c.run_id, conv_id: c.conv_id,
+        project_id: (r && r.project_id) || c.project_id || null,
         title: (r && r.title) || c.title || "Untitled research",
         feature: c.feature || (r && r.feature), status: runStatus((r && r.status) || c.run_status),
         at: later(c.updated_at, r && r.created_at), href: `#/runs/${encodeURIComponent(c.run_id)}`,
       });
     } else {
       items.push({
-        key: `conv:${c.conv_id}`, type: "conversation", id: c.conv_id,
+        key: `conv:${c.conv_id}`, type: "conversation", id: c.conv_id, project_id: c.project_id || null,
         title: c.title || "New conversation", feature: c.feature,
         status: c.ready ? "ready" : "draft", at: c.updated_at || c.created_at,
         href: `#/c/${encodeURIComponent(c.conv_id)}`,
@@ -67,7 +72,7 @@ export function mergeHistory(convs, runs) {
   for (const r of runs) {
     if (!r || !r.run_id || seen.has(r.run_id)) continue;
     items.push({
-      key: `run:${r.run_id}`, type: "report", id: r.run_id, conv_id: r.conv_id || null,
+      key: `run:${r.run_id}`, type: "report", id: r.run_id, conv_id: r.conv_id || null, project_id: r.project_id || null,
       title: r.title || "Untitled research", feature: r.feature || r.brief?.feature,
       status: runStatus(r.status), at: r.created_at, href: `#/runs/${encodeURIComponent(r.run_id)}`,
     });
@@ -113,18 +118,22 @@ export function resetHistory() {
   historyItems = null;
   historyError = null;
   clearTimeout(pollTimer);
+  resetProjects();
 }
 
 export function historyRow(item, { compact = false, current = false } = {}) {
   const feature = item.feature ? featureById(item.feature) : null;
+  const projectName = item.project_id ? projectById(item.project_id)?.name : null;
   return h("a", {
     class: `history-row${compact ? " is-compact" : ""}`, href: item.href,
     "aria-current": current ? "page" : null,
   },
   h("span", { class: "history-main" },
     h("span", { class: "history-title" }, item.title),
-    compact ? null : h("span", { class: "history-meta" },
-      [feature ? feature.name : null, item.type === "report" ? "Report" : "Conversation"].filter(Boolean).join(" · "))),
+    compact
+      ? (projectName ? h("span", { class: "history-meta" }, h("span", { class: "visually-hidden" }, "Project: "), projectName) : null)
+      : h("span", { class: "history-meta" },
+          [feature ? feature.name : null, item.type === "report" ? "Report" : "Conversation", projectName].filter(Boolean).join(" · "))),
   statusChip(item.status));
 }
 
@@ -283,6 +292,58 @@ function renderRecent(container) {
 let recentEl = null;
 onHistory(() => { if (recentEl?.isConnected) renderRecent(recentEl); });
 
+// ---- Projects list (above Recent) ------------------------------------------------
+
+const PROJECTS_SHOWN = 6;
+let projectsEl = null;
+let projectsExpanded = false;
+
+function renderProjects(container) {
+  const items = getProjects();
+  const { head, arg } = currentRoute;
+  let body;
+  if (items == null) {
+    body = projectsFailed()
+      ? h("p", { class: "sb-note" }, "Projects could not load.")
+      : h("p", { class: "sb-note", role: "status" }, "Loading…");
+  } else if (!items.length) {
+    body = h("p", { class: "sb-note" }, "Group research about one product or idea in a project.");
+  } else {
+    const shown = projectsExpanded ? items : items.slice(0, PROJECTS_SHOWN);
+    body = [
+      h("ul", { class: "sb-list", id: "sb-project-list" }, shown.map((p) => h("li", {},
+        h("a", {
+          class: `project-row${p.archived ? " is-archived" : ""}`, href: projectHref(p.project_id),
+          "aria-current": head === "p" && arg === p.project_id ? "page" : null,
+        },
+        h("span", { class: "project-dot", "aria-hidden": "true" }),
+        h("span", { class: "project-row-main" },
+          h("span", { class: "project-row-name" }, p.name),
+          h("span", { class: "project-tag" }, p.team ? `Team · ${p.team.name}` : "Personal", p.archived ? " · archived" : "")))))),
+      items.length > PROJECTS_SHOWN
+        ? h("button", {
+            type: "button", class: "sb-more", "aria-expanded": String(projectsExpanded), "aria-controls": "sb-project-list",
+            onclick: () => { projectsExpanded = !projectsExpanded; renderProjects(container); container.querySelector(".sb-more")?.focus(); },
+          }, projectsExpanded ? "Show fewer" : `Show all ${items.length}`)
+        : null,
+    ];
+  }
+  container.replaceChildren(
+    h("h2", { class: "sb-heading", id: "projects-h" }, "Projects"),
+    ...[body].flat(Infinity).filter(Boolean),
+    h("div", { class: "sb-project-actions" },
+      h("button", { type: "button", class: "sb-add", onclick: () => openNewProjectDialog() }, icon("plus"), h("span", {}, "New project")),
+      h("button", {
+        type: "button", class: "sb-archived", "aria-pressed": String(archivedShown()),
+        onclick: () => setShowArchived(!archivedShown()),
+      }, archivedShown() ? "Hide archived" : "Show archived")));
+}
+
+onProjects(() => {
+  if (projectsEl?.isConnected) renderProjects(projectsEl);
+  if (recentEl?.isConnected) renderRecent(recentEl);
+});
+
 export function renderShell(route) {
   currentRoute = route;
   const user = state.user;
@@ -313,6 +374,8 @@ export function renderShell(route) {
     wordmark("#/new"),
     h("a", { class: "icon-btn", href: "#/new", "aria-label": "New research" }, icon("plus"))));
 
+  projectsEl = h("section", { class: "sb-projects", "aria-labelledby": "projects-h" });
+  renderProjects(projectsEl);
   recentEl = h("section", { class: "sb-recent", "aria-labelledby": "recent-h" });
   renderRecent(recentEl);
   sidebarEl.replaceChildren(
@@ -320,6 +383,7 @@ export function renderShell(route) {
       wordmark("#/new"),
       h("button", { type: "button", class: "icon-btn sb-close", "aria-label": "Close navigation", onclick: () => setDrawer(false) }, icon("close"))),
     h("a", { class: "btn btn-primary sb-new", href: "#/new", "aria-current": head === "new" ? "page" : null }, icon("plus"), "New research"),
+    projectsEl,
     recentEl,
     h("ul", { class: "sb-links" },
       navLink("#/runs", "My reports", "reports", head === "runs" && !route.arg),
@@ -330,6 +394,7 @@ export function renderShell(route) {
       accountMenu(user)));
   applyLayout();
   if (historyItems == null) refreshHistory();
+  if (getProjects() == null) refreshProjects();
 }
 
 // Re-render only the account area after /me changes (free reports left).

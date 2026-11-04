@@ -128,12 +128,13 @@ def save_conversation(sub, conv: dict) -> None:
         Key={"PK": f"USER#{sub}", "SK": f"CONV#{conv['conv_id']}"},
         UpdateExpression=(
             "SET conv_id = :id, messages = :messages, brief = :brief, ready = :ready, feature = :feature, "
-            "template = :template, created_at = if_not_exists(created_at, :created), updated_at = :now"
+            "template = :template, project_id = :project, created_at = if_not_exists(created_at, :created), updated_at = :now"
         ),
         ExpressionAttributeValues=_to_dynamo({
             ":id": conv["conv_id"], ":messages": conv["messages"], ":brief": conv.get("brief"),
             ":ready": conv.get("ready", False), ":feature": conv.get("feature") or "marketing_plan",
-            ":template": conv.get("template") or "general", ":created": conv.get("created_at", now), ":now": now,
+            ":template": conv.get("template") or "general", ":project": conv.get("project_id"),
+            ":created": conv.get("created_at", now), ":now": now,
         }),
     )
 
@@ -157,7 +158,8 @@ def list_conversations(sub, limit=50) -> list[dict]:
         conv = _public(item)
         rows.append({
             "conv_id": conv["conv_id"], "feature": conv.get("feature") or "marketing_plan",
-            "template": conv.get("template") or "general", "title": conversation_title(conv), "ready": bool(conv.get("ready")),
+            "template": conv.get("template") or "general", "project_id": conv.get("project_id"),
+            "title": conversation_title(conv), "ready": bool(conv.get("ready")),
             "run_id": conv.get("run_id"), "run_status": conv.get("run_status"),
             "updated_at": conv.get("updated_at") or conv.get("created_at"),
         })
@@ -184,22 +186,25 @@ def _set_conversation_run(sub, conv_id, run_id, status, link=False):
             raise
 
 
-def create_run(sub, conv_id, title, brief, mode="quick") -> dict:
+def create_run(sub, conv_id, title, brief, mode="quick", project_id=None) -> dict:
     run_id, now = uuid4().hex[:12], _timestamp()
     run = {
         "run_id": run_id, "user_sub": sub, "conv_id": conv_id, "title": title,
         "brief": brief, "mode": mode, "template": (brief or {}).get("template") or "general", "status": "queued", "stage": "planning", "agents": {},
         "cost_usd": 0, "error": None, "share_token": None, "created_at": now,
-        "updated_at": now, "result_key": None,
+        "updated_at": now, "result_key": None, "project_id": project_id,
     }
-    index = {key: run[key] for key in ("run_id", "title", "status", "created_at", "cost_usd", "mode", "template")}
+    index = {key: run[key] for key in ("run_id", "title", "status", "created_at", "cost_usd", "mode", "template", "project_id")}
     index["feature"] = (brief or {}).get("feature") or "marketing_plan"
-    _transaction([
+    actions = [
         {"Put": {"Item": {"PK": f"RUN#{run_id}", "SK": "META", **run},
                  "ConditionExpression": "attribute_not_exists(PK)"}},
         {"Put": {"Item": {"PK": f"USER#{sub}", "SK": f"RUN#{now}#{run_id}", **index},
                  "ConditionExpression": "attribute_not_exists(PK)"}},
-    ])
+    ]
+    if project_id:
+        actions.append({"Put": {"Item": project_run_item(project_id, run)}})
+    _transaction(actions)
     if conv_id:
         _set_conversation_run(sub, conv_id, run_id, "queued", link=True)
     return _public(run)
@@ -227,7 +232,7 @@ def claim_run(run_id) -> bool:
 
 
 def update_run(run_id, **fields) -> None:
-    immutable = {"PK", "SK", "run_id", "user_sub", "conv_id", "created_at"}
+    immutable = {"PK", "SK", "run_id", "user_sub", "conv_id", "created_at", "project_id"}
     if immutable.intersection(fields):
         raise ValueError("Run identity fields cannot be changed.")
     run = get_run(run_id)
@@ -250,6 +255,15 @@ def update_run(run_id, **fields) -> None:
             "UpdateExpression": "SET " + ", ".join(f"#f{i} = :v{i}" for i in range(len(mirrored))),
             "ExpressionAttributeNames": {f"#f{i}": key for i, key in enumerate(mirrored)},
             "ExpressionAttributeValues": {f":v{i}": value for i, value in enumerate(mirrored.values())},
+            "ConditionExpression": "attribute_exists(PK)",
+        }})
+    project_fields = {key: value for key, value in fields.items() if key in PROJECT_RUN_MIRRORED}
+    if project_fields and run.get("project_id"):
+        actions.append({"Update": {
+            "Key": {"PK": f"PROJECT#{run['project_id']}", "SK": f"RUN#{run['created_at']}#{run_id}"},
+            "UpdateExpression": "SET " + ", ".join(f"#p{i} = :p{i}" for i in range(len(project_fields))),
+            "ExpressionAttributeNames": {f"#p{i}": key for i, key in enumerate(project_fields)},
+            "ExpressionAttributeValues": {f":p{i}": value for i, value in enumerate(project_fields.values())},
             "ConditionExpression": "attribute_exists(PK)",
         }})
     _transaction(actions)
@@ -440,22 +454,18 @@ def incr_day_counter() -> int:
 INVITE_DAYS = 7
 
 
-def create_team(user, name) -> dict | None:
-    """Creates a team owned by the user; None when the user is already in a team."""
+def create_team(user, name) -> dict:
+    """Creates a team owned by the user (the router checks the team limit first)."""
     team_id, now = uuid4().hex[:12], _timestamp()
     team = {"team_id": team_id, "name": name, "owner_sub": user["sub"], "created_at": now}
-    try:
-        _transaction([
-            {"Put": {"Item": {"PK": f"TEAM#{team_id}", "SK": "META", **team},
-                     "ConditionExpression": "attribute_not_exists(PK)"}},
-            {"Put": {"Item": _member_item(team_id, user, "owner", now),
-                     "ConditionExpression": "attribute_not_exists(PK)"}},
-            _join_profile(user["sub"], team_id),
-        ])
-    except ClientError as exc:
-        if _condition_failed(exc):
-            return None
-        raise
+    _transaction([
+        {"Put": {"Item": {"PK": f"TEAM#{team_id}", "SK": "META", **team},
+                 "ConditionExpression": "attribute_not_exists(PK)"}},
+        {"Put": {"Item": _member_item(team_id, user, "owner", now),
+                 "ConditionExpression": "attribute_not_exists(PK)"}},
+        {"Put": {"Item": membership_item(team_id, user["sub"], "owner", now),
+                 "ConditionExpression": "attribute_not_exists(PK)"}},
+    ])
     return team
 
 
@@ -466,13 +476,14 @@ def _member_item(team_id, user, role, now):
     }
 
 
-def _join_profile(sub, team_id):
-    return {"Update": {
-        "Key": {"PK": f"USER#{sub}", "SK": "PROFILE"},
-        "UpdateExpression": "SET team_id = :team",
-        "ConditionExpression": "attribute_exists(PK) AND attribute_not_exists(team_id)",
-        "ExpressionAttributeValues": {":team": team_id},
-    }}
+def membership_item(team_id, sub, role, joined_at):
+    """USER#<sub>/TEAMMEMBER#<team_id>: lists a person's teams in one query (replaces PROFILE.team_id)."""
+    return {"PK": f"USER#{sub}", "SK": f"TEAMMEMBER#{team_id}", "team_id": team_id, "role": role, "joined_at": joined_at}
+
+
+def list_memberships(sub) -> list[dict]:
+    """The person's teams ({team_id, role, joined_at}), first joined first."""
+    return sorted((_public(item) for item in _query(sub, "TEAMMEMBER#")), key=lambda m: (m["joined_at"], m["team_id"]))
 
 
 def get_team(team_id) -> dict | None:
@@ -547,7 +558,8 @@ def join_team(user, invite) -> bool:
             }},
             {"Put": {"Item": _member_item(team_id, user, "member", now),
                      "ConditionExpression": "attribute_not_exists(PK)"}},
-            _join_profile(user["sub"], team_id),
+            {"Put": {"Item": membership_item(team_id, user["sub"], "member", now),
+                     "ConditionExpression": "attribute_not_exists(PK)"}},
         ])
     except ClientError as exc:
         if _condition_failed(exc):
@@ -557,7 +569,7 @@ def join_team(user, invite) -> bool:
 
 
 def remove_member(team_id, sub) -> bool:
-    """Removes a member (never the owner) and their profile link in one step."""
+    """Removes a member (never the owner) and their membership row in one step."""
     try:
         _transaction([
             {"Delete": {
@@ -566,12 +578,31 @@ def remove_member(team_id, sub) -> bool:
                 "ExpressionAttributeNames": {"#role": "role"},
                 "ExpressionAttributeValues": {":member": "member"},
             }},
-            {"Update": {
-                "Key": {"PK": f"USER#{sub}", "SK": "PROFILE"},
-                "UpdateExpression": "REMOVE team_id",
-                "ConditionExpression": "team_id = :team",
-                "ExpressionAttributeValues": {":team": team_id},
+            {"Delete": {
+                "Key": {"PK": f"USER#{sub}", "SK": f"TEAMMEMBER#{team_id}"},
+                "ConditionExpression": "attribute_exists(PK)",
             }},
+        ])
+    except ClientError as exc:
+        if _condition_failed(exc):
+            return False
+        raise
+    return True
+
+
+def hand_over_team(team_id, old_owner, new_owner) -> bool:
+    """The team owner leaves: new_owner becomes the owner and old_owner's member rows go, in one step."""
+    owner_role = {"ExpressionAttributeNames": {"#role": "role"}, "ExpressionAttributeValues": {":owner": "owner"}}
+    try:
+        _transaction([
+            {"Update": {"Key": {"PK": f"TEAM#{team_id}", "SK": "META"}, "UpdateExpression": "SET owner_sub = :new",
+                        "ConditionExpression": "owner_sub = :old", "ExpressionAttributeValues": {":new": new_owner, ":old": old_owner}}},
+            {"Update": {"Key": {"PK": f"TEAM#{team_id}", "SK": f"MEMBER#{new_owner}"}, "UpdateExpression": "SET #role = :owner",
+                        "ConditionExpression": "attribute_exists(PK)", **owner_role}},
+            {"Update": {"Key": {"PK": f"USER#{new_owner}", "SK": f"TEAMMEMBER#{team_id}"}, "UpdateExpression": "SET #role = :owner",
+                        "ConditionExpression": "attribute_exists(PK)", **owner_role}},
+            {"Delete": {"Key": {"PK": f"TEAM#{team_id}", "SK": f"MEMBER#{old_owner}"}, "ConditionExpression": "attribute_exists(PK)"}},
+            {"Delete": {"Key": {"PK": f"USER#{old_owner}", "SK": f"TEAMMEMBER#{team_id}"}, "ConditionExpression": "attribute_exists(PK)"}},
         ])
     except ClientError as exc:
         if _condition_failed(exc):
@@ -584,23 +615,149 @@ def _member_name(member):
     return member.get("name") or member.get("email") or ""
 
 
-def list_team_runs(members, limit=50) -> list[dict]:
-    runs = []
-    for member in members:
-        for item in _query(member["sub"], "RUN#"):
-            run = _public(item)
-            if run.get("status") == "done":
-                runs.append({**run, "owner_sub": member["sub"], "owner_name": _member_name(member)})
+def _author_names(subs):
+    names = {}
+    for sub in subs:
+        user = get_user(sub) or {}
+        names[sub] = _member_name(user)
+    return names
+
+
+def list_team_runs(team_id, limit=50) -> list[dict]:
+    """Done runs of the team's projects (unfiled runs are private), newest first, with owner_name."""
+    runs = [{**row, "owner_sub": row["user_sub"]} for project in list_project_rows(f"TEAM#{team_id}")
+            for row in project_runs(project["project_id"]) if row.get("status") == "done"]
+    names = _author_names({run["user_sub"] for run in runs})
+    runs = [{**run, "owner_name": names[run["user_sub"]]} for run in runs]
     runs.sort(key=lambda run: run["created_at"], reverse=True)
     return runs[:max(limit, 0)]
 
 
-def list_team_cards(members, q=None, type=None, direction=None) -> list[dict]:
-    """Cards of all members, deduped on dedupe_key; the first member listed wins a duplicate."""
+def list_team_cards(team_id, viewer_sub=None, q=None, type=None, direction=None) -> list[dict]:
+    """Fact cards of the team's projects, deduped on dedupe_key (the viewer's own copy wins)."""
     cards = {}
-    for member in members:
-        for card in list_cards(member["sub"], q=q, type=type, direction=direction):
-            cards.setdefault(card["dedupe_key"], {**card, "added_by": _member_name(member), "added_by_sub": member["sub"]})
+    for project in list_project_rows(f"TEAM#{team_id}"):
+        for card in project_cards(project["project_id"], viewer_sub, q=q, type=type, direction=direction):
+            cards.setdefault(card["dedupe_key"], card)
+    return sorted(cards.values(), key=_capture_time, reverse=True)
+
+
+# ---------- Projects ----------
+
+PROJECT_BRIEF_FIELDS = ("business", "customer", "location", "stage", "budget_usd")
+PROJECT_RUN_MIRRORED = {"status", "title", "takeaway"}
+
+
+def project_run_item(project_id, run):
+    """PROJECT#<id>/RUN#<created_at>#<run_id>: one query lists a project's runs across all its authors."""
+    return {
+        "PK": f"PROJECT#{project_id}", "SK": f"RUN#{run['created_at']}#{run['run_id']}", "run_id": run["run_id"],
+        "user_sub": run["user_sub"], "title": run.get("title") or "", "status": run.get("status") or "queued",
+        "feature": (run.get("brief") or {}).get("feature") or "marketing_plan", "mode": run.get("mode") or "quick",
+        "template": run.get("template") or "general", "created_at": run["created_at"], "takeaway": run.get("takeaway"),
+    }
+
+
+def _project_list_item(project):
+    owner = f"TEAM#{project['team_id']}" if project.get("team_id") else f"USER#{project['owner_sub']}"
+    return {"PK": owner, "SK": f"PROJECT#{project['project_id']}", **{key: project.get(key) for key in (
+        "project_id", "name", "owner_sub", "team_id", "archived", "created_at", "updated_at")}}
+
+
+def create_project(owner_sub, name, team_id=None, brief=None, default_template="general", project_id=None) -> dict:
+    """Creates a project and its list row (the router checks the live-project limit first)."""
+    now = _timestamp()
+    project = {
+        "project_id": project_id or uuid4().hex[:12], "name": name, "owner_sub": owner_sub, "team_id": team_id,
+        "brief": {field: (brief or {}).get(field) for field in PROJECT_BRIEF_FIELDS},
+        "default_template": default_template or "general", "created_at": now, "updated_at": now, "archived": False,
+    }
+    actions = [
+        {"Put": {"Item": {"PK": f"PROJECT#{project['project_id']}", "SK": "META", **project},
+                 "ConditionExpression": "attribute_not_exists(PK)"}},
+        {"Put": {"Item": _project_list_item(project), "ConditionExpression": "attribute_not_exists(PK)"}},
+    ]
+    _transaction(actions)
+    return project
+
+
+def get_project(project_id) -> dict | None:
+    return _public(_get(f"PROJECT#{project_id}", "META")) if project_id else None
+
+
+def update_project(project_id, **fields) -> dict:
+    """Changes name, brief, default_template, archived or team_id; a move re-files the list row."""
+    project = get_project(project_id)
+    if project is None:
+        raise KeyError(project_id)
+    updated = {**project, **fields, "updated_at": _timestamp()}
+    old_row, new_row = _project_list_item(project), _project_list_item(updated)
+    actions = [{"Put": {"Item": {"PK": f"PROJECT#{project_id}", "SK": "META", **updated},
+                        "ConditionExpression": "attribute_exists(PK)"}},
+               {"Put": {"Item": new_row}}]
+    if old_row["PK"] != new_row["PK"]:
+        actions.append({"Delete": {"Key": {"PK": old_row["PK"], "SK": old_row["SK"]}}})
+    _transaction(actions)
+    return updated
+
+
+def fill_project_brief(project_id, brief) -> dict | None:
+    """Copies facts from a ready conversation brief into the project brief's empty fields only."""
+    project = get_project(project_id)
+    if project is None or not isinstance(brief, dict):
+        return project
+    current = project.get("brief") or {}
+    filled = {field: current.get(field) if current.get(field) not in (None, "") else brief.get(field)
+              for field in PROJECT_BRIEF_FIELDS}
+    return update_project(project_id, brief=filled) if filled != {f: current.get(f) for f in PROJECT_BRIEF_FIELDS} else project
+
+
+def list_project_rows(owner_key) -> list[dict]:
+    """Project list rows under USER#<sub> (personal) or TEAM#<id> (team)."""
+    return [_public(item) for item in _query_pk(owner_key, "PROJECT#")]
+
+
+def project_runs(project_id) -> list[dict]:
+    """All runs filed in the project (any author, any status), newest first."""
+    return [_public(item) for item in _query_pk(f"PROJECT#{project_id}", "RUN#", ScanIndexForward=False)]
+
+
+def file_run(run_id, project_id) -> dict:
+    """Moves a run into a project (or out with None): META, the author's index row and the project run rows."""
+    run = get_run(run_id)
+    if run is None:
+        raise KeyError(run_id)
+    old = run.get("project_id")
+    if old == project_id:
+        return run
+    sk = f"RUN#{run['created_at']}#{run_id}"
+    now = _timestamp()
+    actions = [
+        {"Update": {"Key": {"PK": f"RUN#{run_id}", "SK": "META"}, "UpdateExpression": "SET project_id = :p, updated_at = :now",
+                    "ConditionExpression": "attribute_exists(PK)", "ExpressionAttributeValues": {":p": project_id, ":now": now}}},
+        {"Update": {"Key": {"PK": f"USER#{run['user_sub']}", "SK": sk}, "UpdateExpression": "SET project_id = :p",
+                    "ConditionExpression": "attribute_exists(PK)", "ExpressionAttributeValues": {":p": project_id}}},
+    ]
+    if old:
+        actions.append({"Delete": {"Key": {"PK": f"PROJECT#{old}", "SK": sk}}})
+    if project_id:
+        actions.append({"Put": {"Item": project_run_item(project_id, run)}})
+    _transaction(actions)
+    return {**run, "project_id": project_id, "updated_at": now}
+
+
+def project_cards(project_id, viewer_sub=None, q=None, type=None, direction=None) -> list[dict]:
+    """The project's knowledge base: fact cards of its done runs, deduped on dedupe_key, newest first.
+    Cards belong to their authors; the viewer's own copy wins a duplicate."""
+    done = [row for row in project_runs(project_id) if row.get("status") == "done"]
+    run_ids = {row["run_id"] for row in done}
+    authors = sorted({row["user_sub"] for row in done}, key=lambda sub: sub != viewer_sub)
+    names = _author_names(authors)
+    cards = {}
+    for author in authors:
+        for card in list_cards(author, q=q, type=type, direction=direction):
+            if run_ids.intersection(card.get("run_ids") or []):
+                cards.setdefault(card["dedupe_key"], {**card, "added_by": names[author], "added_by_sub": author})
     return sorted(cards.values(), key=_capture_time, reverse=True)
 
 

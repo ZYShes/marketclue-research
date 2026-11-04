@@ -78,7 +78,8 @@ async function context(browser, width = 1280) {
     check(page.url().endsWith("#/join/sample-invite"), "after sign-in the invitee is back on #/join/<token>");
     await page.click("text=Join team");
     await wait(900);
-    check(page.url().endsWith("#/team"), "joining opens the Team page");
+    // v5: joining opens the joined team (#/team?team=<id>), since a person can be in several teams.
+    check(/#\/team(\?team=[^&#]+)?$/.test(page.url()), "joining opens the Team page");
     check(await page.locator("text=Leave team").first().isVisible(), "member view offers Leave team");
     await page.goto(`${BASE}#/library?scope=team`);
     await wait(900);
