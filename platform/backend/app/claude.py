@@ -131,9 +131,9 @@ def json_call(usage, *, system, prompt, schema, effort="low", max_tokens=16000, 
     return json.loads(text_of(response))
 
 
-def research_call(usage, *, system, prompt, max_searches=4, max_fetches=3, fetch_tokens=6000, effort="medium"):
+def research_call(usage, *, system, prompt, model=None, max_searches=4, max_fetches=3, fetch_tokens=6000, effort="medium"):
     """Runs a web research turn, continuing paused server-tool turns. Returns all content blocks."""
-    model = RESEARCH_MODEL
+    model = model or RESEARCH_MODEL
     dynamic = model in DYNAMIC_WEB_TOOLS
     tools = [
         {"type": "web_search_20260209" if dynamic else "web_search_20250305", "name": "web_search", "max_uses": max_searches},

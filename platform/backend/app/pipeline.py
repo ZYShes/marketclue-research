@@ -15,9 +15,14 @@ from datetime import datetime, timezone
 import requests
 from bs4 import BeautifulSoup
 
-from . import claude, intake, store
+from . import charts, claude, intake, store
 
 MAX_DIRECTIONS = 4
+# Effort modes: research agent model, directions, page fetches per direction, writer effort.
+MODES = {
+    "quick": {"research_model": "claude-haiku-5-5", "directions": 3, "fetches": 3, "writer_effort": "medium"},
+    "smarter": {"research_model": "claude-opus-5-5", "directions": 4, "fetches": 4, "writer_effort": "high"},
+}
 USER_AGENT = "MarketClueBot/0.1 (+https://github.com/ZYShes/marketclue-research)"
 
 PLAN_SECTIONS = ["Customers", "Positioning", "Pricing", "Channels", "Content (4 weeks)", "Measurement", "Brand & compliance"]
@@ -75,21 +80,26 @@ DIRECTIONS_SCHEMA = {
 }
 
 
-def plan_directions(usage, brief):
+def mode_of(run):
+    mode = (run or {}).get("mode") or "quick"
+    return mode if mode in MODES else "quick"
+
+
+def plan_directions(usage, brief, max_directions=MAX_DIRECTIONS):
     spec = intake.FEATURES[feature_of(brief)]
     out = claude.json_call(
         usage,
         system="You are the research lead at MarketClue. You split a solo founder's research into independent directions that separate research agents can run in parallel.",
         prompt=(
             f"{brief_text(brief)}\n\nTool: {spec['name']} ({spec['question']})\n\n"
-            f"Split this into 2 to {MAX_DIRECTIONS} research directions that public web pages can answer, "
+            f"Split this into 2 to {max_directions} research directions that public web pages can answer, "
             f"covering {spec['research']}. Give each a short name (2-4 words), one research "
             "question, and 2-3 search hints. Also give the report a short title (max 8 words)."
         ),
         schema=DIRECTIONS_SCHEMA,
         effort="medium",
     )
-    return out["title"], out["directions"][:MAX_DIRECTIONS]
+    return out["title"], out["directions"][:max_directions]
 
 
 # ---------- 2. Research agents, in parallel ----------
@@ -126,7 +136,7 @@ FINDINGS_SCHEMA = {
 }
 
 
-def research(usage, brief, direction):
+def research(usage, brief, direction, mode="quick"):
     prompt = (
         f"{brief_text(brief)}\n\nYour research direction: {direction['name']}\n"
         f"Question: {direction['question']}\nSearch hints: {', '.join(direction.get('search_hints') or [])}"
@@ -134,8 +144,10 @@ def research(usage, brief, direction):
     if feature_of(brief) == "launch_checklist":
         prompt += ("\n\nPrefer official pages: government sites (.gov) for the founder's city and state, "
                    "the U.S. Small Business Administration, and the selling platform's own help pages.")
-    fetches = 4 if feature_of(brief) == "competitor_scan" else 3
-    blocks = claude.research_call(usage, system=RESEARCH_SYSTEM, prompt=prompt, max_fetches=fetches)
+    settings = MODES[mode]
+    blocks = claude.research_call(
+        usage, system=RESEARCH_SYSTEM, prompt=prompt, model=settings["research_model"], max_fetches=settings["fetches"],
+    )
     pages = claude.fetched_pages(blocks)
     report = "\n".join(b.text for b in blocks if b.type == "text")
     rows = [line for line in report.splitlines() if line.strip().startswith("FINDING")]
@@ -283,6 +295,17 @@ def _array(items):
     return {"type": "array", "items": items}
 
 
+def _object(props):
+    return {"type": "object", "properties": props, "required": list(props), "additionalProperties": False}
+
+
+def _nullable(schema):
+    return {"anyOf": [schema, {"type": "null"}]}
+
+
+NUMBER_OR_NULL = {"type": ["number", "null"]}
+
+
 def report_schema(feature):
     props = {
         "takeaway": _item(),
@@ -307,14 +330,19 @@ def report_schema(feature):
                         "cells": _array({"type": "string"}),
                         "kind": {"type": "string", "enum": ["sourced", "assumption", "estimate"]},
                         "card_ids": _array({"type": "string"}),
+                        "price_usd": NUMBER_OR_NULL,
+                        "price_high_usd": NUMBER_OR_NULL,
                     },
-                    "required": ["cells", "kind", "card_ids"],
+                    "required": ["cells", "kind", "card_ids", "price_usd", "price_high_usd"],
                     "additionalProperties": False,
                 }),
             },
             "required": ["title", "columns", "rows"],
             "additionalProperties": False,
         }
+        props["price_band"] = _nullable(_object({
+            "low_usd": {"type": "number"}, "high_usd": {"type": "number"}, "method": {"type": "string"},
+        }))
     if feature == "marketing_plan":
         props["plan"] = _array({
             "type": "object",
@@ -326,6 +354,17 @@ def report_schema(feature):
         budget_line["properties"].pop("text")
         budget_line["required"] = list(budget_line["properties"])
         props["budget"] = _array(budget_line)
+        props["projection"] = _nullable(_object({
+            "ad_spend_usd": {"type": "number"},
+            "cost_per_click_usd": {"type": "number"},
+            "conversion_low_pct": {"type": "number"},
+            "conversion_high_pct": {"type": "number"},
+            "average_order_usd": NUMBER_OR_NULL,
+            "basis": {"type": "string"},
+            "card_ids": _array({"type": "string"}),
+        }))
+    if feature == "market_check":
+        props["themes"] = _array(_object({"label": {"type": "string"}, "card_ids": _array({"type": "string"})}))
     if feature == "launch_checklist":
         props["checklist"] = _array(_item({"step": {"type": "string"}}))
     return {"type": "object", "properties": props, "required": list(props), "additionalProperties": False}
@@ -344,13 +383,23 @@ sentences; 3-5 next steps, each saying exactly what to do and how to check it; a
 evidence (what the sources did not show)."""
 
 TOOL_INSTRUCTIONS = {
-    "market_check": "Focus on who buys, what they praise, what they complain about and where they talk. Do not estimate market size.",
+    "market_check": ("Focus on who buys, what they praise, what they complain about and where they talk. Do not estimate "
+                     "market size. Also list 3-6 buyer themes (short labels such as \"Buy as gifts\" or \"Complain about "
+                     "shipping\"), each with the ids of every card whose quote shows that theme."),
     "competitor_scan": ("Also write a price comparison table: columns Seller, Product, Price, Notes; one row per "
                         "competitor product that a card supports, with that card's id. Only put a price in a row when "
-                        "a quote states it."),
+                        "a quote states it. For each row also give price_usd, the US dollar price the quote states as a "
+                        "number (the lower price of a from-to range), and price_high_usd, the upper price of a from-to "
+                        "range; use null when the quote states no US dollar price or no range. If the prices support it, "
+                        "suggest a price band for the founder in price_band (low_usd, high_usd and a method that says how "
+                        "you chose it from the prices); otherwise price_band is null."),
     "marketing_plan": ("Also write the marketing plan (sections: " + ", ".join(PLAN_SECTIONS) + ", 2-4 items each) and a "
                        "4-week budget in US dollars with 3-6 lines. If the founder gave a budget, stay within it. Budget "
-                       "lines that use a price from a card are sourced, otherwise estimate or assumption."),
+                       "lines that use a price from a card are sourced, otherwise estimate or assumption. Also give the "
+                       "inputs of a simple first-month projection in projection: ad_spend_usd (the paid ads amount in your "
+                       "budget), cost_per_click_usd, conversion_low_pct and conversion_high_pct (the percent of visitors "
+                       "who buy), average_order_usd (or null), basis (where these numbers come from, in plain English) and "
+                       "the ids of cards that state any of them. Set projection to null when the budget has no paid ads."),
     "launch_checklist": ("Also write a launch checklist of 5-9 steps in the order a founder should do them (register, "
                          "licences, tax, platform rules, product rules). Each step cites the page that requires it. Do not "
                          "give legal advice; say to confirm with the office when a rule depends on details."),
@@ -378,7 +427,7 @@ def report_problems(feature, doc):
     return problems
 
 
-def write_report(usage, brief, cards, directions):
+def write_report(usage, brief, cards, directions, effort="medium"):
     feature = feature_of(brief)
     card_lines = [
         {"id": c["card_id"], "direction": c["direction"], "claim": c["claim"], "quote": c["quote"], "source": c["source_title"], "url": c["url"]}
@@ -392,12 +441,12 @@ def write_report(usage, brief, cards, directions):
         f"Checked fact cards (JSON):\n{json.dumps(card_lines, ensure_ascii=False)}\n\n"
         f"{TOOL_INSTRUCTIONS[feature]}"
     )
-    doc = claude.json_call(usage, system=WRITER_SYSTEM, prompt=prompt, schema=report_schema(feature), effort="medium", max_tokens=32000)
+    doc = claude.json_call(usage, system=WRITER_SYSTEM, prompt=prompt, schema=report_schema(feature), effort=effort, max_tokens=32000)
     problems = report_problems(feature, doc)
     if problems:
         print(json.dumps({"writer_retry": problems}))
         doc = claude.json_call(
-            usage, system=WRITER_SYSTEM, schema=report_schema(feature), effort="medium", max_tokens=32000,
+            usage, system=WRITER_SYSTEM, schema=report_schema(feature), effort=effort, max_tokens=32000,
             prompt=prompt + "\n\nA previous draft was incomplete. Make sure the report includes: " + "; ".join(problems) + ".",
         )
         problems = report_problems(feature, doc)
@@ -513,11 +562,13 @@ def run(run_id):
     try:
         brief = meta["brief"]
         feature = feature_of(brief)
+        mode = mode_of(meta)
+        settings = MODES[mode]
         sub = meta["user_sub"]
         store.update_run(run_id, status="running", stage="planning")
         t0 = time.time()
         set_agent("Research lead", "running", "Splitting the work")
-        title, directions = plan_directions(usage, brief)
+        title, directions = plan_directions(usage, brief, settings["directions"])
         set_agent("Research lead", "done", f"{len(directions)} research directions", time.time() - t0)
         store.update_run(run_id, title=title, stage="researching")
 
@@ -529,7 +580,7 @@ def run(run_id):
         def work(direction):
             t = time.time()
             try:
-                findings, pages, hits = research(usage, brief, direction)
+                findings, pages, hits = research(usage, brief, direction, mode)
                 set_agent(direction["name"], "done", f"{len(pages)} pages read, {len(findings)} findings", time.time() - t)
                 return direction, findings, pages
             except Exception as exc:
@@ -557,7 +608,7 @@ def run(run_id):
         store.update_run(run_id, stage="planning_marketing")
         t0 = time.time()
         set_agent(writer, "running", "Writing the report")
-        doc = write_report(usage, brief, cards, directions)
+        doc = write_report(usage, brief, cards, directions, settings["writer_effort"])
         set_agent(writer, "done", "Report written", time.time() - t0)
 
         store.update_run(run_id, stage="checking")
@@ -569,9 +620,18 @@ def run(run_id):
 
         store.update_run(run_id, stage="writing")
         budget_lines = doc.get("budget") or []
+        coverage = {
+            "directions": len(directions),
+            "pages_read": sum(len(pages) for _, _, pages in results),
+            "quotes_found": sourced,
+            "quotes_total": len(cards),
+            "claims_narrowed": tightened,
+            "relabelled": relabelled,
+        }
         result = {
-            "version": 2,
+            "version": 3,
             "feature": feature,
+            "mode": mode,
             "title": title,
             "generated_at": now(),
             "brief": brief,
@@ -584,14 +644,8 @@ def run(run_id):
             "checklist": doc.get("checklist") or [],
             "next_steps": doc["next_steps"],
             "missing_evidence": doc["missing_evidence"],
-            "coverage": {
-                "directions": len(directions),
-                "pages_read": sum(len(pages) for _, _, pages in results),
-                "quotes_found": sourced,
-                "quotes_total": len(cards),
-                "claims_narrowed": tightened,
-                "relabelled": relabelled,
-            },
+            "coverage": coverage,
+            "charts": charts.build_charts(feature, doc, cards, coverage),
             "cards": cards,
             "cost": usage.as_dict(),
             "agents": timings,
