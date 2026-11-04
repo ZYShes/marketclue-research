@@ -45,7 +45,7 @@ export function stageLabel(feature) {
 // pipeline.MODES, otherwise POST /api/runs answers 400 invalid_mode).
 export const MODES = {
   quick: { id: "quick", name: "Quick", time: "1½ min", cost: "about $0.35", detail: "Fast model, up to 3 research directions, 3 pages each." },
-  balanced: { id: "balanced", name: "Balanced", time: "2 min", cost: "about $0.90", detail: "Mid-size model, up to 4 directions, 3 pages each, careful writing." },
+  balanced: { id: "balanced", name: "Balanced", time: "1½–2 min", cost: "about $1", detail: "Mid-size model, up to 4 directions, 3 pages each, careful writing." },
   smarter: { id: "smarter", name: "Smarter", time: "3 min", cost: "about $2–2.50", detail: "Strongest model, up to 4 directions, 4 pages each, careful writing." },
 };
 export const MODE_ORDER = ["quick", "balanced", "smarter"];

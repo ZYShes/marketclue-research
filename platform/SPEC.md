@@ -307,7 +307,7 @@ what each report's next steps ask the founder to do.
 - smarter: research agents on `claude-opus-5-5`, up to 4 directions, 4 fetches each, writer effort high.
   ~3 min, ~$2–2.5.
 - balanced (added 2026-11-04): research agents on `claude-sonnet-5-5`, up to 4 directions, 3 fetches each,
-  writer effort high. Any user may pick any mode; Smarter is capped site-wide by `MAX_SMARTER_PER_DAY`
+  writer effort high, ~1.5 min, ~$1 (two test runs 2026-11-04). Any user may pick any mode; Smarter is capped site-wide by `MAX_SMARTER_PER_DAY`
   (429 `smarter_daily_limit`, see v3 decisions). The UI shows time and cost estimates next to the choice.
 
 ## Charts and projections (result v3 additions)
