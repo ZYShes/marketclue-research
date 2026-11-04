@@ -261,3 +261,83 @@ Launch (Launch checklist) → Grow (Marketing plan & budget).
    missing evidence as a short list.
 6. **Evidence coverage**: a small table from `coverage` plus the cost line.
 7. All fact cards (collapsed) and About this report (collapsed).
+
+---
+
+# v3 (2026-11-03 evening): history, effort, charts, mockups, modern UI
+
+Supersedes earlier sections where they differ. Feedback from the owner that drives it:
+1/5. Conversations and research must survive a closed browser; "New research" needs New and Existing.
+2. An effort choice: Quick ↔ Smarter. 3. Charts, tables and projections that help decide.
+4. Optional mock pictures (OpenAI image model). 6/7. Modern UI with full accessibility, informed by
+the best comparable products. 8. Clearer journey names and order.
+
+## Journey and tool names (replace v2 names in all UI copy)
+
+| feature id | Stage | Tool name | Question |
+|---|---|---|---|
+| `market_check` | 1 Discover | Find your customers | Who buys, and what do they say? |
+| `competitor_scan` | 2 Compare | Check competitors & prices | Who sells this, and for how much? |
+| `launch_checklist` | 3 Prepare | Get ready to sell | What do I need before I sell? |
+| `marketing_plan` | 4 Grow | Get your first customers | Which channels, and what will it cost? |
+
+"Validate" is dropped: these tools read public evidence; validating demand needs real buyers, which is
+what each report's next steps ask the founder to do.
+
+## History and resume (backend + frontend)
+
+- `GET /api/conversations?limit=50` → `{conversations: [{conv_id, feature, title, ready, run_id|null,
+  run_status|null, updated_at}]}` newest first. `title` = brief.business, else the first user message (≤80 chars).
+- Starting a run stores `run_id` on the conversation (`run_id`, `run_status` mirrored by `update_run`
+  when the run has `conv_id`).
+- `GET /api/conversations/{id}` returns the full conversation incl. messages, brief, feature, run_id.
+- Frontend: an app shell with a left sidebar (collapsible on mobile): "New research" button, then
+  "Recent" list (Today / This week / Earlier) mixing conversations in progress and finished reports with
+  status chips (Draft, Ready, Running, Done, Failed); "Fact library" link. Selecting an item restores
+  the chat (messages + brief) or opens the report. The open conversation id is kept in localStorage so a
+  reload returns to it. `#/new` shows two tabs: New (pick a tool) and Existing (the same history list,
+  searchable).
+
+## Effort: Quick ↔ Smarter
+
+- `POST /api/runs` body `{conv_id, mode: "quick"|"smarter"}` (default quick). Stored on the run and in
+  `result.mode`.
+- quick: research agents on `claude-haiku-5-5`, up to 3 directions, 3 page fetches each, writer effort
+  medium. ~1.5 min, ~$0.35.
+- smarter: research agents on `claude-opus-5-5`, up to 4 directions, 4 fetches each, writer effort high.
+  ~3 min, ~$2–2.5.
+- Non-owners may only start quick runs (403 `smarter_owner_only`); the UI shows Smarter disabled with a
+  one-line reason for them. The UI shows time and cost estimates next to the choice.
+
+## Charts and projections (result v3 additions)
+
+`result.charts`: list of chart specs, rendered client-side as accessible inline SVG (no chart library,
+each chart has a title, a one-sentence takeaway caption, data labels, and a visible data table toggle):
+`{id, type: "bar"|"stacked_bar"|"range", title, caption, unit: "USD"|"count"|"%", kind:
+"sourced"|"estimate", series: [{label, value, low?, high?, card_ids: []}], method}`.
+- competitor_scan: price by seller (bar; range when a source gives "from–to"), plus the founder's
+  suggested price band as an estimate when the writer proposes one.
+- marketing_plan: 4-week budget by line (bar), and a simple projection (estimate): first-month reach and
+  sales range from the budget with the method spelled out (e.g. "$60 ads ÷ $0.80 per click × 2–4%
+  conversion").
+- market_check: how often each buyer theme appears across checked cards (count, sourced).
+- launch_checklist: steps by kind (official / other / assumption) as a stacked bar.
+- All: evidence coverage (quotes found vs total, pages read) as a small bar.
+Charts are built in code from structured writer fields wherever possible, not free-drawn by the model.
+
+## Mock pictures (optional)
+
+- `POST /api/runs/{id}/mockup` body `{prompt_kind: "product"|"listing"|"ad"}` → generates one image with
+  the OpenAI Images API (model from env `OPENAI_IMAGE_MODEL`, default `gpt-image-1`), stores it in S3, returns
+  `{url, prompt, created_at}`; `GET /api/runs/{id}/mockups` lists them. Requires SSM `/marketclue/openai_api_key`;
+  when missing the endpoint returns 503 `mockups_disabled` and the UI hides the button. Owner-only for now;
+  max 3 per run. Every image is labelled "AI mock-up — not a real product photo".
+
+## UI direction
+
+Modern, calm, product-grade (think Linear / Perplexity / Elicit quality), not a document page: app shell,
+clear hierarchy, generous whitespace, one accent, system or one well-chosen web font, 8-pt spacing grid,
+cards only where they mean an object, subtle motion only on user action. Accessibility is non-negotiable:
+WCAG 2.2 AA (contrast 4.5:1, focus visible, keyboard everything, landmarks, labelled controls, 44px targets,
+reduced motion, the existing reading preferences). Landing keeps the slogan "See the market differently."
+but in the new visual language. Footer credit "Built by Yuexizi Zhang".
