@@ -1,41 +1,50 @@
-// Team page (#/team) and invite acceptance (#/join/<token>). SPEC v3 "Teams".
+// Team page (#/team[?team=<id>]) and invite acceptance (#/join/<token>). SPEC v3 "Teams", v5: a person
+// can be in several teams (team picker), and a team shares finished reports through its projects.
 import {
-  h, icon, setTitle, toast, copyText, avatar, fmtDate, confirmDialog, plural,
+  h, icon, setTitle, toast, copyText, avatar, fmtDate, fmtAgo, confirmDialog, plural, emptyState,
 } from "./ui.js";
 import { api, friendlyError } from "./api.js";
-import { state, main, page, pageHeader, loadingBlock, go, rerender } from "./core.js";
+import { state, main, page, pageHeader, loadingBlock, go, rerender, routeQuery } from "./core.js";
+import { refreshProjects, resetTeamsCache, openNewProjectDialog, projectHref } from "./projects.js";
 
 function inviteLink(inv) {
   if (inv.invite_url) return inv.invite_url;
   return `${location.origin}${location.pathname}${location.search}#/join/${encodeURIComponent(inv.token)}`;
 }
 
+const teamHref = (id) => `#/team?team=${encodeURIComponent(id)}`;
+
 export async function viewTeam(isCurrent) {
   setTitle("Team");
-  main.replaceChildren(loadingBlock("Loading your team…"));
+  main.replaceChildren(loadingBlock("Loading your teams…"));
+  const raw = await api("/teams");
+  if (!isCurrent()) return;
+  const teams = Array.isArray(raw) ? raw : Array.isArray(raw?.teams) ? raw.teams : [];
+  if (!teams.length) return renderNoTeam(isCurrent);
+  const wanted = routeQuery().get("team");
+  const current = teams.find((t) => t.team_id === wanted) || teams[0];
   let data;
   try {
-    data = await api("/team");
+    data = await api(`/teams/${encodeURIComponent(current.team_id)}`);
   } catch (err) {
     if (!isCurrent()) return;
-    if (err.status === 404) data = { team: null };
-    else throw err;
+    if (err.status === 404 && current !== teams[0]) return go(teamHref(teams[0].team_id), true);
+    throw err;
   }
   if (!isCurrent()) return;
-  if (!data.team) return renderNoTeam(isCurrent);
-  return renderTeam(data, isCurrent);
+  return renderTeam(data, teams, isCurrent);
 }
 
-function renderNoTeam(isCurrent) {
-  const name = h("input", { type: "text", id: "team-name", maxlength: "80", autocomplete: "organization", required: true, "aria-describedby": "team-name-hint" });
+function createTeamForm(isCurrent, { idPrefix = "team", heading = "Create a team" } = {}) {
+  const name = h("input", { type: "text", id: `${idPrefix}-name`, maxlength: "80", autocomplete: "organization", required: true, "aria-describedby": `${idPrefix}-name-hint` });
   const error = h("p", { class: "form-error", role: "alert" });
   const submit = h("button", { type: "submit", class: "btn btn-primary" }, "Create team");
-  const form = h("form", { class: "surface form-card stack", novalidate: true },
-    h("h2", {}, "Create a team"),
+  const form = h("form", { class: "stack", novalidate: true },
+    heading ? h("h2", {}, heading) : null,
     h("div", { class: "control" },
-      h("label", { for: "team-name" }, "Team name"),
+      h("label", { for: `${idPrefix}-name` }, "Team name"),
       name,
-      h("p", { class: "field-hint", id: "team-name-hint" }, "For example, your business name. You become the team owner.")),
+      h("p", { class: "field-hint", id: `${idPrefix}-name-hint` }, "For example, your business name. You become the team owner.")),
     error,
     h("div", { class: "form-actions" }, submit));
   form.addEventListener("submit", async (ev) => {
@@ -51,19 +60,27 @@ function renderNoTeam(isCurrent) {
     submit.disabled = true;
     error.textContent = "";
     try {
-      await api("/team", { method: "POST", body: { name: value } });
+      const data = await api("/teams", { method: "POST", body: { name: value } });
+      resetTeamsCache();
       if (!isCurrent()) return;
       toast("Team created.");
-      rerender();
+      const id = data.team?.team_id;
+      if (id) go(teamHref(id));
+      else rerender();
     } catch (err) {
       submit.disabled = false;
       error.textContent = friendlyError(err);
     }
   });
+  return form;
+}
+
+function renderNoTeam(isCurrent) {
+  const form = h("div", { class: "surface form-card" }, createTeamForm(isCurrent));
   main.replaceChildren(page(
     pageHeader({
       title: "Team",
-      lede: "Share finished reports and fact cards with the people you work with. Conversations and reports in progress stay private to their author.",
+      lede: "Share projects with the people you work with: their finished reports and fact cards. Conversations and reports in progress stay private to their author.",
     }),
     h("div", { class: "team-grid" },
       form,
@@ -72,7 +89,8 @@ function renderNoTeam(isCurrent) {
         h("ul", { class: "check-list" },
           h("li", {}, "The owner invites people by email and shares an invite link."),
           h("li", {}, "Invites last 7 days and only work for the invited Google account."),
-          h("li", {}, "Members see each other's finished reports and fact cards."),
+          h("li", {}, "Members see the team's projects: finished reports and fact cards."),
+          h("li", {}, "You can be in several teams."),
           h("li", {}, "Removing a member ends their access at once."))))));
 }
 
@@ -90,12 +108,14 @@ function memberRow(m, { me, canRemove, onRemove }) {
       : null);
 }
 
-function renderTeam(data, isCurrent) {
+function renderTeam(data, teams, isCurrent) {
   const { team, role } = data;
   const members = Array.isArray(data.members) ? data.members : [];
   const invites = (Array.isArray(data.invites) ? data.invites : []).filter((i) => !i.status || i.status === "pending");
+  const projects = (Array.isArray(data.projects) ? data.projects : []).filter((p) => p && p.project_id && !p.archived);
   const isTeamOwner = role === "owner";
   const me = state.user && state.user.sub;
+  const base = `/teams/${encodeURIComponent(team.team_id)}`;
   setTitle(team.name || "Team");
 
   async function removeMember(m) {
@@ -106,7 +126,7 @@ function renderTeam(data, isCurrent) {
     });
     if (!ok) return;
     try {
-      await api(`/team/members/${encodeURIComponent(m.sub)}`, { method: "DELETE" });
+      await api(`${base}/members/${encodeURIComponent(m.sub)}`, { method: "DELETE" });
       toast(`${m.name || m.email} was removed from the team.`);
       if (isCurrent()) rerender();
     } catch (err) {
@@ -122,7 +142,7 @@ function renderTeam(data, isCurrent) {
     });
     if (!ok) return;
     try {
-      await api(`/team/invites/${encodeURIComponent(inv.token)}`, { method: "DELETE" });
+      await api(`${base}/invites/${encodeURIComponent(inv.token)}`, { method: "DELETE" });
       toast("Invite revoked.");
       if (isCurrent()) rerender();
     } catch (err) {
@@ -133,20 +153,40 @@ function renderTeam(data, isCurrent) {
   async function leave() {
     const ok = await confirmDialog({
       title: `Leave ${team.name}?`,
-      body: "You will no longer see the team's reports and fact cards. Your own reports stay in your account.",
+      body: "You will no longer see the team's projects, reports and fact cards. Your own reports stay in your account.",
       confirmLabel: "Leave team", danger: true,
     });
     if (!ok) return;
     try {
-      await api("/team/leave", { method: "POST" });
+      await api(`${base}/leave`, { method: "POST" });
+      resetTeamsCache();
+      refreshProjects();
       toast("You left the team.");
-      if (isCurrent()) rerender();
+      if (isCurrent()) go("#/team");
     } catch (err) {
       toast(friendlyError(err));
     }
   }
 
   const sections = [];
+  sections.push(h("section", { class: "surface form-card", "aria-labelledby": "team-projects-h" },
+    h("div", { class: "card-head" },
+      h("h2", { id: "team-projects-h" }, "Team projects"),
+      h("button", { type: "button", class: "btn btn-secondary btn-sm", "aria-haspopup": "dialog", onclick: () => openNewProjectDialog() },
+        icon("plus"), "New project")),
+    projects.length
+      ? h("ul", { class: "row-list" }, projects.map((p) => {
+          const done = Object.values(p.stages || {}).reduce((sum, n) => sum + (Number(n) || 0), 0);
+          const meta = [plural(done, "finished report"), p.last_run_at ? `last research ${fmtAgo(p.last_run_at)}` : null].filter(Boolean).join(" · ");
+          return h("li", {}, h("a", { class: "row-link", href: projectHref(p.project_id) },
+            h("span", { class: "row-main" },
+              h("span", { class: "row-title" }, p.name),
+              h("span", { class: "row-meta" }, meta))));
+        }))
+      : emptyState({
+          title: "No team projects yet", headingLevel: 3,
+          text: "Create a project and choose this team under “Belongs to”. Everyone here then sees its finished reports and fact cards.",
+        })));
   sections.push(h("section", { class: "surface form-card", "aria-labelledby": "members-h" },
     h("div", { class: "card-head" },
       h("h2", { id: "members-h" }, "Members"),
@@ -177,7 +217,7 @@ function renderTeam(data, isCurrent) {
       submit.disabled = true;
       error.textContent = "";
       try {
-        const inv = await api("/team/invites", { method: "POST", body: { email: value } });
+        const inv = await api(`${base}/invites`, { method: "POST", body: { email: value } });
         if (!isCurrent()) return;
         const link = inviteLink(inv);
         const field = h("input", { type: "text", readonly: true, class: "share-url", value: link, "aria-label": `Invite link for ${value}` });
@@ -218,7 +258,7 @@ function renderTeam(data, isCurrent) {
     };
     async function refreshInvites() {
       try {
-        const fresh = await api("/team");
+        const fresh = await api(base);
         if (!isCurrent()) return;
         renderInvites((fresh.invites || []).filter((i) => !i.status || i.status === "pending"));
       } catch { /* keep the current list */ }
@@ -235,15 +275,27 @@ function renderTeam(data, isCurrent) {
       h("div", { class: "form-actions" }, h("button", { type: "button", class: "btn btn-danger-quiet", onclick: leave }, "Leave team"))));
   }
 
+  sections.push(h("details", { class: "surface form-card another-team" },
+    h("summary", {}, icon("chevron"), "Create another team"),
+    createTeamForm(isCurrent, { idPrefix: "team2", heading: null })));
+
+  // Several teams: a picker that keeps the choice in the address (#/team?team=<id>).
+  const picker = teams.length > 1
+    ? h("div", { class: "control team-picker" },
+        h("label", { for: "team-select" }, "Team"),
+        h("select", {
+          id: "team-select",
+          onchange: (ev) => go(teamHref(ev.target.value)),
+        }, teams.map((t) => h("option", { value: t.team_id, selected: t.team_id === team.team_id },
+          `${t.name}${t.role === "owner" ? " (owner)" : ""}`))))
+    : null;
+
   main.replaceChildren(page(
     pageHeader({
       eyebrow: isTeamOwner ? "Team · you are the owner" : "Team · you are a member",
       title: team.name || "Team",
-      lede: "Members share finished reports and fact cards. Conversations and reports in progress stay private.",
-      actions: [
-        h("a", { class: "btn btn-secondary btn-sm", href: "#/runs?scope=team" }, "Team reports"),
-        h("a", { class: "btn btn-secondary btn-sm", href: "#/library?scope=team" }, "Team fact cards"),
-      ],
+      lede: "Members see the team's projects: finished reports and fact cards. Conversations and reports in progress stay private.",
+      extra: picker,
     }),
     h("div", { class: "team-stack" }, sections)));
 }
@@ -288,9 +340,11 @@ export function viewJoin(token, isCurrent, { mountSignIn }) {
     status.replaceChildren(h("p", { class: "muted" }, "Joining…"));
     try {
       const data = await api("/team/join", { method: "POST", body: { token } });
+      resetTeamsCache();
+      refreshProjects();
       if (!isCurrent()) return;
       toast(data.team?.name ? `You joined ${data.team.name}.` : "You joined the team.");
-      go("#/team");
+      go(data.team?.team_id ? teamHref(data.team.team_id) : "#/team");
     } catch (err) {
       if (!isCurrent()) return;
       joinBtn.disabled = false;

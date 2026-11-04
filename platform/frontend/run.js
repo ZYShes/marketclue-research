@@ -3,11 +3,12 @@ import {
   h, icon, setTitle, toast, copyText, statusChip, fmtDate, emptyState, trapFocus, templateBadge,
 } from "./ui.js";
 import { api, friendlyError } from "./api.js";
-import { state, main, page, loadingBlock, announce, isOwner } from "./core.js";
+import { state, main, page, loadingBlock, announce, isOwner, rerender } from "./core.js";
 import { featureById, stageLabel, MODES, templateName, isGeneralTemplate } from "./features.js";
 import { renderReport } from "./report.js";
 import { refreshHistory } from "./shell.js";
 import { toolIcon } from "./research.js";
+import { projectCrumb, openMoveDialog } from "./projects.js";
 
 const STAGES = [
   ["planning", "Planning the research"],
@@ -63,6 +64,7 @@ export function viewRun(runId, isCurrent) {
   let lastStage = null;
   let shownDone = false;
   let progressBuilt = false;
+  let project = null; // {project_id, name, team_id} from GET /runs/{id} (SPEC v5)
   const started = Date.now();
 
   function renderProgress(run) {
@@ -98,6 +100,7 @@ export function viewRun(runId, isCurrent) {
       main.replaceChildren(page(
         h("header", { class: "page-head" },
           h("div", { class: "page-head-text" },
+            project ? projectCrumb(project, feature.id) : null,
             h("p", { class: "eyebrow tool-eyebrow" }, toolIcon(feature.id, 18), `${stageLabel(feature)} · ${feature.name}`),
             h("h1", { tabindex: "-1" }, run.title || "Your report"),
             mode || !isGeneralTemplate(template) ? h("p", { class: "run-mode" },
@@ -128,10 +131,18 @@ export function viewRun(runId, isCurrent) {
     if (mine && run.conv_id) {
       actions.push(h("a", { class: "btn btn-ghost btn-sm", href: `#/c/${encodeURIComponent(run.conv_id)}` }, icon("chat"), "Conversation"));
     }
+    if (mine) {
+      actions.push(h("button", {
+        type: "button", class: "btn btn-ghost btn-sm", "aria-haspopup": "dialog",
+        onclick: () => openMoveDialog({ kind: "run", id: run.run_id, current: project?.project_id || run.project_id || null, onMoved: () => rerender() }),
+      }, icon("folder"), "Move to project"));
+    }
     const mockupReason = h("p", { class: "field-hint", id: "mockup-reason", hidden: true });
     actions.push(mockupReason, shareSlot);
     const mockupSection = h("div", { class: "mockups" });
-    const article = renderReport(result, { run, actions, mockups: mockupSection });
+    const feature = featureById(result.feature || run.brief?.feature || run.feature);
+    const crumb = project ? projectCrumb(project, feature.id) : null;
+    const article = renderReport(result, { run, actions, mockups: mockupSection, crumb });
     main.replaceChildren(page(article));
     // The Mock-ups section (and its contents link) appear only once an image exists.
     const sectionEl = mockupSection.closest("section");
@@ -150,6 +161,7 @@ export function viewRun(runId, isCurrent) {
       if (!alive || !isCurrent()) return;
       const run = data.run || {};
       const result = data.result || null;
+      project = data.project && data.project.project_id ? data.project : (run.project_id ? { project_id: run.project_id } : null);
       if (run.status === "done" && result) {
         if (!shownDone) {
           shownDone = true;

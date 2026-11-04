@@ -100,7 +100,12 @@ export function friendlyError(err) {
   }
   if (err.code === "invite_expired") return "This invite has expired. Ask the team owner for a new link.";
   if (err.code === "invite_revoked") return "This invite was cancelled by the team owner.";
-  if (err.code === "already_in_team") return "You are already in a team. Leave it first to join another one.";
+  if (err.code === "already_in_team") return "You are already in this team.";
+  if (err.code === "project_not_found") return "That project was not found, or you no longer have access to it.";
+  if (err.code === "project_owner_only") return "Only the project owner or the team owner can change this project.";
+  if (err.code === "project_limit") return "You have reached the limit of 50 projects.";
+  if (err.code === "team_limit") return "You can be in at most 10 teams. Leave one before joining or creating another.";
+  if (err.code === "no_team") return "You are not in that team.";
   if (err.status === 401) return "Your session has ended. Please sign in again.";
   return err.message;
 }
