@@ -434,7 +434,8 @@ Listings ad-cost scenarios for cost control.
   available, unavailable_reason}]`.
 - `POST /api/chat` with no `conv_id` accepts `template` (default `general`; unknown → 400 `invalid_template`;
   a tool the template does not support → 400 `invalid_template`; unavailable → 409 `template_unavailable`,
-  message = the reason). `template` is stored on the conversation, the brief, the run (META and list rows) and
+  message = the reason). `template` is stored on the conversation, the brief (only for a template other than
+  `general`, so General briefs are exactly as before; absent means `general`), the run (META and list rows) and
   the result, and returned by chat, conversation and conversation-list responses. `POST /api/runs` refuses a
   run whose template became unavailable (409 `template_unavailable`).
 - The intake prompt adds the template's `intake_needs` and still asks at most three questions. For `ebay` the
@@ -486,3 +487,11 @@ with its reason, last choice remembered) above the four tools; template badge ne
 conversation and run pages; report sections "Comparable eBay listings" (asking price, shipping, condition,
 link), the fee breakdown, the ad budget box and the two charts; mock mode has an eBay sample report and
 `GET /templates` (`&ebay=off` shows eBay unavailable).
+
+## Owner steps before the eBay template works live (not blocking the code)
+
+eBay Developer Program account → create an application → production keyset (Client ID and Client Secret) →
+complete the Marketplace Account Deletion notification step, or the exemption for apps that store no eBay user
+data → put the keys in SSM as SecureStrings `/marketclue/ebay_client_id` and `/marketclue/ebay_client_secret`
+(or as files `ebay_client_id` / `ebay_client_secret` in `~/.config/marketclue/` for `deploy.sh`). Until then
+`GET /api/templates` reports eBay seller as unavailable ("eBay is not connected yet").

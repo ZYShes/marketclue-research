@@ -91,3 +91,39 @@ Contract details beyond the spec, all additive:
   `invite_limit` 429 (20 open invites), `invite_not_found` 404,
   `invite_unavailable` 410/409, `invite_expired` 410, `invite_email_mismatch`
   403, `cannot_remove_owner` 400, `owner_cannot_leave` 403.
+
+## v4 additions: templates (see `../SPEC.md` v4)
+
+- `app/templates.py` holds `TEMPLATES` (`general`, `ebay`): tools, capabilities, `intake_needs`,
+  `source_rules`, `brief_fields` (the eBay brief answers) and per-tool research and writer guidance. General
+  adds nothing, so its prompts, schemas and briefs are byte-for-byte the v3 ones (tested).
+- `app/capabilities/` is the capability registry. A `Toolbox(capability_ids, run_id)` gives a run's research
+  agents the client tool definitions and `result_block()` for the tool-use loop in `claude.research_call`
+  (up to 12 turns with tools; without tools the old 4-turn `pause_turn` loop). A later capability can be a
+  remote MCP server through the Claude API MCP connector; that plumbing is not built.
+- `app/capabilities/ebay.py`: `ebay_search_listings` on the Browse API (`EBAY_US`). Application token from
+  the client-credentials grant, cached in memory until a minute before expiry, refreshed once on a 401.
+  Identical searches are cached 24 h in DynamoDB (`EBAY#<sha256>/SEARCH`, TTL); concurrent identical searches
+  in one run share one call. At most 8 Browse calls per run and `MAX_EBAY_CALLS_PER_DAY` site-wide
+  (`DAY#<date>/EBAY_CALLS`); a refused search returns a tool error and the agent carries on with web search.
+  30 s timeout, one retry after a timeout, connection error, 429 or 5xx. Every search a run uses (cache hit or
+  not) is saved raw to `runs/<run_id>/ebay/<n>.json` with the retrieval time as S3 metadata.
+- Listing evidence: each returned item has a `quote_text` ("<title> — $45.00") the agent copies as its quote.
+  `pipeline.make_cards` checks a listing FINDING against that item's title and price fields from the snapshot;
+  a sourced listing card gets `source_kind: "ebay_api"`, `retrieved_at`, `label` and `snapshot_key`, and a claim
+  written in code. eBay item URLs lose their tracking query when compared, and are never fetched as pages.
+  A listing card found again in a later run gets the newer check date.
+- `app/ebay_report.py`: `cited_listings` (sourced listing cards, cheapest first, max 12), `fee_breakdown`
+  (final value fee and per-order fee only from sourced ebay.com help-page cards whose quote states the number;
+  amounts, scenarios, break-even and the suggested ceiling are estimates with the method written out) and
+  `asking_wording`, which rewrites "sells for" in an eBay writer answer. `app/charts.py` adds
+  `asking_prices_chart` and `ebay_costs_chart`.
+- Errors: `invalid_template` 400, `template_unavailable` 409 (chat and run start).
+
+Not verified against eBay itself: this environment cannot reach `api.ebay.com`, `developer.ebay.com` or
+`www.ebay.com`, and no eBay keys exist here. The request and response shapes follow the Browse API and OAuth
+documentation as known on 2026-11-04 and are tested only against a fake (`tests/ebay_fake.py`). Before release,
+run one real search with production keys and compare `itemSummaries` fields (`price.value` as a string,
+`shippingOptions[].shippingCost`, `itemWebUrl`, `seller.feedbackScore`) and the filter syntax
+(`price:[10..50],priceCurrency:USD`, `conditions:{NEW}`) with a live answer; also confirm the US fee and
+Promoted Listings help page URLs in `app/templates.py`.
