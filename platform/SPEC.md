@@ -300,14 +300,15 @@ what each report's next steps ask the founder to do.
 
 ## Effort: Quick ↔ Smarter
 
-- `POST /api/runs` body `{conv_id, mode: "quick"|"smarter"}` (default quick). Stored on the run and in
+- `POST /api/runs` body `{conv_id, mode: "quick"|"balanced"|"smarter"}` (default quick). Stored on the run and in
   `result.mode`.
 - quick: research agents on `claude-haiku-5-5`, up to 3 directions, 3 page fetches each, writer effort
   medium. ~1.5 min, ~$0.35.
 - smarter: research agents on `claude-opus-5-5`, up to 4 directions, 4 fetches each, writer effort high.
   ~3 min, ~$2–2.5.
-- Non-owners may only start quick runs (403 `smarter_owner_only`); the UI shows Smarter disabled with a
-  one-line reason for them. The UI shows time and cost estimates next to the choice.
+- balanced (added 2026-11-04): research agents on `claude-sonnet-5-5`, up to 4 directions, 3 fetches each,
+  writer effort high. Any user may pick any mode; Smarter is capped site-wide by `MAX_SMARTER_PER_DAY`
+  (429 `smarter_daily_limit`, see v3 decisions). The UI shows time and cost estimates next to the choice.
 
 ## Charts and projections (result v3 additions)
 

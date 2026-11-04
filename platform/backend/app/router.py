@@ -196,16 +196,14 @@ def _chat(user: dict, data: dict) -> dict:
 def _start_run(user: dict, data: dict) -> dict:
     mode = data.get("mode") or "quick"
     if not isinstance(mode, str) or mode not in pipeline.MODES:
-        raise HTTPError(400, "invalid_mode", "mode must be quick or smarter")
+        raise HTTPError(400, "invalid_mode", "mode must be quick, balanced or smarter")
     conv = _conversation(user["sub"], _text(data, "conv_id"))
     if conv.get("ready") is not True or not isinstance(conv.get("brief"), dict):
         raise HTTPError(400, "conversation_not_ready", "Complete the conversation before starting research")
-    if mode == "smarter" and not _site_owner(user):
-        raise HTTPError(403, "smarter_owner_only", "Smarter research is only available to the site owner for now")
     function_name = get_settings().self_function_name
     if not function_name:
         raise RuntimeError("SELF_FUNCTION_NAME is required")
-    reservation = quota.reserve_run(user)
+    reservation = quota.reserve_run(user, smarter=mode == "smarter")
     run = None
     try:
         title = conv["brief"].get("business") or "Market research"

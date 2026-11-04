@@ -31,16 +31,36 @@ def test_owner_can_start_smarter_runs(aws, monkeypatch):
     assert body(response)["run"]["mode"] == "smarter"
 
 
-def test_smarter_is_owner_only_and_costs_nothing(aws, monkeypatch):
-    session = signed_in()
-    client = lambda_client(monkeypatch)
-    response = request("/api/runs", "POST", {"conv_id": ready_conversation(), "mode": "smarter"}, session)
-    assert response["statusCode"] == 403
-    assert body(response)["error"]["code"] == "smarter_owner_only"
-    assert store.get_user("founder")["runs_started"] == 0
-    assert store.list_runs("founder") == []
-    client.invoke.assert_not_called()
-    assert request("/api/runs", "POST", {"conv_id": "conversation", "mode": "quick"}, session)["statusCode"] == 201
+def test_any_user_can_start_balanced_or_smarter_runs(aws, monkeypatch):
+    for mode in ("balanced", "smarter"):
+        sub = f"founder-{mode}"
+        session = signed_in(sub, f"{sub}@example.com")
+        lambda_client(monkeypatch)
+        response = request("/api/runs", "POST", {"conv_id": ready_conversation(sub), "mode": mode}, session)
+        assert response["statusCode"] == 201
+        assert body(response)["run"]["mode"] == mode
+        assert store.get_user(sub)["runs_started"] == 1
+
+
+def test_smarter_daily_limit_offers_quick_and_costs_nothing(aws, monkeypatch):
+    monkeypatch.setenv("MAX_SMARTER_PER_DAY", "1")
+    monkeypatch.setenv("FREE_RUNS_PER_USER", "3")
+    from app.settings import get_settings
+    get_settings.cache_clear()
+    try:
+        first = signed_in("first", "first@example.com")
+        lambda_client(monkeypatch)
+        assert request("/api/runs", "POST", {"conv_id": ready_conversation("first"), "mode": "smarter"}, first)["statusCode"] == 201
+        session = signed_in()
+        client = lambda_client(monkeypatch)
+        response = request("/api/runs", "POST", {"conv_id": ready_conversation(), "mode": "smarter"}, session)
+        assert response["statusCode"] == 429
+        assert body(response)["error"]["code"] == "smarter_daily_limit"
+        assert store.get_user("founder")["runs_started"] == 0
+        client.invoke.assert_not_called()
+        assert request("/api/runs", "POST", {"conv_id": "conversation", "mode": "balanced"}, session)["statusCode"] == 201
+    finally:
+        get_settings.cache_clear()
 
 
 @pytest.mark.parametrize("mode", ["fast", "SMARTER", 3, ["quick"]])
@@ -57,6 +77,7 @@ def test_old_runs_without_mode_run_as_quick():
     assert pipeline.mode_of({}) == "quick"
     assert pipeline.mode_of({"mode": "unknown"}) == "quick"
     assert pipeline.mode_of({"mode": "smarter"}) == "smarter"
+    assert pipeline.mode_of({"mode": "balanced"}) == "balanced"
 
 
 class FakeClaude:
@@ -111,6 +132,7 @@ class FakeClaude:
 
 @pytest.mark.parametrize(("mode", "model", "directions", "fetches", "effort"), [
     ("quick", "claude-haiku-5-5", 3, 3, "medium"),
+    ("balanced", "claude-sonnet-5-5", 4, 3, "high"),
     ("smarter", "claude-opus-5-5", 4, 4, "high"),
 ])
 def test_pipeline_uses_the_run_mode(aws, monkeypatch, mode, model, directions, fetches, effort):

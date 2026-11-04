@@ -25,6 +25,7 @@ class Settings:
     owner_emails: frozenset[str]
     free_runs_per_user: int
     max_runs_per_day: int
+    max_smarter_per_day: int
     ssm_prefix: str
     self_function_name: str
     stale_days: int
@@ -74,6 +75,7 @@ def get_settings() -> Settings:
         ),
         free_runs_per_user=_nonnegative_int("FREE_RUNS_PER_USER", 1),
         max_runs_per_day=_nonnegative_int("MAX_RUNS_PER_DAY", 30),
+        max_smarter_per_day=_nonnegative_int("MAX_SMARTER_PER_DAY", 10),
         ssm_prefix=os.environ.get("SSM_PREFIX", "/marketclue").rstrip("/"),
         self_function_name=os.environ.get("SELF_FUNCTION_NAME", ""),
         stale_days=_nonnegative_int("STALE_DAYS", 90),

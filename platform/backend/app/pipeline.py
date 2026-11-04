@@ -21,6 +21,7 @@ MAX_DIRECTIONS = 4
 # Effort modes: research agent model, directions, page fetches per direction, writer effort.
 MODES = {
     "quick": {"research_model": "claude-haiku-5-5", "directions": 3, "fetches": 3, "writer_effort": "medium"},
+    "balanced": {"research_model": "claude-sonnet-5-5", "directions": 4, "fetches": 3, "writer_effort": "high"},
     "smarter": {"research_model": "claude-opus-5-5", "directions": 4, "fetches": 4, "writer_effort": "high"},
 }
 USER_AGENT = "MarketClueBot/0.1 (+https://github.com/ZYShes/marketclue-research)"

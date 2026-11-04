@@ -14,6 +14,7 @@ def limits(monkeypatch, **overrides):
         "owner_emails": current.owner_emails,
         "free_runs_per_user": current.free_runs_per_user,
         "max_runs_per_day": current.max_runs_per_day,
+        "max_smarter_per_day": current.max_smarter_per_day,
     }
     values.update(overrides)
     monkeypatch.setattr(quota, "get_settings", lambda: SimpleNamespace(**values))
@@ -157,3 +158,36 @@ def test_conversation_limit_only_blocks_new_conversations(aws):
     assert_quota(error, 429, "conversation_limit")
     quota.check_chat_limits("founder", {"messages": []}, False)
     quota.check_chat_limits("other-founder", {"messages": []}, True)
+
+
+def smarter_item():
+    key = f"DAY#{datetime.now(UTC).date().isoformat()}"
+    return store._table().get_item(Key={"PK": key, "SK": "SMARTER"}).get("Item")
+
+
+def test_smarter_limit_is_site_wide_and_released_on_failure(aws, monkeypatch):
+    limits(monkeypatch, max_smarter_per_day=1, free_runs_per_user=5)
+    owner = user("owner", "owner@example.com")
+    founder = user()
+    reservation = quota.reserve_run(owner, smarter=True)
+    assert smarter_item()["runs"] == 1
+    with pytest.raises(quota.QuotaError) as error:
+        quota.reserve_run(founder, smarter=True)
+    assert_quota(error, 429, "smarter_daily_limit")
+    assert store.get_user("founder").get("runs_started", 0) == 0
+    assert day_item()["runs"] == 1
+    quota.reserve_run(founder)
+    quota.release_run(reservation)
+    assert smarter_item()["runs"] == 0
+    assert day_item()["runs"] == 1
+    quota.reserve_run(founder, smarter=True)
+    assert smarter_item()["runs"] == 1
+
+
+def test_zero_smarter_limit_rejects_before_writing(aws, monkeypatch):
+    limits(monkeypatch, max_smarter_per_day=0)
+    founder = user()
+    with pytest.raises(quota.QuotaError) as error:
+        quota.reserve_run(founder, smarter=True)
+    assert_quota(error, 429, "smarter_daily_limit")
+    assert day_item() is None

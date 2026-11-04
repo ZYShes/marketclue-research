@@ -20,6 +20,7 @@ class QuotaError(Exception):
 class RunReservation:
     user_sub: str
     day_key: str
+    smarter: bool = False
     released: bool = False
 
 
@@ -41,13 +42,21 @@ def _daily_limit() -> QuotaError:
     return QuotaError(429, "daily_limit", "The daily research limit has been reached. Try again tomorrow.")
 
 
-def reserve_run(user: dict) -> RunReservation:
+def _smarter_limit() -> QuotaError:
+    return QuotaError(429, "smarter_daily_limit", "Today's Smarter research runs are used up. Quick research is still available.")
+
+
+def reserve_run(user: dict, smarter: bool = False) -> RunReservation:
+    """Atomically counts one run against the user's free runs, the site's daily limit and, for a
+    Smarter run, the site-wide daily Smarter limit (MAX_SMARTER_PER_DAY, owners included)."""
     settings = get_settings()
     owner = _is_owner(user)
     if not owner and settings.free_runs_per_user < 1:
         raise _free_run_used()
     if settings.max_runs_per_day < 1:
         raise _daily_limit()
+    if smarter and settings.max_smarter_per_day < 1:
+        raise _smarter_limit()
 
     sub = user["sub"]
     now = datetime.now(UTC)
@@ -82,7 +91,18 @@ def reserve_run(user: dict) -> RunReservation:
                         ":ttl": {"N": str(expiry)},
                     },
                 }},
-            ]
+            ] + ([{"Update": {
+                "TableName": settings.table_name,
+                "Key": {"PK": {"S": day_key}, "SK": {"S": "SMARTER"}},
+                "UpdateExpression": "SET #runs = if_not_exists(#runs, :zero) + :one, #ttl = :ttl",
+                "ConditionExpression": "attribute_not_exists(#runs) OR #runs < :limit",
+                "ExpressionAttributeNames": {"#runs": "runs", "#ttl": "ttl"},
+                "ExpressionAttributeValues": {
+                    ":zero": {"N": "0"}, ":one": {"N": "1"},
+                    ":limit": {"N": str(settings.max_smarter_per_day)},
+                    ":ttl": {"N": str(expiry)},
+                },
+            }}] if smarter else [])
         )
     except ClientError as exc:
         if exc.response["Error"]["Code"] != "TransactionCanceledException":
@@ -95,8 +115,10 @@ def reserve_run(user: dict) -> RunReservation:
                 raise _free_run_used() from exc
         if len(reasons) > 1 and reasons[1].get("Code") == "ConditionalCheckFailed":
             raise _daily_limit() from exc
+        if len(reasons) > 2 and reasons[2].get("Code") == "ConditionalCheckFailed":
+            raise _smarter_limit() from exc
         raise
-    return RunReservation(sub, day_key)
+    return RunReservation(sub, day_key, smarter=smarter)
 
 
 def release_run(reservation: RunReservation) -> None:
@@ -116,7 +138,7 @@ def release_run(reservation: RunReservation) -> None:
             for pk, sk, field in [
                 (f"USER#{reservation.user_sub}", "PROFILE", "runs_started"),
                 (reservation.day_key, "COUNTER", "runs"),
-            ]
+            ] + ([(reservation.day_key, "SMARTER", "runs")] if reservation.smarter else [])
         ]
     )
     reservation.released = True

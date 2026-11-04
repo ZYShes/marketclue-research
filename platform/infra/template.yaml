@@ -19,6 +19,9 @@ Parameters:
   MaxRunsPerDay:
     Type: Number
     Default: 30
+  MaxSmarterPerDay:
+    Type: Number
+    Default: 10
   PlanModel:
     Type: String
     Default: claude-opus-5-5
@@ -96,6 +99,7 @@ Resources:
           OWNER_EMAILS: !Ref OwnerEmails
           FREE_RUNS_PER_USER: !Ref FreeRunsPerUser
           MAX_RUNS_PER_DAY: !Ref MaxRunsPerDay
+          MAX_SMARTER_PER_DAY: !Ref MaxSmarterPerDay
           SSM_PREFIX: /marketclue
           SELF_FUNCTION_NAME: marketclue-api
           STALE_DAYS: "90"

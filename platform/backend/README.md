@@ -82,7 +82,8 @@ Contract details beyond the spec, all additive:
 - Team routes: `GET /api/team` returns `{team: null, role: null, members: [],
   invites: []}` outside a team; `/api/team/runs` and `/api/team/cards` return
   empty lists. Team cards carry `added_by` (name) and `added_by_sub`.
-- Error codes: `invalid_mode` 400, `smarter_owner_only` 403, `mockups_disabled`
+- Error codes: `invalid_mode` 400, `smarter_daily_limit` 429 (site-wide
+  `MAX_SMARTER_PER_DAY` Smarter runs per day, default 10), `mockups_disabled`
   503, `mockups_owner_only` 403, `invalid_prompt_kind` 400, `run_not_done` 409,
   `mockup_limit` 429, `mockup_failed` 502, `already_in_team` 403, `no_team` 404,
   `team_owner_only` 403, `invalid_email` 400, `already_member` 409,
