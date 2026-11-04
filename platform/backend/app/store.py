@@ -61,8 +61,12 @@ def _get(pk, sk):
 
 
 def _query(sub, prefix, **kwargs):
+    yield from _query_pk(f"USER#{sub}", prefix, **kwargs)
+
+
+def _query_pk(pk, prefix, **kwargs):
     request = {
-        "KeyConditionExpression": Key("PK").eq(f"USER#{sub}") & Key("SK").begins_with(prefix),
+        "KeyConditionExpression": Key("PK").eq(pk) & Key("SK").begins_with(prefix),
         "ConsistentRead": True,
         **kwargs,
     }
@@ -72,6 +76,10 @@ def _query(sub, prefix, **kwargs):
         if "LastEvaluatedKey" not in response:
             break
         request["ExclusiveStartKey"] = response["LastEvaluatedKey"]
+
+
+def _condition_failed(exc):
+    return exc.response["Error"]["Code"] in {"ConditionalCheckFailedException", "TransactionCanceledException"}
 
 
 def _transaction(actions):
@@ -120,12 +128,12 @@ def save_conversation(sub, conv: dict) -> None:
         Key={"PK": f"USER#{sub}", "SK": f"CONV#{conv['conv_id']}"},
         UpdateExpression=(
             "SET conv_id = :id, messages = :messages, brief = :brief, ready = :ready, feature = :feature, "
-            "created_at = if_not_exists(created_at, :created), updated_at = :now"
+            "template = :template, created_at = if_not_exists(created_at, :created), updated_at = :now"
         ),
         ExpressionAttributeValues=_to_dynamo({
             ":id": conv["conv_id"], ":messages": conv["messages"], ":brief": conv.get("brief"),
             ":ready": conv.get("ready", False), ":feature": conv.get("feature") or "marketing_plan",
-            ":created": conv.get("created_at", now), ":now": now,
+            ":template": conv.get("template") or "general", ":created": conv.get("created_at", now), ":now": now,
         }),
     )
 
@@ -134,21 +142,66 @@ def count_conversations(sub) -> int:
     return sum(1 for _ in _query(sub, "CONV#", ProjectionExpression="PK"))
 
 
-def create_run(sub, conv_id, title, brief) -> dict:
+def conversation_title(conv) -> str:
+    text = ((conv.get("brief") or {}).get("business") or "").strip()
+    if not text:
+        first = next((m for m in conv.get("messages") or [] if m.get("role") == "user" and (m.get("text") or "").strip()), None)
+        text = first["text"] if first else "Untitled research"
+    text = " ".join(text.split())
+    return text if len(text) <= 80 else text[:79].rstrip() + "…"
+
+
+def list_conversations(sub, limit=50) -> list[dict]:
+    rows = []
+    for item in _query(sub, "CONV#"):
+        conv = _public(item)
+        rows.append({
+            "conv_id": conv["conv_id"], "feature": conv.get("feature") or "marketing_plan",
+            "template": conv.get("template") or "general", "title": conversation_title(conv), "ready": bool(conv.get("ready")),
+            "run_id": conv.get("run_id"), "run_status": conv.get("run_status"),
+            "updated_at": conv.get("updated_at") or conv.get("created_at"),
+        })
+    rows.sort(key=lambda row: row["updated_at"] or "", reverse=True)
+    return rows[:max(limit, 0)]
+
+
+def _set_conversation_run(sub, conv_id, run_id, status, link=False):
+    """Links a run to its conversation, or mirrors the status of the run it already links."""
+    update = "SET run_status = :status"
+    values = {":status": status, ":run": run_id}
+    condition = "attribute_exists(PK) AND run_id = :run"
+    if link:
+        update = "SET run_id = :run, run_status = :status, updated_at = :now"
+        values[":now"] = _timestamp()
+        condition = "attribute_exists(PK)"
+    try:
+        _table().update_item(
+            Key={"PK": f"USER#{sub}", "SK": f"CONV#{conv_id}"}, UpdateExpression=update,
+            ConditionExpression=condition, ExpressionAttributeValues=values,
+        )
+    except ClientError as exc:
+        if not _condition_failed(exc):
+            raise
+
+
+def create_run(sub, conv_id, title, brief, mode="quick") -> dict:
     run_id, now = uuid4().hex[:12], _timestamp()
     run = {
         "run_id": run_id, "user_sub": sub, "conv_id": conv_id, "title": title,
-        "brief": brief, "status": "queued", "stage": "planning", "agents": {},
+        "brief": brief, "mode": mode, "template": (brief or {}).get("template") or "general", "status": "queued", "stage": "planning", "agents": {},
         "cost_usd": 0, "error": None, "share_token": None, "created_at": now,
         "updated_at": now, "result_key": None,
     }
-    index = {key: run[key] for key in ("run_id", "title", "status", "created_at", "cost_usd")}
+    index = {key: run[key] for key in ("run_id", "title", "status", "created_at", "cost_usd", "mode", "template")}
+    index["feature"] = (brief or {}).get("feature") or "marketing_plan"
     _transaction([
         {"Put": {"Item": {"PK": f"RUN#{run_id}", "SK": "META", **run},
                  "ConditionExpression": "attribute_not_exists(PK)"}},
         {"Put": {"Item": {"PK": f"USER#{sub}", "SK": f"RUN#{now}#{run_id}", **index},
                  "ConditionExpression": "attribute_not_exists(PK)"}},
     ])
+    if conv_id:
+        _set_conversation_run(sub, conv_id, run_id, "queued", link=True)
     return _public(run)
 
 
@@ -200,6 +253,8 @@ def update_run(run_id, **fields) -> None:
             "ConditionExpression": "attribute_exists(PK)",
         }})
     _transaction(actions)
+    if "status" in fields and run.get("conv_id"):
+        _set_conversation_run(run["user_sub"], run["conv_id"], run_id, fields["status"])
 
 
 def list_runs(sub, limit=50) -> list[dict]:
@@ -254,14 +309,17 @@ def _dedupe_key(url, quote):
     return hashlib.sha1(f"{normalized_url}\n{normalized_quote}".encode("utf-8")).hexdigest()
 
 
-def _append_run(sub, card_id, run_id):
+def _append_run(sub, card_id, run_id, refresh=None):
+    """Adds run_id to a card; `refresh` fields (a re-checked eBay listing's date) are updated with it."""
     key = {"PK": f"USER#{sub}", "SK": f"CARD#{card_id}"}
+    refresh = refresh or {}
     try:
         response = _table().update_item(
             Key=key,
-            UpdateExpression="SET run_ids = list_append(run_ids, :run)",
+            UpdateExpression="SET run_ids = list_append(run_ids, :run)" + "".join(f", #r{i} = :r{i}" for i in range(len(refresh))),
             ConditionExpression="attribute_exists(PK) AND NOT contains(run_ids, :id)",
-            ExpressionAttributeValues={":run": [run_id], ":id": run_id},
+            ExpressionAttributeValues={":run": [run_id], ":id": run_id, **{f":r{i}": v for i, v in enumerate(refresh.values())}},
+            **({"ExpressionAttributeNames": {f"#r{i}": k for i, k in enumerate(refresh)}} if refresh else {}),
             ReturnValues="ALL_NEW",
         )
         return _public(response["Attributes"])
@@ -274,20 +332,26 @@ def _append_run(sub, card_id, run_id):
         return _public(item)
 
 
+# Optional card fields: listing cards from the eBay Browse API carry where and when they were checked.
+CARD_EXTRA_FIELDS = ("source_kind", "retrieved_at", "label", "snapshot_key")
+
+
 def put_cards(sub, cards: list[dict], run_id) -> list[dict]:
     existing = {item["dedupe_key"]: _public(item) for item in _query(sub, "CARD#")}
     stored = []
     for source in cards:
         dedupe = _dedupe_key(source["url"], source["quote"])
+        extra = {field: source[field] for field in CARD_EXTRA_FIELDS if source.get(field) is not None}
         if dedupe in existing:
-            card = _append_run(sub, existing[dedupe]["card_id"], run_id)
+            refresh = {"captured_at": source["captured_at"], **extra} if extra.get("source_kind") == "ebay_api" else None
+            card = _append_run(sub, existing[dedupe]["card_id"], run_id, refresh)
         else:
             card = {
                 "card_id": uuid4().hex[:12], "claim": source["claim"], "quote": source["quote"],
                 "url": source["url"], "source_title": source.get("source_title", ""),
                 "captured_at": source.get("captured_at", _timestamp()),
                 "type": source.get("type", "unverified"), "direction": source.get("direction", ""),
-                "tags": source.get("tags", []), "run_ids": [run_id], "dedupe_key": dedupe,
+                "tags": source.get("tags", []), "run_ids": [run_id], "dedupe_key": dedupe, **extra,
             }
             _table().put_item(
                 Item=_to_dynamo({"PK": f"USER#{sub}", "SK": f"CARD#{card['card_id']}", **card}),
@@ -369,3 +433,277 @@ def incr_day_counter() -> int:
         ReturnValues="UPDATED_NEW",
     )
     return int(response["Attributes"]["runs"])
+
+
+# ---------- Teams ----------
+
+INVITE_DAYS = 7
+
+
+def create_team(user, name) -> dict | None:
+    """Creates a team owned by the user; None when the user is already in a team."""
+    team_id, now = uuid4().hex[:12], _timestamp()
+    team = {"team_id": team_id, "name": name, "owner_sub": user["sub"], "created_at": now}
+    try:
+        _transaction([
+            {"Put": {"Item": {"PK": f"TEAM#{team_id}", "SK": "META", **team},
+                     "ConditionExpression": "attribute_not_exists(PK)"}},
+            {"Put": {"Item": _member_item(team_id, user, "owner", now),
+                     "ConditionExpression": "attribute_not_exists(PK)"}},
+            _join_profile(user["sub"], team_id),
+        ])
+    except ClientError as exc:
+        if _condition_failed(exc):
+            return None
+        raise
+    return team
+
+
+def _member_item(team_id, user, role, now):
+    return {
+        "PK": f"TEAM#{team_id}", "SK": f"MEMBER#{user['sub']}", "sub": user["sub"],
+        "email": user["email"], "name": user.get("name") or "", "role": role, "joined_at": now,
+    }
+
+
+def _join_profile(sub, team_id):
+    return {"Update": {
+        "Key": {"PK": f"USER#{sub}", "SK": "PROFILE"},
+        "UpdateExpression": "SET team_id = :team",
+        "ConditionExpression": "attribute_exists(PK) AND attribute_not_exists(team_id)",
+        "ExpressionAttributeValues": {":team": team_id},
+    }}
+
+
+def get_team(team_id) -> dict | None:
+    return _public(_get(f"TEAM#{team_id}", "META"))
+
+
+def get_member(team_id, sub) -> dict | None:
+    return _public(_get(f"TEAM#{team_id}", f"MEMBER#{sub}"))
+
+
+def list_members(team_id) -> list[dict]:
+    members = [_public(item) for item in _query_pk(f"TEAM#{team_id}", "MEMBER#")]
+    return sorted(members, key=lambda member: (member["role"] != "owner", member["joined_at"]))
+
+
+def create_invite(team_id, email, invited_by) -> dict:
+    token, now = secrets.token_urlsafe(16), _now()
+    invite = {
+        "token": token, "team_id": team_id, "email": email, "invited_by": invited_by, "status": "pending",
+        "created_at": _timestamp(), "expires_at": (now + timedelta(days=INVITE_DAYS)).isoformat().replace("+00:00", "Z"),
+    }
+    _transaction([
+        {"Put": {"Item": {"PK": f"TEAM#{team_id}", "SK": f"INVITE#{token}", **invite},
+                 "ConditionExpression": "attribute_not_exists(PK)"}},
+        {"Put": {"Item": {"PK": f"INVITE#{token}", "SK": "META", "team_id": team_id, "created_at": invite["created_at"]},
+                 "ConditionExpression": "attribute_not_exists(PK)"}},
+    ])
+    return invite
+
+
+def get_invite(token) -> dict | None:
+    lookup = _get(f"INVITE#{token}", "META")
+    return _public(_get(f"TEAM#{lookup['team_id']}", f"INVITE#{token}")) if lookup else None
+
+
+def list_invites(team_id) -> list[dict]:
+    invites = [_public(item) for item in _query_pk(f"TEAM#{team_id}", "INVITE#")]
+    return sorted(invites, key=lambda invite: invite["created_at"], reverse=True)
+
+
+def invite_expired(invite) -> bool:
+    return datetime.fromisoformat(invite["expires_at"].replace("Z", "+00:00")) <= _now()
+
+
+def revoke_invite(team_id, token) -> bool:
+    try:
+        _table().update_item(
+            Key={"PK": f"TEAM#{team_id}", "SK": f"INVITE#{token}"},
+            UpdateExpression="SET #s = :revoked",
+            ConditionExpression="attribute_exists(PK) AND #s = :pending",
+            ExpressionAttributeNames={"#s": "status"},
+            ExpressionAttributeValues={":revoked": "revoked", ":pending": "pending"},
+        )
+    except ClientError as exc:
+        if _condition_failed(exc):
+            return False
+        raise
+    return True
+
+
+def join_team(user, invite) -> bool:
+    """Accepts a pending invite; False when the invite or the user changed meanwhile."""
+    team_id, now = invite["team_id"], _timestamp()
+    try:
+        _transaction([
+            {"Update": {
+                "Key": {"PK": f"TEAM#{team_id}", "SK": f"INVITE#{invite['token']}"},
+                "UpdateExpression": "SET #s = :accepted, accepted_by = :sub, accepted_at = :now",
+                "ConditionExpression": "#s = :pending AND expires_at > :now",
+                "ExpressionAttributeNames": {"#s": "status"},
+                "ExpressionAttributeValues": {":accepted": "accepted", ":pending": "pending", ":sub": user["sub"], ":now": now},
+            }},
+            {"Put": {"Item": _member_item(team_id, user, "member", now),
+                     "ConditionExpression": "attribute_not_exists(PK)"}},
+            _join_profile(user["sub"], team_id),
+        ])
+    except ClientError as exc:
+        if _condition_failed(exc):
+            return False
+        raise
+    return True
+
+
+def remove_member(team_id, sub) -> bool:
+    """Removes a member (never the owner) and their profile link in one step."""
+    try:
+        _transaction([
+            {"Delete": {
+                "Key": {"PK": f"TEAM#{team_id}", "SK": f"MEMBER#{sub}"},
+                "ConditionExpression": "attribute_exists(PK) AND #role = :member",
+                "ExpressionAttributeNames": {"#role": "role"},
+                "ExpressionAttributeValues": {":member": "member"},
+            }},
+            {"Update": {
+                "Key": {"PK": f"USER#{sub}", "SK": "PROFILE"},
+                "UpdateExpression": "REMOVE team_id",
+                "ConditionExpression": "team_id = :team",
+                "ExpressionAttributeValues": {":team": team_id},
+            }},
+        ])
+    except ClientError as exc:
+        if _condition_failed(exc):
+            return False
+        raise
+    return True
+
+
+def _member_name(member):
+    return member.get("name") or member.get("email") or ""
+
+
+def list_team_runs(members, limit=50) -> list[dict]:
+    runs = []
+    for member in members:
+        for item in _query(member["sub"], "RUN#"):
+            run = _public(item)
+            if run.get("status") == "done":
+                runs.append({**run, "owner_sub": member["sub"], "owner_name": _member_name(member)})
+    runs.sort(key=lambda run: run["created_at"], reverse=True)
+    return runs[:max(limit, 0)]
+
+
+def list_team_cards(members, q=None, type=None, direction=None) -> list[dict]:
+    """Cards of all members, deduped on dedupe_key; the first member listed wins a duplicate."""
+    cards = {}
+    for member in members:
+        for card in list_cards(member["sub"], q=q, type=type, direction=direction):
+            cards.setdefault(card["dedupe_key"], {**card, "added_by": _member_name(member), "added_by_sub": member["sub"]})
+    return sorted(cards.values(), key=_capture_time, reverse=True)
+
+
+# ---------- Mock-up pictures ----------
+
+def reserve_mockup(run_id, limit) -> bool:
+    try:
+        _table().update_item(
+            Key={"PK": f"RUN#{run_id}", "SK": "META"},
+            UpdateExpression="SET mockup_count = if_not_exists(mockup_count, :zero) + :one",
+            ConditionExpression="attribute_exists(PK) AND (attribute_not_exists(mockup_count) OR mockup_count < :limit)",
+            ExpressionAttributeValues={":zero": 0, ":one": 1, ":limit": limit},
+        )
+    except ClientError as exc:
+        if _condition_failed(exc):
+            return False
+        raise
+    return True
+
+
+def release_mockup(run_id) -> None:
+    _table().update_item(
+        Key={"PK": f"RUN#{run_id}", "SK": "META"},
+        UpdateExpression="SET mockup_count = mockup_count - :one",
+        ConditionExpression="mockup_count >= :one",
+        ExpressionAttributeValues={":one": 1},
+    )
+
+
+def save_mockup(run_id, image: bytes, content_type, prompt_kind, prompt) -> dict:
+    mockup_id = uuid4().hex[:12]
+    extension = {"image/png": "png", "image/jpeg": "jpg", "image/webp": "webp"}.get(content_type, "img")
+    key = f"mockups/{run_id}/{mockup_id}.{extension}"
+    _s3().put_object(Bucket=get_settings().data_bucket, Key=key, Body=image, ContentType=content_type)
+    mockup = {
+        "mockup_id": mockup_id, "run_id": run_id, "prompt_kind": prompt_kind, "prompt": prompt,
+        "key": key, "content_type": content_type, "created_at": _timestamp(),
+    }
+    _table().put_item(Item={"PK": f"RUN#{run_id}", "SK": f"MOCKUP#{mockup_id}", **mockup})
+    return mockup
+
+
+def get_mockup(run_id, mockup_id) -> dict | None:
+    return _public(_get(f"RUN#{run_id}", f"MOCKUP#{mockup_id}"))
+
+
+def list_mockups(run_id) -> list[dict]:
+    mockups = [_public(item) for item in _query_pk(f"RUN#{run_id}", "MOCKUP#")]
+    return sorted(mockups, key=lambda mockup: mockup["created_at"])
+
+
+def load_mockup_image(mockup) -> bytes:
+    response = _s3().get_object(Bucket=get_settings().data_bucket, Key=mockup["key"])
+    return response["Body"].read()
+
+
+# ---------- eBay Browse API cache, daily cap and evidence snapshots ----------
+
+EBAY_CACHE_SECONDS = 24 * 60 * 60
+
+
+def get_ebay_cache(key) -> dict | None:
+    """A cached search answer younger than 24 hours ({raw, retrieved_at}), else None."""
+    item = _public(_get(f"EBAY#{key}", "SEARCH"))
+    if not item:
+        return None
+    retrieved = datetime.fromisoformat(item["retrieved_at"].replace("Z", "+00:00"))
+    return item if (_now() - retrieved).total_seconds() < EBAY_CACHE_SECONDS else None
+
+
+def put_ebay_cache(key, raw, retrieved_at) -> None:
+    if len(raw.encode("utf-8")) > 350_000:
+        return
+    _table().put_item(Item={
+        "PK": f"EBAY#{key}", "SK": "SEARCH", "raw": raw, "retrieved_at": retrieved_at,
+        "ttl": int((_now() + timedelta(seconds=EBAY_CACHE_SECONDS + 3600)).timestamp()),
+    })
+
+
+def reserve_ebay_call(limit) -> bool:
+    """Counts one Browse API call against the site-wide daily cap; False when today's calls are used up."""
+    if limit < 1:
+        return False
+    now = _now()
+    try:
+        _table().update_item(
+            Key={"PK": f"DAY#{now.date().isoformat()}", "SK": "EBAY_CALLS"},
+            UpdateExpression="SET #ttl = if_not_exists(#ttl, :ttl) ADD calls :one",
+            ConditionExpression="attribute_not_exists(calls) OR calls < :limit",
+            ExpressionAttributeNames={"#ttl": "ttl"},
+            ExpressionAttributeValues={":ttl": int((now + timedelta(days=2)).timestamp()), ":one": 1, ":limit": limit},
+        )
+    except ClientError as exc:
+        if _condition_failed(exc):
+            return False
+        raise
+    return True
+
+
+def save_ebay_snapshot(run_id, number, raw, retrieved_at) -> str:
+    key = f"runs/{run_id}/ebay/{number}.json"
+    _s3().put_object(
+        Bucket=get_settings().data_bucket, Key=key, Body=raw.encode("utf-8"),
+        ContentType="application/json", Metadata={"retrieved-at": retrieved_at},
+    )
+    return key

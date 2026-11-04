@@ -1,13 +1,16 @@
 // New research (#/new: tool picker + existing history) and the conversation view (#/c/<id>).
 import {
-  h, icon, svg, storage, setTitle, tabs, statusChip, fmtMoney, fmtAgo, emptyState, plural,
+  h, icon, svg, storage, setTitle, tabs, statusChip, fmtMoney, fmtAgo, emptyState, plural, templateBadge,
 } from "./ui.js";
 import { api, friendlyError } from "./api.js";
 import {
   state, KEYS, main, go, page, pageHeader, loadingBlock, routeQuery, setRouteQuery, announce,
   setOpenConv, openConvId,
 } from "./core.js";
-import { FEATURES, MODES, DEFAULT_FEATURE, featureById, stageLabel } from "./features.js";
+import {
+  FEATURES, MODES, DEFAULT_FEATURE, featureById, stageLabel,
+  DEFAULT_TEMPLATE, TEMPLATE_NAMES, templateName, isGeneralTemplate,
+} from "./features.js";
 import { depthSlider } from "./depth.js";
 import { refreshHistory, getHistory, onHistory, historyRow, groupHistory } from "./shell.js";
 
@@ -21,6 +24,42 @@ const TOOL_ICONS = {
 export function toolIcon(id, size = 22) {
   return svg(`<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${TOOL_ICONS[id]}</svg>`);
 }
+
+const TEMPLATE_ICONS = {
+  general: '<circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.4 2.4 3.6 5.2 3.6 8.5s-1.2 6.1-3.6 8.5c-2.4-2.4-3.6-5.2-3.6-8.5s1.2-6.1 3.6-8.5z"/>',
+  ebay: '<path d="M4.5 8h15l-1.3 10.2a2 2 0 0 1-2 1.8H7.8a2 2 0 0 1-2-1.8z"/><path d="M9 8V6.5a3 3 0 0 1 6 0V8"/>',
+};
+// What the research lead adds to the intake for a template (mirrors the template's intake_needs).
+const TEMPLATE_HINTS = {
+  ebay: "For eBay it also asks about the category or a close example listing, the condition, your target price and who pays shipping.",
+};
+const GENERAL_FALLBACK = {
+  id: DEFAULT_TEMPLATE, name: TEMPLATE_NAMES.general, description: "Public web pages only.",
+  tools: FEATURES.map((f) => f.id), capabilities: [], available: true, unavailable_reason: null,
+};
+
+function templateIcon(id, size = 22) {
+  const paths = TEMPLATE_ICONS[id] || TEMPLATE_ICONS.general;
+  return svg(`<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${paths}</svg>`);
+}
+
+// GET /api/templates answers a JSON array (SPEC v4); tolerate {templates: [...]} too.
+function normalizeTemplates(data) {
+  const raw = Array.isArray(data) ? data : Array.isArray(data?.templates) ? data.templates : [];
+  const items = raw.filter((t) => t && typeof t.id === "string").map((t) => ({
+    id: t.id,
+    name: t.name || templateName(t.id),
+    description: t.description || "",
+    tools: Array.isArray(t.tools) && t.tools.length ? t.tools : FEATURES.map((f) => f.id),
+    capabilities: (Array.isArray(t.capabilities) ? t.capabilities : []).filter((c) => c && c.label),
+    available: t.available !== false,
+    unavailable_reason: t.unavailable_reason || null,
+  }));
+  if (!items.some((t) => t.id === DEFAULT_TEMPLATE)) items.unshift(GENERAL_FALLBACK);
+  return items;
+}
+
+const templateKey = () => `mc_last_template_${(state.user && state.user.sub) || "anon"}`;
 
 // ---- #/new -----------------------------------------------------------------
 
@@ -42,35 +81,126 @@ export function viewNew(isCurrent, featureArg) {
   const error = h("p", { class: "form-error", role: "alert" });
   let sending = false;
 
+  // Template (SPEC v4): loaded from GET /templates; the last choice is remembered per user.
+  let templates = null; // null while loading
+  let template = storage.get(templateKey()) || DEFAULT_TEMPLATE;
+  const templateSlot = h("div", { class: "template-slot" });
+  const toolStep = h("span", { class: "step-badge", "aria-hidden": "true" }, "1");
+  const messageStep = h("span", { class: "step-badge", "aria-hidden": "true" }, "2");
+  const toolNote = h("p", { class: "field-hint tool-note", hidden: true });
+  const currentTemplate = () => (templates || []).find((t) => t.id === template) || GENERAL_FALLBACK;
+
   function updateComposer() {
     const feature = featureById(selected);
     input.placeholder = feature.placeholder;
-    hint.textContent = `${feature.greeting} The research lead asks 2–3 short questions before agents start.`;
+    const extra = TEMPLATE_HINTS[template] ? ` ${TEMPLATE_HINTS[template]}` : "";
+    hint.textContent = `${feature.greeting} The research lead asks 2–3 short questions before agents start.${extra}`;
   }
 
-  const toolCards = FEATURES.map((feature) => h("label", { class: "tool-card", for: `tool-${feature.id}` },
-    h("input", {
+  const toolInputs = new Map();
+  const toolCards = FEATURES.map((feature) => {
+    const radio = h("input", {
       type: "radio", name: "tool", id: `tool-${feature.id}`, value: feature.id, checked: feature.id === selected,
       onchange: () => {
         selected = feature.id;
         storage.set("mc_last_tool", selected);
         updateComposer();
       },
-    }),
-    h("span", { class: "tool-stage" }, h("span", { class: "tool-step" }, String(feature.n)), feature.stage),
-    h("span", { class: "tool-icon" }, toolIcon(feature.id)),
-    h("span", { class: "tool-name" }, feature.name),
-    h("span", { class: "tool-question" }, feature.question)));
+    });
+    toolInputs.set(feature.id, radio);
+    return h("label", { class: "tool-card", for: `tool-${feature.id}` },
+      radio,
+      h("span", { class: "tool-stage" }, h("span", { class: "tool-step" }, String(feature.n)), feature.stage),
+      h("span", { class: "tool-icon" }, toolIcon(feature.id)),
+      h("span", { class: "tool-name" }, feature.name),
+      h("span", { class: "tool-question" }, feature.question));
+  });
+
+  // A template may support only some tools; the others are shown disabled.
+  function updateTools() {
+    const supported = new Set(currentTemplate().tools);
+    for (const [id, radio] of toolInputs) {
+      radio.disabled = !supported.has(id);
+      radio.closest(".tool-card").classList.toggle("is-disabled", radio.disabled);
+    }
+    if (!supported.has(selected)) {
+      selected = FEATURES.find((f) => supported.has(f.id))?.id || DEFAULT_FEATURE;
+      const radio = toolInputs.get(selected);
+      if (radio) radio.checked = true;
+    }
+    const missing = FEATURES.filter((f) => !supported.has(f.id));
+    toolNote.hidden = !missing.length;
+    toolNote.textContent = missing.length ? `${currentTemplate().name} does not offer: ${missing.map((f) => f.name).join(", ")}.` : "";
+    updateComposer();
+  }
+
+  function selectTemplate(id) {
+    template = id;
+    storage.set(templateKey(), id);
+    updateTools();
+  }
+
+  function renderTemplates() {
+    if (templates == null) {
+      templateSlot.replaceChildren(h("p", { class: "loading", role: "status" }, h("span", { class: "spinner", "aria-hidden": "true" }), "Loading templates…"));
+      return;
+    }
+    // A remembered template that is unknown or unavailable falls back to General.
+    if (!templates.some((t) => t.id === template && t.available)) template = DEFAULT_TEMPLATE;
+    const choose = templates.length > 1;
+    toolStep.textContent = choose ? "2" : "1";
+    messageStep.textContent = choose ? "3" : "2";
+    if (!choose) {
+      templateSlot.replaceChildren();
+      updateTools();
+      return;
+    }
+    const cards = templates.map((t) => {
+      const base = `template-${t.id}`;
+      const described = [`${base}-desc`, `${base}-caps`, t.available ? null : `${base}-reason`].filter(Boolean).join(" ");
+      return h("label", { class: `tool-card template-card${t.available ? "" : " is-disabled"}`, for: base },
+        h("input", {
+          type: "radio", name: "template", id: base, value: t.id, checked: t.id === template, disabled: !t.available,
+          "aria-labelledby": `${base}-name`, "aria-describedby": described,
+          onchange: () => selectTemplate(t.id),
+        }),
+        h("span", { class: "template-head" },
+          h("span", { class: "tool-icon" }, templateIcon(t.id)),
+          h("span", { class: "tool-name", id: `${base}-name` }, t.name)),
+        h("span", { class: "tool-question", id: `${base}-desc` }, t.description),
+        h("span", { class: "cap-badges", id: `${base}-caps` },
+          t.capabilities.length
+            ? t.capabilities.map((c) => h("span", { class: "badge badge-cap" }, c.label))
+            : h("span", { class: "badge badge-cap badge-cap-plain" }, "Web search and page reading")),
+        t.available ? null : h("span", { class: "template-reason", id: `${base}-reason` },
+          icon("info"), `Not available: ${t.unavailable_reason || "not set up yet"}`));
+    });
+    templateSlot.replaceChildren(h("fieldset", { class: "tool-picker template-picker" },
+      h("legend", { class: "step-legend" }, h("span", { class: "step-badge", "aria-hidden": "true" }, "1"), "Choose a template"),
+      h("p", { class: "field-hint" }, "A template adds sources and report sections for one kind of seller. General is ordinary web research."),
+      h("div", { class: "template-grid" }, cards)));
+    updateTools();
+  }
+
+  function loadTemplates() {
+    return api("/templates").then((data) => normalizeTemplates(data)).catch(() => [GENERAL_FALLBACK]).then((items) => {
+      if (!isCurrent()) return;
+      templates = items;
+      renderTemplates();
+    });
+  }
 
   const form = h("form", { class: "start-form", novalidate: true },
+    templateSlot,
     h("fieldset", { class: "tool-picker" },
-      h("legend", { class: "step-legend" }, h("span", { class: "step-badge", "aria-hidden": "true" }, "1"), "Choose a tool"),
+      h("legend", { class: "step-legend" }, toolStep, "Choose a tool"),
       h("p", { class: "journey-line", "aria-hidden": "true" },
         FEATURES.map((f, i) => [h("span", {}, f.stage), i < FEATURES.length - 1 ? h("span", { class: "journey-arrow" }, "→") : null])),
       h("p", { class: "visually-hidden" }, "The tools follow a founder journey: Discover, Compare, Prepare, Grow."),
-      h("div", { class: "tool-grid" }, toolCards)),
+      h("div", { class: "tool-grid" }, toolCards),
+      toolNote),
     h("div", { class: "first-message" },
-      h("label", { for: "first-message", class: "step-legend" }, h("span", { class: "step-badge", "aria-hidden": "true" }, "2"), "Describe your business"),
+      h("label", { for: "first-message", class: "step-legend" }, messageStep, "Describe your business"),
       hint,
       h("div", { class: "composer-box" }, input,
         h("div", { class: "composer-foot" },
@@ -78,6 +208,7 @@ export function viewNew(isCurrent, featureArg) {
           sendBtn)),
       error));
   updateComposer();
+  renderTemplates();
 
   async function start() {
     if (sending) return;
@@ -92,9 +223,9 @@ export function viewNew(isCurrent, featureArg) {
     sendBtn.textContent = "Starting…";
     error.textContent = "";
     try {
-      const data = await api("/chat", { method: "POST", body: { message: text, feature: selected } });
+      const data = await api("/chat", { method: "POST", body: { message: text, feature: selected, template } });
       if (!isCurrent()) return;
-      const conv = normalizeConv({ ...data, feature: data.feature || selected });
+      const conv = normalizeConv({ ...data, feature: data.feature || selected, template: data.template || template });
       state.convCache.set(conv.conv_id, conv);
       setOpenConv(conv.conv_id);
       refreshHistory();
@@ -105,6 +236,8 @@ export function viewNew(isCurrent, featureArg) {
       sending = false;
       sendBtn.disabled = false;
       sendBtn.replaceChildren("Start conversation", icon("arrow"));
+      // The template went away since the page loaded: show its new state (General is then chosen).
+      if (err.code === "template_unavailable") loadTemplates();
     }
   }
   form.addEventListener("submit", (ev) => { ev.preventDefault(); start(); });
@@ -193,12 +326,13 @@ export function viewNew(isCurrent, featureArg) {
     pageHeader({
       eyebrow: firstName ? `Welcome back, ${firstName}` : "New research",
       title: "What do you want to find out?",
-      lede: "Pick a tool, describe your business, and agents read public sources. Every statement comes back Sourced, an Assumption or an Estimate.",
+      lede: "Pick a template and a tool, describe your business, and agents read public sources. Every statement comes back Sourced, an Assumption or an Estimate.",
     }),
     h("div", { class: "tabs-wrap" }, t.list, t.panels)));
 
   renderResume(getHistory());
   renderExisting();
+  loadTemplates();
   const off = onHistory((items) => {
     if (!isCurrent()) return;
     renderResume(items);
@@ -214,6 +348,7 @@ function normalizeConv(c) {
   return {
     conv_id: c.conv_id,
     feature: c.feature || DEFAULT_FEATURE,
+    template: c.template || c.brief?.template || DEFAULT_TEMPLATE,
     messages: Array.isArray(c.messages) ? c.messages : [],
     brief: c.brief || null,
     ready: !!c.ready,
@@ -286,7 +421,9 @@ function renderConversation(initial, isCurrent) {
       h("section", { class: "conv-main", "aria-labelledby": "conv-title" },
         h("header", { class: "conv-head" },
           h("p", { class: "eyebrow tool-eyebrow" }, toolIcon(feature.id, 18), `${stageLabel(feature)} · ${feature.name}`),
-          titleEl),
+          titleEl,
+          isGeneralTemplate(conv.template) ? null
+            : h("p", { class: "run-mode conv-template" }, templateBadge(templateName(conv.template)))),
         finishedNote,
         log, readyNote, composer),
       panel)));
@@ -331,7 +468,7 @@ function renderConversation(initial, isCurrent) {
       : "");
     readyNote.replaceChildren(!done && conv.ready
       ? h("div", { class: "callout callout-ready" },
-          h("p", {}, h("strong", {}, "Your brief is ready. "), "Check it, choose Quick or Smarter, then start research."),
+          h("p", {}, h("strong", {}, "Your brief is ready. "), "Check it, choose a research depth, then start research."),
           h("a", { class: "btn btn-secondary btn-sm only-narrow", href: "#brief", onclick: (ev) => { ev.preventDefault(); jumpToBrief(); } }, "Review brief", icon("arrow")))
       : "");
   }
@@ -345,6 +482,25 @@ function renderConversation(initial, isCurrent) {
     return h("div", { class: "field" },
       h("dt", {}, label),
       h("dd", { class: value ? "" : "is-empty" }, value || "Not set yet"));
+  }
+
+  // eBay seller template: what the research lead learned about the listing (SPEC v4 brief.ebay).
+  function ebayFields(e) {
+    const money = (v) => (v != null && v !== "" && Number.isFinite(Number(v)) ? fmtMoney(Number(v), "USD") : "");
+    let shipping = "";
+    if (e.buyer_pays_shipping === true) shipping = e.shipping_cost_usd != null ? `Buyer pays, about ${money(e.shipping_cost_usd)}` : "Buyer pays";
+    else if (e.buyer_pays_shipping === false) shipping = e.shipping_cost_usd != null ? `Free for the buyer; you pay about ${money(e.shipping_cost_usd)}` : "Free for the buyer";
+    else if (e.shipping_cost_usd != null) shipping = `About ${money(e.shipping_cost_usd)}`;
+    const sells = e.sells_on_ebay === true ? "Yes" : e.sells_on_ebay === false ? "Not yet" : "";
+    return h("div", { class: "brief-ebay" },
+      h("h3", {}, "For eBay"),
+      h("dl", { class: "brief-fields" },
+        briefField("Category", e.category),
+        e.example_listing ? briefField("Example listing", e.example_listing) : null,
+        briefField("Condition", e.condition),
+        briefField("Target price", money(e.target_price_usd)),
+        briefField("Shipping", shipping),
+        briefField("Sells on eBay now", sells)));
   }
 
   function modeControl() {
@@ -404,6 +560,7 @@ function renderConversation(initial, isCurrent) {
               briefField("Budget (4 weeks)", b.budget_usd != null && b.budget_usd !== "" ? fmtMoney(b.budget_usd, "USD") : ""),
               briefField("Goal", b.goal))
           : h("p", { class: "muted brief-empty" }, "The brief fills in as you answer."),
+        b && b.ebay && typeof b.ebay === "object" ? ebayFields(b.ebay) : null,
         questions.length
           ? h("div", { class: "brief-questions" },
               h("h3", {}, "Questions to research"),

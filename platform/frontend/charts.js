@@ -80,7 +80,11 @@ export function renderChart(spec, { chip = () => null } = {}) {
   const tableId = `${id}-data`;
 
   const hasSources = series.some((s) => list(s.card_ids).length);
-  const table = h("table", { class: "data-table" },
+  // SPEC v4: a stacked chart whose items carry segments draws one stacked bar per item
+  // (e.g. eBay costs per ad-rate scenario); without segments it is the v3 single stacked bar.
+  const segLabels = type === "stacked_bar" ? segmentLabels(series) : [];
+  const segmented = segLabels.length > 0;
+  const table = segmented ? segmentTable(series, segLabels, unit, title, hasSources, chip) : h("table", { class: "data-table" },
     h("caption", { class: "visually-hidden" }, `Data for ${title}`),
     h("thead", {}, h("tr", {},
       h("th", { scope: "col" }, "Item"),
@@ -118,7 +122,9 @@ export function renderChart(spec, { chip = () => null } = {}) {
     tableWrap);
 
   const desc = `${TYPE_WORDS[type]}${kind === "estimate" ? ", estimate" : ""}. ` +
-    series.map((s) => `${s.label}: ${valueText(s, unit)}`).join("; ") + ".";
+    (segmented
+      ? series.map((s) => `${s.label}: ${list(s.segments).map((g) => `${g.label} ${fmtValue(g.value, unit)}`).join(", ")}; total ${fmtValue(s.value, unit)}`).join(". ")
+      : series.map((s) => `${s.label}: ${valueText(s, unit)}`).join("; ")) + ".";
   let lastKey = "";
   const draw = () => {
     if (!canvas.isConnected) return;
@@ -128,7 +134,8 @@ export function renderChart(spec, { chip = () => null } = {}) {
     if (!width || key === lastKey) return;
     lastKey = key;
     const font = getComputedStyle(canvas).fontFamily;
-    const svgEl = (type === "stacked_bar" ? drawStacked : drawBars)({ series, unit, width, fs, font, id, kind, type, title, desc });
+    const drawFn = segmented ? drawSegmented : type === "stacked_bar" ? drawStacked : drawBars;
+    const svgEl = drawFn({ series, unit, width, fs, font, id, kind, type, title, desc, segLabels });
     canvas.replaceChildren(svgEl);
   };
   if (typeof ResizeObserver === "function") new ResizeObserver(draw).observe(canvas);
@@ -139,6 +146,41 @@ export function renderChart(spec, { chip = () => null } = {}) {
   window.addEventListener("mc:layout", onLayout);
   requestAnimationFrame(() => { figure.dataset.mounted = "1"; draw(); });
   return figure;
+}
+
+// Segment labels in first-seen order; the order fixes each segment's colour across bars.
+function segmentLabels(series) {
+  const labels = [];
+  for (const s of series) {
+    for (const g of list(s.segments)) {
+      const label = String((g && g.label) || "");
+      if (label && finite(g.value) && !labels.includes(label)) labels.push(label);
+    }
+  }
+  return labels;
+}
+
+function segmentValue(s, label) {
+  const g = list(s.segments).find((x) => x && String(x.label) === label);
+  return g && finite(g.value) ? num(g.value) : null;
+}
+
+function segmentTable(series, labels, unit, title, hasSources, chip) {
+  return h("table", { class: "data-table" },
+    h("caption", { class: "visually-hidden" }, `Data for ${title}`),
+    h("thead", {}, h("tr", {},
+      h("th", { scope: "col" }, "Item"),
+      labels.map((label) => h("th", { scope: "col", class: "num" }, label)),
+      h("th", { scope: "col", class: "num" }, "Total"),
+      hasSources ? h("th", { scope: "col" }, "Sources") : null)),
+    h("tbody", {}, series.map((s) => h("tr", {},
+      h("th", { scope: "row" }, String(s.label || "")),
+      labels.map((label) => {
+        const v = segmentValue(s, label);
+        return h("td", { class: "num" }, v == null ? "—" : fmtValue(v, unit));
+      }),
+      h("td", { class: "num" }, fmtValue(s.value, unit)),
+      hasSources ? h("td", { class: "chips-cell" }, list(s.card_ids).map(chip).filter(Boolean)) : null))));
 }
 
 function svgRoot(width, height, id, title, desc) {
@@ -219,6 +261,67 @@ function drawBars({ series, unit, width, fs, font, id, kind, type, title, desc }
     root.append(el("text", {
       x: endX + 8, y: barY + barH / 2 + fs * 0.35, class: "chart-value", "font-size": fs,
     }, labels[i]));
+  });
+  return root;
+}
+
+// One horizontal stacked bar per series item, all on one scale, with one legend for the segments.
+function drawSegmented({ series, unit, width, fs, font, id, title, desc, segLabels }) {
+  const segTotal = (s) => list(s.segments).reduce((sum, g) => sum + Math.max(0, num(g && g.value) || 0), 0);
+  const maxTotal = Math.max(...series.map((s) => Math.max(segTotal(s), num(s.value) || 0))) || 1;
+  const valueFont = `600 ${fs}px ${font}`;
+  const totals = series.map((s) => fmtValue(s.value, unit));
+  const maxLabelW = Math.max(...totals.map((t) => measure(t, valueFont)));
+  const plotW = Math.max(60, width - maxLabelW - 12);
+  const barH = Math.max(24, Math.round(fs * 1.9));
+  const nameH = Math.round(fs * 1.4);
+  const rowGap = Math.round(fs * 0.9);
+  const rowH = nameH + barH + rowGap;
+  const gap = 2;
+  const swatch = Math.round(fs * 0.9);
+  const legendFont = `${fs}px ${font}`;
+  const items = segLabels.map((label, i) => ({ i, text: label, w: swatch + 8 + measure(label, legendFont) + 20 }));
+  const rows = [];
+  let row = [];
+  let rowW = 0;
+  for (const it of items) {
+    if (row.length && rowW + it.w > width) { rows.push(row); row = []; rowW = 0; }
+    row.push(it);
+    rowW += it.w;
+  }
+  if (row.length) rows.push(row);
+  const lineH = Math.round(fs * 1.7);
+  const barsH = series.length * rowH - rowGap;
+  const height = barsH + 14 + rows.length * lineH;
+  const root = svgRoot(width, height, id, title, desc);
+  const scale = plotW / maxTotal;
+
+  series.forEach((s, si) => {
+    const y0 = si * rowH;
+    const barY = y0 + nameH;
+    root.append(el("text", { x: 0, y: y0 + fs, class: "chart-label", "font-size": fs }, String(s.label || "")));
+    let cx = 0;
+    segLabels.forEach((label, i) => {
+      const v = segmentValue(s, label);
+      if (v == null || v <= 0) return;
+      const w = Math.max(2, v * scale - gap);
+      root.append(el("rect", { x: cx, y: barY, width: w, height: barH, class: `chart-seg chart-seg-${i % 5}` }));
+      const text = fmtValue(v, unit);
+      if (measure(text, valueFont) + 10 < w) {
+        root.append(el("text", { x: cx + w / 2, y: barY + barH / 2 + fs * 0.35, "text-anchor": "middle", class: "chart-seg-label", "font-size": fs }, text));
+      }
+      cx += w + gap;
+    });
+    root.append(el("text", { x: Math.max(cx, 0) + 6, y: barY + barH / 2 + fs * 0.35, class: "chart-value", "font-size": fs }, totals[si]));
+  });
+  rows.forEach((r, ri) => {
+    let lx = 0;
+    const ly = barsH + 14 + ri * lineH;
+    for (const it of r) {
+      root.append(el("rect", { x: lx, y: ly + (lineH - swatch) / 2 - 2, width: swatch, height: swatch, rx: 2, class: `chart-seg chart-seg-${it.i % 5}` }));
+      root.append(el("text", { x: lx + swatch + 8, y: ly + lineH / 2 + fs * 0.3, class: "chart-legend", "font-size": fs }, it.text));
+      lx += it.w;
+    }
   });
   return root;
 }

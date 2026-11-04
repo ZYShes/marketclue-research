@@ -95,7 +95,8 @@ def test_create_and_update_run_mirror_index_without_consuming_quota():
     assert current["cost_usd"] == 0.42
     assert store.list_runs("alice")[0] == {
         "run_id": run["run_id"], "title": "Finished", "status": "done",
-        "cost_usd": 0.42, "created_at": run["created_at"],
+        "cost_usd": 0.42, "created_at": run["created_at"], "feature": "marketing_plan", "mode": "quick",
+        "template": "general",
     }
     assert store.list_runs("bob") == []
     json.dumps(current)

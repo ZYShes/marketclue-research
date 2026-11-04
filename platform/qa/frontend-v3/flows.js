@@ -156,7 +156,7 @@ async function context(browser, width = 1280) {
     check(await page.locator("#depth").isEnabled(), "a non-owner can move the slider (effort belongs to the starter)");
     await page.focus("#depth");
     await page.keyboard.press("ArrowRight");
-    check(/^Balanced: about 2 min/.test(await valueText()), "ArrowRight moves to Balanced and announces time and cost");
+    check(/^Balanced: about 1½–2 min, about \$1/.test(await valueText()), "ArrowRight moves to Balanced and announces time and cost");
     check((await page.locator(".depth-current").textContent()) === "Balanced", "visible label follows the slider");
     const box = await page.locator("#depth").boundingBox();
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);

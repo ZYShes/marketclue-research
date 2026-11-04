@@ -119,6 +119,27 @@
 .chips-cell { white-space: nowrap; }
 .budget-table { min-width: 620px; }
 
+/* eBay seller template (SPEC v4) */
+.badge-listing { background: var(--surface); color: var(--ink-2); box-shadow: inset 0 0 0 1px var(--rule-strong); }
+.listing-note { color: var(--ink-2); font-weight: 550; }
+.listings-table { min-width: 620px; }
+.listings-table .listing-title { font-weight: 550; min-width: 220px; }
+.fees-table, .scenarios-table { min-width: 560px; }
+.fees-table th[scope="row"], .scenarios-table th[scope="row"] { min-width: 130px; }
+.fees-intro { margin-bottom: 12px; }
+.fees-total-row > * { background: var(--surface-2); }
+.data-table .is-loss { color: var(--accent-ink); font-weight: 700; }
+#r-ebay-costs .table-scroll + .subhead, #r-ebay-costs .table-scroll + .method { margin-top: 16px; }
+#r-ebay-costs .chart, #r-ebay-costs .ad-budget { margin-top: 16px; }
+.ad-budget { background: var(--surface); border: 1px solid var(--rule); border-left: 4px solid var(--sage); border-radius: 12px; padding: 16px 18px; display: grid; gap: 12px; }
+.ad-budget-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.ad-budget-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@container main (max-width: 420px) { .ad-budget-stats { grid-template-columns: 1fr; } }
+.ad-budget .stat dt { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.ad-budget .stat dd.stat-note { font-size: 0.8125rem; font-weight: 400; color: var(--muted); }
+.ad-priority { border-top: 1px solid var(--rule); padding-top: 12px; display: grid; gap: 6px; }
+.ad-priority h4 { font-size: 0.9375rem; }
+
 /* Charts */
 .chart-stack { display: grid; gap: 16px; }
 .chart { margin: 0; padding: 18px 20px 12px; background: var(--surface); border: 1px solid var(--rule); border-radius: 16px; display: grid; gap: 12px; min-width: 0; }
@@ -145,6 +166,7 @@
 .chart-seg-1 { fill: var(--accent); }
 .chart-seg-2 { fill: #5A6148; }
 .chart-seg-3 { fill: #8A5A0B; }
+.chart-seg-4 { fill: var(--green); }
 .chart-seg-label { fill: #fff; font-weight: 650; }
 .chart-legend { fill: var(--ink-2); }
 .chart-foot { display: flex; justify-content: flex-end; margin: 0 -8px; }

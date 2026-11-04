@@ -19,12 +19,44 @@ Parameters:
   MaxRunsPerDay:
     Type: Number
     Default: 30
+  MaxSmarterPerDay:
+    Type: Number
+    Default: 10
+  MaxEbayCallsPerDay:
+    Type: Number
+    Default: 1000
+    Description: Site-wide eBay Browse API calls per day for the eBay seller template (keys in SSM /marketclue/ebay_client_id and ebay_client_secret)
   PlanModel:
     Type: String
     Default: claude-opus-5-5
   ResearchModel:
     Type: String
     Default: claude-opus-5-5
+  OpenAIImageModel:
+    Type: String
+    Default: gpt-image-2
+    Description: OpenAI image model for report mock-ups (key in SSM /marketclue/openai_api_key)
+  OpenAIImageSize:
+    Type: String
+    Default: 1024x1024
+    AllowedValues: [1024x1024, 1024x1536, 1536x1024]
+  OpenAIImageQuality:
+    Type: String
+    Default: low
+    AllowedValues: [low, medium]
+  SesFrom:
+    Type: String
+    Default: ""
+    Description: Sender of team invite emails, e.g. "MarketClue <invites@example.com>"; empty sends no email
+  SesIdentity:
+    Type: String
+    Default: ""
+    Description: The verified SES identity (domain or address) that SesFrom uses; empty sends no email
+
+Conditions:
+  SendsInviteEmail: !And
+    - !Not [!Equals [!Ref SesFrom, ""]]
+    - !Not [!Equals [!Ref SesIdentity, ""]]
 
 Resources:
   Table:
@@ -79,12 +111,18 @@ Resources:
           OWNER_EMAILS: !Ref OwnerEmails
           FREE_RUNS_PER_USER: !Ref FreeRunsPerUser
           MAX_RUNS_PER_DAY: !Ref MaxRunsPerDay
+          MAX_SMARTER_PER_DAY: !Ref MaxSmarterPerDay
+          MAX_EBAY_CALLS_PER_DAY: !Ref MaxEbayCallsPerDay
           SSM_PREFIX: /marketclue
           SELF_FUNCTION_NAME: marketclue-api
           STALE_DAYS: "90"
           SITE_ORIGIN: !Ref SiteOrigin
           PLAN_MODEL: !Ref PlanModel
           RESEARCH_MODEL: !Ref ResearchModel
+          OPENAI_IMAGE_MODEL: !Ref OpenAIImageModel
+          OPENAI_IMAGE_SIZE: !Ref OpenAIImageSize
+          OPENAI_IMAGE_QUALITY: !Ref OpenAIImageQuality
+          SES_FROM: !If [SendsInviteEmail, !Ref SesFrom, ""]
       Policies:
         - DynamoDBCrudPolicy: { TableName: !Ref Table }
         - S3CrudPolicy: { BucketName: !Ref DataBucket }
@@ -93,6 +131,15 @@ Resources:
             - Effect: Allow
               Action: lambda:InvokeFunction
               Resource: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:marketclue-api
+            - Effect: Allow
+              Action: [s3:GetObject, s3:PutObject]
+              Resource: !Sub ${DataBucket.Arn}/mockups/*
+            - !If
+              - SendsInviteEmail
+              - Effect: Allow
+                Action: ses:SendEmail
+                Resource: !Sub arn:aws:ses:${AWS::Region}:${AWS::AccountId}:identity/${SesIdentity}
+              - !Ref AWS::NoValue
       EventInvokeConfig:
         MaximumRetryAttempts: 0
       FunctionUrlConfig:

@@ -3,13 +3,33 @@
 // → next steps & missing evidence → evidence coverage → all fact cards / about.
 import {
   h, icon, externalLink, domainOf, sourceLabel, fmtDate, fmtMoney, fmtCost, fmtSeconds, isStale,
-  kindBadge, typeBadge, staleBadge, statusChip, plural, trapFocus, STALE_DAYS,
+  kindBadge, typeBadge, staleBadge, statusChip, plural, trapFocus, STALE_DAYS, templateBadge,
 } from "./ui.js";
-import { featureById, stageLabel, MODES } from "./features.js";
+import { featureById, stageLabel, MODES, templateName, isGeneralTemplate } from "./features.js";
 import { renderChart, validSeries } from "./charts.js";
 
 const SOURCED_NOTE =
   "Sourced means the exact quote matched the captured page. The page itself may still be wrong.";
+const LISTING_NOTE =
+  "For an eBay listing, Sourced means the quoted text matched the listing data saved from eBay on that date. It is the seller's asking price, not a sale.";
+// Charts that belong to the eBay sections rather than the tool section (SPEC v4).
+const EBAY_CHART_IDS = new Set(["asking_prices", "ebay_costs"]);
+const isListingCard = (card) => card && card.source_kind === "ebay_api";
+
+function capturedText(card) {
+  const date = fmtDate(isListingCard(card) ? card.retrieved_at || card.captured_at : card.captured_at) || "date unknown";
+  return `${isListingCard(card) ? "Retrieved" : "Captured"} ${date}`;
+}
+
+function listingBadge(card) {
+  return isListingCard(card) ? h("span", { class: "badge badge-listing" }, card.label || "eBay listing (asking price)") : null;
+}
+
+function fmtPct(v) {
+  const n = Number(v);
+  return Number.isFinite(n) ? `${n.toLocaleString("en-US", { maximumFractionDigits: 1 })}%` : "";
+}
+const isNum = (v) => v != null && v !== "" && Number.isFinite(Number(v));
 const INLINE_REF = /\s*\[(?:card[:#\s]*)?([A-Za-z0-9_-]{4,40})\]/g;
 const list = (value) => (Array.isArray(value) ? value : []);
 
@@ -119,7 +139,8 @@ export function renderReport(result = {}, { run = null, shared = false, actions 
   }
 
   const charts = list(result.charts).filter((c) => c && validSeries(c).length);
-  const toolCharts = charts.filter((c) => !isCoverageChart(c));
+  const ebayChart = (id) => charts.find((c) => c.id === id) || null;
+  const toolCharts = charts.filter((c) => !isCoverageChart(c) && !EBAY_CHART_IDS.has(c.id));
   const covSpec = charts.find(isCoverageChart) || coverageChart(result.coverage);
   const chartNodes = (specs) => {
     const nodes = specs.map((spec) => renderChart(spec, { chip })).filter(Boolean);
@@ -181,6 +202,22 @@ export function renderReport(result = {}, { run = null, shared = false, actions 
     content.push(section(tool?.id || "r-charts", tool && feature.id === "market_check" ? tool.title : "Charts", chartNodes(toolCharts)));
   }
 
+  // eBay seller template (SPEC v4): comparable active listings, then fees, ad scenarios and the ad budget.
+  const listings = list(result.listings).filter((l) => l && l.title);
+  const askingChart = ebayChart("asking_prices");
+  if (listings.length || askingChart) {
+    content.push(section("r-listings", "Comparable eBay listings",
+      askingChart ? renderChart(askingChart, { chip }) : null,
+      listings.length ? renderListings(listings, richText, listingDates(listings, result.generated_at)) : null));
+  }
+  const costChart = ebayChart("ebay_costs");
+  if (result.fees || result.ad_budget || costChart) {
+    content.push(section("r-ebay-costs", "eBay fees & ad costs",
+      result.fees ? renderFees(result.fees, richText) : null,
+      costChart ? renderChart(costChart, { chip }) : null,
+      result.ad_budget ? renderAdBudget(result.ad_budget, richText) : null));
+  }
+
   if (mockups) content.push(section("r-mockups", "Mock-ups", mockups));
 
   const steps = list(result.next_steps).length ? list(result.next_steps) : list(result.next_checks).map((entry) => ({ text: asItem(entry)?.text }));
@@ -207,6 +244,7 @@ export function renderReport(result = {}, { run = null, shared = false, actions 
     h("p", { class: "section-note" }, SOURCED_NOTE), brief ? renderBriefDetails(brief) : null, renderAbout(result)));
 
   const mode = MODES[result.mode || run?.mode];
+  const templateId = result.template || run?.template || result.brief?.template;
   const meta = [];
   if (result.generated_at || run?.created_at) meta.push(fmtDate(result.generated_at || run.created_at));
   meta.push(`${plural(cards.length, "fact card")}, ${sourcedCount} sourced`);
@@ -232,7 +270,8 @@ export function renderReport(result = {}, { run = null, shared = false, actions 
       h("h1", { class: "report-title", tabindex: "-1" }, result.title || run?.title || "Your report"),
       h("p", { class: "report-meta" },
         meta.filter(Boolean).join(" · "),
-        mode ? h("span", { class: `badge badge-mode` }, `${mode.name} research`) : null),
+        mode ? h("span", { class: `badge badge-mode` }, `${mode.name} research`) : null,
+        isGeneralTemplate(templateId) ? null : templateBadge(templateName(templateId))),
       actions ? h("div", { class: "report-actions" }, actions) : null,
       h("p", { class: "legend" },
         h("span", { class: "legend-item" }, kindBadge("sourced"), " exact quote on a captured page"),
@@ -260,12 +299,149 @@ export function cardTile(card, n) {
     h("div", { class: "source-tile-head" },
       n ? h("span", { class: "source-n" }, String(n)) : null,
       h("span", { class: "source-domain" }, domainOf(card.url) || "Source"),
-      typeBadge(card.type), isStale(card) ? staleBadge() : null),
+      typeBadge(card.type), listingBadge(card), isStale(card) ? staleBadge() : null),
     card.claim ? h("p", { class: "source-claim" }, card.claim) : null,
     card.quote ? h("blockquote", { class: "quote" }, h("p", {}, `“${card.quote}”`)) : null,
     h("p", { class: "source-foot" },
       externalLink(card.url, sourceLabel(card, "Open source"), "source-link"),
-      h("span", { class: "muted" }, ` · Captured ${fmtDate(card.captured_at) || "date unknown"}`)));
+      h("span", { class: "muted" }, ` · ${capturedText(card)}`)));
+}
+
+// Distinct retrieval dates of the listings, for "asking prices of active listings on <date>".
+function listingDates(listings, fallback) {
+  const days = [...new Set(listings.map((l) => l.retrieved_at).filter(Boolean).map((iso) => iso.slice(0, 10)))].sort();
+  if (!days.length) return fmtDate(fallback) || "the retrieval date";
+  const first = fmtDate(`${days[0]}T12:00:00Z`);
+  return days.length === 1 ? first : `${first} – ${fmtDate(`${days[days.length - 1]}T12:00:00Z`)}`;
+}
+
+function renderListings(listings, richText, dateText) {
+  const note = `Asking prices of active eBay listings on ${dateText}, not sold prices.`;
+  const currencyOf = (l) => l.currency || "USD";
+  const shipping = (l) => {
+    if (l.shipping == null || l.shipping === "") return "Not given";
+    return Number(l.shipping) === 0 ? "Free" : fmtMoney(l.shipping, currencyOf(l));
+  };
+  return [
+    h("p", { class: "section-note listing-note" }, note),
+    h("div", { class: "table-scroll", role: "region", "aria-label": "Comparable eBay listings table", tabindex: "0" },
+      h("table", { class: "data-table listings-table" },
+        h("caption", { class: "visually-hidden" }, `Comparable eBay listings. ${note}`),
+        h("thead", {}, h("tr", {},
+          h("th", { scope: "col" }, "Listing"),
+          h("th", { scope: "col", class: "num" }, "Asking price"),
+          h("th", { scope: "col", class: "num" }, "Shipping"),
+          h("th", { scope: "col" }, "Condition"),
+          h("th", { scope: "col" }, "Source"))),
+        h("tbody", {}, listings.map((l) => h("tr", {},
+          h("th", { scope: "row", class: "listing-title" }, l.url ? externalLink(l.url, l.title, "source-link") : l.title),
+          h("td", { class: "num" }, isNum(l.price) ? fmtMoney(l.price, currencyOf(l)) : "—"),
+          h("td", { class: "num" }, shipping(l)),
+          h("td", {}, l.condition || "Not given"),
+          h("td", { class: "chips-cell" }, l.card_id ? richText("", [l.card_id]) : null)))))),
+  ];
+}
+
+function renderFees(fees, richText) {
+  const cur = fees.currency || "USD";
+  const money = (v) => (isNum(v) ? fmtMoney(Number(v), cur) : "—");
+  const lines = list(fees.lines).filter(Boolean);
+  const scenarios = list(fees.scenarios).filter(Boolean);
+  const out = [];
+  if (fees.complete === false) {
+    out.push(h("div", { class: "callout callout-warn" },
+      h("p", {}, h("strong", {}, "Incomplete breakdown. "),
+        "Some eBay fees could not be checked on an ebay.com page in this run, so they are left out below and no ad budget is suggested. See Missing evidence.")));
+  }
+  const shippingText = fees.buyer_pays_shipping === true && isNum(fees.shipping_cost)
+    ? ` plus ${money(fees.shipping_cost)} shipping paid by the buyer`
+    : fees.buyer_pays_shipping === false ? " with free shipping for the buyer" : "";
+  if (isNum(fees.price)) {
+    out.push(h("p", { class: "fees-intro" },
+      `At ${money(fees.price)}`, fees.price_basis ? ` (${String(fees.price_basis).replace(/^./, (c) => c.toLowerCase())})` : "",
+      shippingText, isNum(fees.sale_total) ? `, the sale total is ${money(fees.sale_total)}.` : "."));
+  }
+  if (lines.length) {
+    out.push(h("div", { class: "table-scroll", role: "region", "aria-label": "eBay fee breakdown table", tabindex: "0" },
+      h("table", { class: "data-table fees-table" },
+        h("caption", { class: "visually-hidden" }, `eBay fees per item in ${cur}`),
+        h("thead", {}, h("tr", {},
+          h("th", { scope: "col" }, "Item"),
+          h("th", { scope: "col", class: "num" }, "Rate"),
+          h("th", { scope: "col", class: "num" }, "Cost"),
+          h("th", { scope: "col" }, "Kind"),
+          h("th", { scope: "col" }, "How it is worked out"))),
+        h("tbody", {},
+          isNum(fees.sale_total) ? h("tr", { class: "fees-total-row" },
+            h("th", { scope: "row" }, "Sale total"), h("td", { class: "num" }, ""), h("td", { class: "num" }, money(fees.sale_total)),
+            h("td", {}), h("td", { class: "basis" }, "Price plus any shipping the buyer pays")) : null,
+          lines.map((line) => h("tr", {},
+            h("th", { scope: "row" }, line.item || "Fee"),
+            h("td", { class: "num" }, isNum(line.rate_pct) ? fmtPct(line.rate_pct) : "—"),
+            h("td", { class: "num" }, money(line.amount)),
+            h("td", {}, kindBadge(line.kind || "estimate")),
+            h("td", { class: "basis" }, richText(line.method || "", line.card_ids))))),
+        isNum(fees.left_before_ads) ? h("tfoot", {}, h("tr", {},
+          h("th", { scope: "row" }, "What is left before ads"),
+          h("td", { class: "num" }, ""),
+          h("td", { class: `num${Number(fees.left_before_ads) < 0 ? " is-loss" : ""}` }, money(fees.left_before_ads)),
+          h("td", {}),
+          h("td", { class: "basis" }, "Before the cost of making the item"))) : null)));
+  }
+  if (scenarios.length) {
+    out.push(h("h3", { class: "subhead" }, "Promoted Listings General: ad-rate scenarios"),
+      h("div", { class: "table-scroll", role: "region", "aria-label": "Ad-rate scenarios table", tabindex: "0" },
+        h("table", { class: "data-table scenarios-table" },
+          h("caption", { class: "visually-hidden" }, "What is left per item at each Promoted Listings General ad rate (estimates)"),
+          h("thead", {}, h("tr", {},
+            h("th", { scope: "col" }, "Scenario"),
+            h("th", { scope: "col", class: "num" }, "Ad rate"),
+            h("th", { scope: "col", class: "num" }, "Ad fee"),
+            h("th", { scope: "col", class: "num" }, "What is left"))),
+          h("tbody", {}, scenarios.map((s) => {
+            const loss = isNum(s.left) && Number(s.left) < 0;
+            return h("tr", {},
+              h("th", { scope: "row" }, s.label || "Scenario"),
+              h("td", { class: "num" }, fmtPct(s.ad_rate_pct)),
+              h("td", { class: "num" }, money(s.ad_fee)),
+              h("td", { class: `num${loss ? " is-loss" : ""}` }, loss ? `${money(s.left)} (a loss)` : money(s.left)));
+          })))));
+  }
+  if (fees.method) {
+    out.push(h("p", { class: "method" }, h("span", { class: "method-label" }, "Method: "), String(fees.method)));
+  }
+  out.push(h("p", { class: "field-hint" }, "All amounts are estimates per item, before the cost of making it. Fee rates link to the ebay.com pages read in this run."));
+  return out;
+}
+
+function renderAdBudget(budget, richText) {
+  const priority = budget.priority ? asItem(budget.priority) : null;
+  const hasRange = isNum(budget.min_rate_pct) || isNum(budget.max_rate_pct);
+  return h("div", { class: "ad-budget", role: "group", "aria-labelledby": "ad-budget-h" },
+    h("div", { class: "ad-budget-head" },
+      h("h3", { id: "ad-budget-h" }, "Ad budget: how much to give eBay ads"),
+      kindBadge(budget.kind || "estimate")),
+    h("dl", { class: "stat-grid ad-budget-stats" },
+      isNum(budget.break_even_rate_pct) ? h("div", { class: "stat" },
+        h("dt", {}, "Break-even ad rate"),
+        h("dd", {}, fmtPct(budget.break_even_rate_pct)),
+        h("dd", { class: "stat-note" }, "At this rate nothing is left")) : null,
+      isNum(budget.suggested_max_rate_pct) ? h("div", { class: "stat stat-suggest" },
+        h("dt", {}, "Suggested ceiling ", h("span", { class: "badge badge-neutral" }, "Suggestion")),
+        h("dd", {}, fmtPct(budget.suggested_max_rate_pct)),
+        h("dd", { class: "stat-note" }, "Keep the Promoted Listings General rate at or below this")) : null),
+    budget.suggestion ? h("p", {}, String(budget.suggestion)) : null,
+    hasRange ? h("p", { class: "ad-range" },
+      "eBay's allowed ad rates for Promoted Listings General: ",
+      isNum(budget.min_rate_pct) && isNum(budget.max_rate_pct)
+        ? `${fmtPct(budget.min_rate_pct)} to ${fmtPct(budget.max_rate_pct)}`
+        : isNum(budget.min_rate_pct) ? `from ${fmtPct(budget.min_rate_pct)}` : `up to ${fmtPct(budget.max_rate_pct)}`,
+      ". ", richText("", budget.rate_card_ids)) : null,
+    budget.method ? h("p", { class: "method" }, h("span", { class: "method-label" }, "Method: "), String(budget.method)) : null,
+    priority && priority.text ? h("div", { class: "ad-priority" },
+      h("h4", {}, "Promoted Listings Priority (cost per click)"),
+      h("p", {}, priority.kind ? [kindBadge(priority.kind), " "] : null, richText(priority.text, priority.card_ids)),
+      methodNote(priority)) : null);
 }
 
 function renderPriceTable(table, richText) {
@@ -435,10 +611,10 @@ function showHovercard(anchor, card, n) {
     h("div", { class: "hovercard-head" },
       h("span", { class: "source-n" }, String(n)),
       h("span", { class: "source-domain" }, domainOf(card.url) || "Source"),
-      typeBadge(card.type), isStale(card) ? staleBadge() : null),
+      typeBadge(card.type), listingBadge(card), isStale(card) ? staleBadge() : null),
     card.source_title ? h("p", { class: "hovercard-title" }, sourceLabel(card)) : null,
     quote ? h("p", { class: "hovercard-quote" }, `“${quote.length > 220 ? `${quote.slice(0, 217)}…` : quote}”`) : null,
-    h("p", { class: "hovercard-foot" }, `Captured ${fmtDate(card.captured_at) || "date unknown"} · Select for the full fact card`),
+    h("p", { class: "hovercard-foot" }, `${capturedText(card)} · Select for the full fact card`),
   ];
   el.replaceChildren(...parts.filter(Boolean));
   el.hidden = false;
@@ -518,18 +694,20 @@ export function openCardPanel(card, n) {
         close),
       h("div", { class: "badge-row" },
         typeBadge(card.type),
+        listingBadge(card),
         stale ? staleBadge() : null,
         card.direction ? h("span", { class: "tag" }, card.direction) : null),
       h("h2", { class: "sheet-title", id: "card-panel-title" }, card.claim || "Untitled card"),
       card.quote ? h("blockquote", { class: "quote quote-lg" }, h("p", {}, `“${card.quote}”`)) : null,
       h("dl", { class: "kv" },
-        h("div", {}, h("dt", {}, "Source"),
+        h("div", {}, h("dt", {}, isListingCard(card) ? "eBay listing" : "Source"),
           h("dd", {}, externalLink(card.url, sourceLabel(card, "Open source"), "source-link"),
             domainOf(card.url) ? h("span", { class: "muted block" }, domainOf(card.url)) : null)),
-        h("div", {}, h("dt", {}, "Captured"), h("dd", {}, fmtDate(card.captured_at) || "Unknown")),
+        h("div", {}, h("dt", {}, isListingCard(card) ? "Retrieved" : "Captured"),
+          h("dd", {}, fmtDate(isListingCard(card) ? card.retrieved_at || card.captured_at : card.captured_at) || "Unknown")),
         card.added_by ? h("div", {}, h("dt", {}, "Added by"), h("dd", {}, card.added_by)) : null),
       notes,
-      h("p", { class: "note" }, SOURCED_NOTE)));
+      h("p", { class: "note" }, isListingCard(card) ? LISTING_NOTE : SOURCED_NOTE)));
   dlg.setAttribute("aria-labelledby", "card-panel-title");
   if (!dlg.open) dlg.showModal();
   close.focus();

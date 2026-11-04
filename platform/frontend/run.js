@@ -1,10 +1,10 @@
 // Live run view (#/runs/<id>) that turns into the report, plus the public shared report.
 import {
-  h, icon, setTitle, toast, copyText, statusChip, fmtDate, emptyState, trapFocus,
+  h, icon, setTitle, toast, copyText, statusChip, fmtDate, emptyState, trapFocus, templateBadge,
 } from "./ui.js";
 import { api, friendlyError } from "./api.js";
 import { state, main, page, loadingBlock, announce, isOwner } from "./core.js";
-import { featureById, stageLabel, MODES } from "./features.js";
+import { featureById, stageLabel, MODES, templateName, isGeneralTemplate } from "./features.js";
 import { renderReport } from "./report.js";
 import { refreshHistory } from "./shell.js";
 import { toolIcon } from "./research.js";
@@ -69,6 +69,7 @@ export function viewRun(runId, isCurrent) {
     const feature = featureById(run.brief?.feature || run.feature);
     const failed = run.status === "failed";
     const mode = MODES[run.mode];
+    const template = run.template || run.brief?.template;
     let statusLine;
     if (failed) statusLine = "This run stopped before it finished.";
     else if (run.status === "queued") statusLine = "Waiting for a research worker…";
@@ -99,8 +100,10 @@ export function viewRun(runId, isCurrent) {
           h("div", { class: "page-head-text" },
             h("p", { class: "eyebrow tool-eyebrow" }, toolIcon(feature.id, 18), `${stageLabel(feature)} · ${feature.name}`),
             h("h1", { tabindex: "-1" }, run.title || "Your report"),
-            mode ? h("p", { class: "run-mode" }, h("span", { class: "badge badge-mode" }, `${mode.name} research`),
-              h("span", { class: "muted" }, ` usually ${mode.time}, ${mode.cost}`)) : null,
+            mode || !isGeneralTemplate(template) ? h("p", { class: "run-mode" },
+              mode ? h("span", { class: "badge badge-mode" }, `${mode.name} research`) : null,
+              isGeneralTemplate(template) ? null : templateBadge(templateName(template)),
+              mode ? h("span", { class: "muted" }, ` usually ${mode.time}, ${mode.cost}`) : null) : null,
             h("p", { class: "lede run-status-line", role: "status" }, statusLine))),
         h("div", { class: "run-body" }, body)));
     } else {
@@ -256,6 +259,8 @@ async function setupMockups(run, { button, reason, container, showSection }) {
   try {
     const data = await api(`/runs/${encodeURIComponent(run.run_id)}/mockups`);
     items = Array.isArray(data.mockups) ? data.mockups : [];
+    // enabled is false when the server has no image key or this viewer cannot make pictures.
+    if (data.enabled === false && !items.length) return;
   } catch (err) {
     if (err.status !== 403) return;
     items = [];
