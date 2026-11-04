@@ -1,89 +1,174 @@
-// Fact library (#/library) and My reports (#/runs), each with a Mine | Team toggle.
+// Fact library (#/library) and My reports (#/runs). One scope picker on each (SPEC v5): Mine, each of the
+// person's teams (that team's project reports and cards) and each visible project. The choice is kept in the
+// address (?scope=team:<id> | project:<id>) and remembered per page; a scope that no longer exists falls back to Mine.
 import {
-  h, setTitle, toggleGroup, externalLink, domainOf, fmtDate, fmtAgo, fmtCost, isStale, plural,
+  h, setTitle, externalLink, domainOf, fmtDate, fmtAgo, fmtCost, isStale, plural, storage, toast,
   typeBadge, staleBadge, statusChip, emptyState,
 } from "./ui.js";
 import { api, friendlyError } from "./api.js";
-import { main, page, pageHeader, loadingBlock, routeQuery, setRouteQuery } from "./core.js";
+import { state, main, page, pageHeader, loadingBlock, routeQuery, setRouteQuery } from "./core.js";
 import { FEATURES, featureById } from "./features.js";
 import { openCardPanel } from "./report.js";
+import { loadTeams, projectHref } from "./projects.js";
 
-function scopeFromQuery() {
-  return routeQuery().get("scope") === "team" ? "team" : "mine";
+const MINE = { kind: "mine", value: "mine", name: "Mine" };
+const scopeKey = (pageId) => `mc_scope_${pageId}_${(state.user && state.user.sub) || "anon"}`;
+
+// Teams (GET /teams) and non-archived projects (GET /projects) the person can choose from.
+async function scopeChoices() {
+  const [teamsRes, projectsRes] = await Promise.allSettled([loadTeams({ fresh: true }), api("/projects")]);
+  const teams = (teamsRes.status === "fulfilled" ? teamsRes.value : [])
+    .filter((t) => t && t.team_id)
+    .map((t) => ({ kind: "team", value: `team:${t.team_id}`, id: t.team_id, name: t.name || "Team" }));
+  const rawProjects = projectsRes.status === "fulfilled" ? projectsRes.value : [];
+  const projects = (Array.isArray(rawProjects) ? rawProjects : Array.isArray(rawProjects?.projects) ? rawProjects.projects : [])
+    .filter((p) => p && p.project_id && !p.archived)
+    .map((p) => ({ kind: "project", value: `project:${p.project_id}`, id: p.project_id, name: p.name || "Untitled project", team: p.team }));
+  return { teams, projects };
 }
 
-function noTeam(what) {
-  return emptyState({
-    title: "You are not in a team yet",
-    text: `Create a team or accept an invite to see ${what} shared by your teammates.`,
-    action: h("a", { class: "btn btn-secondary", href: "#/team" }, "Go to Team"),
-    headingLevel: 2,
+// The address wins, then the remembered choice; the old ?scope=team means the first team.
+function resolveScope(pageId, choices) {
+  const wanted = routeQuery().get("scope") || storage.get(scopeKey(pageId)) || "mine";
+  if (wanted === "team") return choices.teams[0] || MINE;
+  return [...choices.teams, ...choices.projects].find((c) => c.value === wanted) || MINE;
+}
+
+function scopePaths(scope) {
+  if (scope.kind === "team") {
+    const base = `/teams/${encodeURIComponent(scope.id)}`;
+    return { runs: `${base}/runs`, cards: `${base}/cards` };
+  }
+  if (scope.kind === "project") {
+    const base = `/projects/${encodeURIComponent(scope.id)}`;
+    return { runs: `${base}/runs`, cards: `${base}/cards` };
+  }
+  return { runs: "/runs", cards: "/cards" };
+}
+
+function scopePicker({ id, label, choices, scope, onChange }) {
+  const select = h("select", { id, "aria-describedby": `${id}-hint` },
+    h("option", { value: MINE.value, selected: scope.kind === "mine" }, "Mine"),
+    choices.teams.length
+      ? h("optgroup", { label: "Teams" }, choices.teams.map((c) => h("option", { value: c.value, selected: c.value === scope.value }, `Team · ${c.name}`)))
+      : null,
+    choices.projects.length
+      ? h("optgroup", { label: "Projects" }, choices.projects.map((c) => h("option", { value: c.value, selected: c.value === scope.value }, `Project · ${c.name}`)))
+      : null);
+  const hint = h("p", { class: "field-hint", id: `${id}-hint` });
+  const describe = (s) => {
+    hint.textContent = s.kind === "team"
+      ? `Finished reports and fact cards in ${s.name}'s projects.`
+      : s.kind === "project"
+        ? `Finished reports and fact cards in this project${s.team ? `, shared with ${s.team.name}` : ""}, plus your own reports in progress.`
+        : "Your own reports and fact cards.";
+  };
+  describe(scope);
+  select.addEventListener("change", () => {
+    const next = [...choices.teams, ...choices.projects].find((c) => c.value === select.value) || MINE;
+    describe(next);
+    onChange(next);
   });
+  return h("div", { class: "control scope-picker" }, h("label", { for: id }, label), select, hint);
+}
+
+function rememberScope(pageId, scope) {
+  setRouteQuery({ scope: scope.kind === "mine" ? null : scope.value });
+  if (scope.kind === "mine") storage.remove(scopeKey(pageId));
+  else storage.set(scopeKey(pageId), scope.value);
+}
+
+// A team or project that is gone (left, removed, archived) answers 404: show Mine instead.
+function isGone(scope, err) {
+  return scope.kind !== "mine" && (err.status === 404 || err.status === 403);
 }
 
 // ---- My reports ---------------------------------------------------------------
 
-export function viewReports(isCurrent) {
+export async function viewReports(isCurrent) {
   setTitle("My reports");
-  let scope = scopeFromQuery();
   const body = h("div", { class: "list-body" });
-  const toggle = toggleGroup({
-    label: "Whose reports", value: scope,
-    options: [["mine", "Mine"], ["team", "Team"]],
-    onChange: (v) => { scope = v; setRouteQuery({ scope: v === "team" ? "team" : null }); load(); },
-  });
+  const pickerSlot = h("div", { class: "toolbar-row" });
   main.replaceChildren(page(
     pageHeader({
-      title: "My reports", lede: "Finished and running research. Team shows finished reports in your team's projects.",
+      title: "My reports",
+      lede: "Your research, or the finished reports of a team or a project you are in.",
       actions: h("a", { class: "btn btn-primary", href: "#/new" }, "New research"),
     }),
-    h("div", { class: "toolbar-row" }, toggle),
+    pickerSlot,
     body));
+  body.replaceChildren(loadingBlock("Loading your reports…"));
+  const choices = await scopeChoices();
+  if (!isCurrent()) return;
+  let scope = resolveScope("reports", choices);
+  rememberScope("reports", scope);
+  const picker = scopePicker({
+    id: "reports-scope", label: "Show reports from", choices, scope,
+    onChange: (next) => { scope = next; rememberScope("reports", scope); load(); },
+  });
+  pickerSlot.replaceChildren(picker);
 
   let seq = 0;
   async function load() {
     const mine = ++seq;
-    body.replaceChildren(loadingBlock(scope === "team" ? "Loading team reports…" : "Loading your reports…"));
+    body.replaceChildren(loadingBlock(scope.kind === "mine" ? "Loading your reports…" : `Loading reports from ${scope.name}…`));
     try {
-      const { runs = [] } = await api(scope === "team" ? "/team/runs" : "/runs");
+      const { runs = [] } = await api(scopePaths(scope).runs);
       if (mine !== seq || !isCurrent()) return;
       render(runs);
     } catch (err) {
       if (mine !== seq || !isCurrent()) return;
-      if (scope === "team" && (err.status === 404 || err.status === 403)) {
-        body.replaceChildren(noTeam("reports"));
-        return;
+      if (isGone(scope, err)) {
+        toast(`${scope.name} is no longer available to you. Showing your own reports.`);
+        scope = MINE;
+        picker.querySelector("select").value = MINE.value;
+        rememberScope("reports", scope);
+        return load();
       }
       body.replaceChildren(h("p", { class: "callout callout-error", role: "alert" }, friendlyError(err)));
     }
   }
 
+  function emptyFor() {
+    if (scope.kind === "team") {
+      return emptyState({ title: "No reports in this team's projects yet", text: `Finished reports filed in ${scope.name}'s projects appear here.` });
+    }
+    if (scope.kind === "project") {
+      return emptyState({
+        title: "No reports in this project yet", text: "Start research in the project and its reports appear here.",
+        action: h("a", { class: "btn btn-secondary", href: projectHref(scope.id) }, "Open the project"),
+      });
+    }
+    return emptyState({
+      title: "No research yet", text: "Your reports will appear here. The first one is free.",
+      action: h("a", { class: "btn btn-primary", href: "#/new" }, "Start your first report"),
+    });
+  }
+
   function render(runs) {
     if (!runs.length) {
-      body.replaceChildren(scope === "team"
-        ? emptyState({ title: "No team reports yet", text: "Finished reports in your team's projects will appear here." })
-        : emptyState({
-            title: "No research yet", text: "Your reports will appear here. The first one is free.",
-            action: h("a", { class: "btn btn-primary", href: "#/new" }, "Start your first report"),
-          }));
+      body.replaceChildren(emptyFor());
       return;
     }
     body.replaceChildren(
-      h("p", { class: "result-count" }, plural(runs.length, "report")),
+      h("p", { class: "result-count", role: "status" }, plural(runs.length, "report")),
       h("ul", { class: "row-list" }, runs.map((run) => {
         const feature = featureById(run.feature || run.brief?.feature);
+        const author = run.user_sub || run.owner_sub;
+        const own = run.mine === true || (!!author && author === state.user?.sub);
+        const byOther = scope.kind !== "mine" && run.owner_name && !own;
         const meta = [
           feature.name,
-          scope === "team" && run.owner_name ? `by ${run.owner_name}` : null,
+          byOther ? `by ${run.owner_name}` : null,
           fmtAgo(run.created_at),
-          scope === "mine" && run.status === "done" && run.cost_usd != null ? `cost about ${fmtCost(run.cost_usd)}` : null,
+          scope.kind === "mine" && run.status === "done" && run.cost_usd != null ? `cost about ${fmtCost(run.cost_usd)}` : null,
         ].filter(Boolean).join(" · ");
         return h("li", {},
           h("a", { class: "row-link", href: `#/runs/${encodeURIComponent(run.run_id)}` },
             h("span", { class: "row-main" },
               h("span", { class: "row-title" }, run.title || "Untitled research"),
               h("span", { class: "row-meta" }, meta)),
-            statusChip(run.status === "queued" ? "running" : run.status)));
+            statusChip(run.status === "queued" ? "running" : (run.status || "done"))));
       })));
   }
 
@@ -92,9 +177,8 @@ export function viewReports(isCurrent) {
 
 // ---- Fact library --------------------------------------------------------------
 
-export function viewLibrary(isCurrent) {
+export async function viewLibrary(isCurrent) {
   setTitle("Fact library");
-  let scope = scopeFromQuery();
   const search = h("input", { type: "search", id: "lib-q", placeholder: "Claims, quotes or sources", autocomplete: "off" });
   const typeSel = h("select", { id: "lib-type" },
     h("option", { value: "" }, "All types"),
@@ -111,24 +195,32 @@ export function viewLibrary(isCurrent) {
     h("div", { class: "control" }, h("label", { for: "lib-type" }, "Type"), typeSel),
     h("div", { class: "control" }, h("label", { for: "lib-dir" }, "Direction"), dirSel),
     h("div", { class: "control" }, h("label", { for: "lib-tool" }, "Tool"), toolSel));
-  const toggle = toggleGroup({
-    label: "Whose fact cards", value: scope,
-    options: [["mine", "Mine"], ["team", "Team"]],
-    onChange: (v) => { scope = v; setRouteQuery({ scope: v === "team" ? "team" : null }); loadAll(); },
-  });
+  const pickerSlot = h("div", { class: "toolbar-row" });
 
   main.replaceChildren(page(
     pageHeader({
       title: "Fact library",
       lede: "Every quote your reports rest on, with its source and capture date. Sourced means the quote matched the captured page word for word.",
     }),
-    h("div", { class: "toolbar-row" }, toggle),
-    toolbar, count, grid));
+    pickerSlot, toolbar, count, grid));
+  toolbar.hidden = true;
+  grid.replaceChildren(loadingBlock("Loading your fact cards…"));
 
   let allCards = [];
   let runInfo = new Map();
   let reqSeq = 0;
   let debounce = null;
+  const cleanup = () => clearTimeout(debounce);
+
+  const choices = await scopeChoices();
+  if (!isCurrent()) return cleanup;
+  let scope = resolveScope("library", choices);
+  rememberScope("library", scope);
+  const picker = scopePicker({
+    id: "lib-scope", label: "Show fact cards from", choices, scope,
+    onChange: (next) => { scope = next; rememberScope("library", scope); resetFilters(); loadAll(); },
+  });
+  pickerSlot.replaceChildren(picker);
 
   const cardFeatures = (card) => new Set([
     card.feature,
@@ -137,14 +229,12 @@ export function viewLibrary(isCurrent) {
 
   async function loadAll() {
     const mine = ++reqSeq;
-    grid.replaceChildren(loadingBlock(scope === "team" ? "Loading team fact cards…" : "Loading your fact cards…"));
+    grid.replaceChildren(loadingBlock(scope.kind === "mine" ? "Loading your fact cards…" : `Loading fact cards from ${scope.name}…`));
     count.textContent = "";
     toolbar.hidden = true;
     try {
-      const [cardsRes, runsRes] = await Promise.allSettled([
-        api(scope === "team" ? "/team/cards" : "/cards"),
-        api(scope === "team" ? "/team/runs" : "/runs"),
-      ]);
+      const paths = scopePaths(scope);
+      const [cardsRes, runsRes] = await Promise.allSettled([api(paths.cards), api(paths.runs)]);
       if (mine !== reqSeq || !isCurrent()) return;
       if (cardsRes.status === "rejected") throw cardsRes.reason;
       allCards = cardsRes.value.cards || [];
@@ -155,9 +245,12 @@ export function viewLibrary(isCurrent) {
       render(allCards, false);
     } catch (err) {
       if (mine !== reqSeq || !isCurrent()) return;
-      if (scope === "team" && (err.status === 404 || err.status === 403)) {
-        grid.replaceChildren(noTeam("fact cards"));
-        return;
+      if (isGone(scope, err)) {
+        toast(`${scope.name} is no longer available to you. Showing your own fact cards.`);
+        scope = MINE;
+        picker.querySelector("select").value = MINE.value;
+        rememberScope("library", scope);
+        return loadAll();
       }
       grid.replaceChildren(h("p", { class: "callout callout-error", role: "alert" }, friendlyError(err)));
     }
@@ -179,7 +272,7 @@ export function viewLibrary(isCurrent) {
         h("p", { class: "fact-source" },
           externalLink(card.url, card.source_title || domainOf(card.url) || "Source", "source-link"),
           h("span", { class: "muted" }, ` · ${domainOf(card.url)}${card.captured_at ? ` · captured ${fmtDate(card.captured_at)}` : ""}`)),
-        card.added_by && scope === "team" ? h("p", { class: "fact-added muted" }, `Added by ${card.added_by}`) : null,
+        card.added_by && scope.kind !== "mine" ? h("p", { class: "fact-added muted" }, `Added by ${card.added_by}`) : null,
         used.length
           ? h("div", { class: "fact-used" },
               h("p", { class: "fact-used-label" }, `Used in ${plural(used.length, "report")}`),
@@ -188,14 +281,25 @@ export function viewLibrary(isCurrent) {
           : null));
   }
 
+  function emptyFor() {
+    if (scope.kind === "team") {
+      return emptyState({ title: "No fact cards in this team's projects yet", text: `Cards from finished reports in ${scope.name}'s projects appear here.` });
+    }
+    if (scope.kind === "project") {
+      return emptyState({
+        title: "No fact cards in this project yet", text: "Cards appear here when a report in the project finishes.",
+        action: h("a", { class: "btn btn-secondary", href: projectHref(scope.id) }, "Open the project"),
+      });
+    }
+    return emptyState({
+      title: "No fact cards yet", text: "Cards appear here after your first report finishes.",
+      action: h("a", { class: "btn btn-primary", href: "#/new" }, "Start research"),
+    });
+  }
+
   function render(cards, filtered) {
     if (!allCards.length) {
-      grid.replaceChildren(scope === "team"
-        ? emptyState({ title: "No team fact cards yet", text: "Cards from finished reports in your team's projects will appear here." })
-        : emptyState({
-            title: "No fact cards yet", text: "Cards appear here after your first report finishes.",
-            action: h("a", { class: "btn btn-primary", href: "#/new" }, "Start research"),
-          }));
+      grid.replaceChildren(emptyFor());
       count.textContent = "";
       return;
     }
@@ -221,7 +325,7 @@ export function viewLibrary(isCurrent) {
     const filtered = !!(q || type || direction || feature);
     if (!filtered) return render(allCards, false);
     try {
-      const { cards = [] } = await api(scope === "team" ? "/team/cards" : "/cards", { query: { q, type, direction } });
+      const { cards = [] } = await api(scopePaths(scope).cards, { query: { q, type, direction } });
       if (mine !== reqSeq || !isCurrent()) return;
       render(feature ? cards.filter((card) => cardFeatures(card).has(feature)) : cards, true);
     } catch (err) {
@@ -229,11 +333,14 @@ export function viewLibrary(isCurrent) {
       count.textContent = friendlyError(err);
     }
   }
-  function clearFilters() {
+  function resetFilters() {
     search.value = "";
     typeSel.value = "";
     dirSel.value = "";
     toolSel.value = "";
+  }
+  function clearFilters() {
+    resetFilters();
     load();
     search.focus();
   }
@@ -246,5 +353,5 @@ export function viewLibrary(isCurrent) {
   toolSel.addEventListener("change", load);
 
   loadAll();
-  return () => clearTimeout(debounce);
+  return cleanup;
 }

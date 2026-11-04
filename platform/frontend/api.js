@@ -103,7 +103,14 @@ export function friendlyError(err) {
   if (err.code === "already_in_team") return "You are already in this team.";
   if (err.code === "project_not_found") return "That project was not found, or you no longer have access to it.";
   if (err.code === "project_owner_only") return "Only the project owner or the team owner can change this project.";
-  if (err.code === "project_limit") return "You have reached the limit of 50 projects.";
+  if (err.code === "project_limit") {
+    // 10 live (not archived) projects per owner: the server says whose limit; add how to free a slot.
+    const said = String(err.message || "").trim() || "You have 10 live projects, the most one person can have.";
+    return /archive/i.test(said) ? said : `${said.replace(/\.?$/, ".")} Archive a project you no longer use to free a slot.`;
+  }
+  if (err.code === "new_owner_required") return "Choose who takes over before you leave.";
+  if (err.code === "invalid_new_owner") return "Choose another member of this team to take over.";
+  if (err.code === "owner_cannot_leave") return "You are the only member of this team, so you cannot leave it. Invite someone first.";
   if (err.code === "team_limit") return "You can be in at most 10 teams. Leave one before joining or creating another.";
   if (err.code === "no_team") return "You are not in that team.";
   if (err.status === 401) return "Your session has ended. Please sign in again.";

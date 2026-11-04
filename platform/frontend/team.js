@@ -5,7 +5,7 @@ import {
 } from "./ui.js";
 import { api, friendlyError } from "./api.js";
 import { state, main, page, pageHeader, loadingBlock, go, rerender, routeQuery } from "./core.js";
-import { refreshProjects, resetTeamsCache, openNewProjectDialog, projectHref } from "./projects.js";
+import { refreshProjects, resetTeamsCache, openNewProjectDialog, projectHref, dialogShell } from "./projects.js";
 
 function inviteLink(inv) {
   if (inv.invite_url) return inv.invite_url;
@@ -108,6 +108,71 @@ function memberRow(m, { me, canRemove, onRemove }) {
       : null);
 }
 
+// "Leave team": when the person owns the team or projects in it, they choose who takes over (SPEC v5).
+// The server answers 429 project_limit when that member already has 10 live projects: pick someone else.
+function openLeaveDialog({ team, base, isTeamOwner, others, leaving, onLeft }) {
+  const { dlg, head, close } = dialogShell("leave-dialog", `Leave ${team.name}?`);
+  const projects = Array.isArray(leaving?.projects) ? leaving.projects : [];
+  const needsHeir = leaving ? !!leaving.needs_new_owner : isTeamOwner;
+  const error = h("p", { class: "form-error", role: "alert", id: "leave-error" });
+  const heir = needsHeir
+    ? h("select", { id: "leave-heir", required: true, "aria-describedby": "leave-heir-hint leave-error" },
+        h("option", { value: "" }, "Choose a member"),
+        others.map((m) => {
+          const twin = m.name && others.some((o) => o !== m && o.name === m.name);
+          return h("option", { value: m.sub }, m.name ? (twin ? `${m.name} (${m.email})` : m.name) : m.email);
+        }))
+    : null;
+  const moving = [
+    isTeamOwner ? h("li", {}, h("strong", {}, "Ownership of the team"), ` ${team.name}`) : null,
+    ...projects.map((p) => h("li", {}, `Project · ${p.name}`, p.archived ? h("span", { class: "muted" }, " (archived)") : null)),
+  ].filter(Boolean);
+  const submit = h("button", { type: "submit", class: "btn btn-danger" }, "Leave team");
+  const form = h("form", { class: "stack", novalidate: true },
+    h("p", { class: "muted" }, "You will no longer see the team's projects, reports and fact cards. Your own reports outside its projects stay in your account."),
+    needsHeir ? h("div", { class: "control" },
+      h("label", { for: "leave-heir" }, "Who takes over?"),
+      heir,
+      h("p", { class: "field-hint", id: "leave-heir-hint" }, "They become the owner of:"),
+      h("ul", { class: "leave-moves" }, moving)) : null,
+    error,
+    h("div", { class: "form-actions form-actions-end" },
+      h("button", { type: "button", class: "btn btn-secondary", onclick: () => close() }, "Cancel"),
+      submit));
+  form.addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    error.textContent = "";
+    if (heir && !heir.value) {
+      error.textContent = "Choose who takes over before you leave.";
+      heir.setAttribute("aria-invalid", "true");
+      heir.focus();
+      return;
+    }
+    heir?.removeAttribute("aria-invalid");
+    submit.disabled = true;
+    try {
+      await api(`${base}/leave`, { method: "POST", body: heir ? { new_owner_sub: heir.value } : {} });
+      const name = heir ? (others.find((m) => m.sub === heir.value)?.name || heir.selectedOptions[0]?.textContent) : null;
+      close();
+      onLeft(name);
+    } catch (err) {
+      submit.disabled = false;
+      if (err.code === "project_limit" && heir) {
+        const said = String(err.message || "").trim().replace(/\.?$/, ".");
+        error.textContent = `${said} Choose someone else, or ask them to archive a project first.`;
+        heir.setAttribute("aria-invalid", "true");
+        heir.focus();
+        return;
+      }
+      error.textContent = friendlyError(err);
+      if (heir && (err.code === "new_owner_required" || err.code === "invalid_new_owner")) heir.focus();
+    }
+  });
+  dlg.replaceChildren(head, form);
+  dlg.showModal();
+  (heir || form.querySelector("button"))?.focus();
+}
+
 function renderTeam(data, teams, isCurrent) {
   const { team, role } = data;
   const members = Array.isArray(data.members) ? data.members : [];
@@ -121,7 +186,9 @@ function renderTeam(data, teams, isCurrent) {
   async function removeMember(m) {
     const ok = await confirmDialog({
       title: `Remove ${m.name || m.email}?`,
-      body: "They lose access to the team's reports and fact cards immediately. Their own reports stay in their account.",
+      body: "They lose access to the team's projects, reports and fact cards immediately. Projects they own in this team " +
+        "move to you; any that would take you over 10 live projects are archived, and you can restore them later. " +
+        "Their own reports stay in their account.",
       confirmLabel: "Remove member", danger: true,
     });
     if (!ok) return;
@@ -150,22 +217,18 @@ function renderTeam(data, teams, isCurrent) {
     }
   }
 
-  async function leave() {
-    const ok = await confirmDialog({
-      title: `Leave ${team.name}?`,
-      body: "You will no longer see the team's projects, reports and fact cards. Your own reports stay in your account.",
-      confirmLabel: "Leave team", danger: true,
+  function leave() {
+    openLeaveDialog({
+      team, base, isTeamOwner,
+      others: members.filter((m) => m.sub !== me),
+      leaving: data.leaving,
+      onLeft: (heir) => {
+        resetTeamsCache();
+        refreshProjects();
+        toast(heir ? `You left ${team.name}. ${heir} takes over.` : `You left ${team.name}.`);
+        if (isCurrent()) go("#/team");
+      },
     });
-    if (!ok) return;
-    try {
-      await api(`${base}/leave`, { method: "POST" });
-      resetTeamsCache();
-      refreshProjects();
-      toast("You left the team.");
-      if (isCurrent()) go("#/team");
-    } catch (err) {
-      toast(friendlyError(err));
-    }
   }
 
   const sections = [];
@@ -268,12 +331,18 @@ function renderTeam(data, teams, isCurrent) {
       h("h2", { id: "invite-h" }, "Invite someone"), form));
     sections.push(h("section", { class: "surface form-card", "aria-labelledby": "pending-h" },
       h("h2", { id: "pending-h" }, "Pending invites"), inviteList));
-  } else {
-    sections.push(h("section", { class: "surface form-card", "aria-labelledby": "leave-h" },
-      h("h2", { id: "leave-h" }, "Leave the team"),
-      h("p", { class: "muted" }, "Your own reports and fact cards stay in your account."),
-      h("div", { class: "form-actions" }, h("button", { type: "button", class: "btn btn-danger-quiet", onclick: leave }, "Leave team"))));
   }
+  // Anyone may leave; a team owner or a project owner first picks who takes over (SPEC v5 "Leaving a team").
+  const alone = isTeamOwner && members.filter((m) => m.sub !== me).length === 0;
+  sections.push(h("section", { class: "surface form-card", "aria-labelledby": "leave-h" },
+    h("h2", { id: "leave-h" }, "Leave the team"),
+    h("p", { class: "muted" }, alone
+      ? "You are the only member, so you cannot leave this team. Invite someone first; they can then take it over."
+      : isTeamOwner
+        ? "You choose a member to take over the team and your projects in it. Your own reports stay in your account."
+        : "Your own reports and fact cards stay in your account."),
+    alone ? null : h("div", { class: "form-actions" },
+      h("button", { type: "button", class: "btn btn-danger-quiet", "aria-haspopup": "dialog", onclick: leave }, "Leave team"))));
 
   sections.push(h("details", { class: "surface form-card another-team" },
     h("summary", {}, icon("chevron"), "Create another team"),
