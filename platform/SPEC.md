@@ -341,3 +341,28 @@ cards only where they mean an object, subtle motion only on user action. Accessi
 WCAG 2.2 AA (contrast 4.5:1, focus visible, keyboard everything, landmarks, labelled controls, 44px targets,
 reduced motion, the existing reading preferences). Landing keeps the slogan "See the market differently."
 but in the new visual language. Footer credit "Built by Yuexizi Zhang".
+
+## Teams (owner invites members; reports and fact cards are shared, conversations are not)
+
+- One team per user for this prototype. A signed-in user can create a team (they become its owner).
+- Items: `TEAM#<team_id>/META` {name, owner_sub, created_at}; `TEAM#<team_id>/MEMBER#<sub>` {email, name,
+  role owner|member, joined_at}; `TEAM#<team_id>/INVITE#<token>` {email, created_at, expires_at (7 days),
+  status pending|accepted|revoked}; `USER#<sub>/PROFILE.team_id`.
+- API:
+  - `POST /api/team {name}` → create (403 if already in a team). `GET /api/team` → `{team, role, members, invites}`
+    (invites only for the owner).
+  - `POST /api/team/invites {email}` (owner) → `{token, invite_url, emailed: bool}`. `invite_url` =
+    `SITE_ORIGIN/#/join/<token>`. If SES is configured (env `SES_FROM`), also send the invite email and set
+    `emailed: true`; otherwise the owner copies the link (UI shows "Copy invite link").
+  - `DELETE /api/team/invites/{token}` (owner) revokes. `POST /api/team/join {token}`: the signed-in
+    user's Google email must equal the invite email (case-insensitive) → becomes member.
+  - `DELETE /api/team/members/{sub}` (owner; cannot remove themself) → removed member loses team access at
+    once. `POST /api/team/leave` (member).
+  - `GET /api/team/runs` → finished (status done) runs of all current members, newest first, with
+    `owner_name`. `GET /api/team/cards?q=&type=&direction=` → fact cards of all current members (deduped by
+    dedupe_key, `added_by`).
+  - `GET /api/runs/{id}` also allowed for current members of the run owner's team when the run is done.
+    Conversations and in-progress runs stay private to their author.
+- UI: "Team" page (owner: name, members list with Remove, pending invites with Copy link / Revoke, invite
+  form; member: members list and Leave). Library gets "Mine | Team" toggle; My reports gets "Mine | Team".
+  `#/join/<token>` page explains the invite and joins after sign-in.
