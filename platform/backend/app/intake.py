@@ -85,11 +85,22 @@ def reply_schema(template):
     return {**REPLY_SCHEMA, "properties": {**REPLY_SCHEMA["properties"], "brief": {"anyOf": [brief, {"type": "null"}]}}}
 
 
-def system_prompt(spec, template):
+PROJECT_SYSTEM = """
+
+This conversation belongs to a project the founder already works on. What MarketClue already knows:
+{context}
+
+Use what the project already says in the brief and do not ask for it again; ask only about what is still
+missing for this tool, so continuing a project needs fewer questions."""
+
+
+def system_prompt(spec, template, project_context=None):
     prompt = SYSTEM.format(**spec)
     if template["intake_needs"]:
         prompt += TEMPLATE_SYSTEM.format(name=template["name"], needs=template["intake_needs"],
                                          field=" and ".join(template["brief_fields"]) or "extra")
+    if project_context:
+        prompt += PROJECT_SYSTEM.format(context=project_context)
     return prompt
 
 
@@ -112,7 +123,8 @@ def chat(conv, message):
     if messages[0]["role"] != "user":
         messages.insert(0, {"role": "user", "content": "Hi."})
 
-    out = claude.json_call(None, system=system_prompt(spec, template), prompt=None, schema=reply_schema(template),
+    out = claude.json_call(None, system=system_prompt(spec, template, conv.get("project_context")), prompt=None,
+                           schema=reply_schema(template),
                            effort="low", messages=messages)
     brief = out.get("brief") if out.get("ready") else None
     if brief:

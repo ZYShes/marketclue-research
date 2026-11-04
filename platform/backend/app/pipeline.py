@@ -15,7 +15,7 @@ from datetime import datetime, timezone
 import requests
 from bs4 import BeautifulSoup
 
-from . import capabilities, charts, claude, ebay_report, intake, store, templates
+from . import capabilities, charts, claude, ebay_report, intake, projects, store, templates
 from .capabilities import ebay
 
 MAX_DIRECTIONS = 4
@@ -100,8 +100,22 @@ def mode_of(run):
     return mode if mode in MODES else "quick"
 
 
-def plan_directions(usage, brief, max_directions=MAX_DIRECTIONS):
+PROJECT_PLAN_NOTE = """
+
+What this project already knows:
+{context}
+
+Do not plan directions for questions the project already answers. In reused, say in one sentence which
+earlier findings this report builds on instead of researching them again (empty if none)."""
+
+
+def plan_directions(usage, brief, max_directions=MAX_DIRECTIONS, project_context=None):
+    """Returns (title, directions, reused); `reused` is only asked for when the run has a project."""
     spec = intake.FEATURES[feature_of(brief)]
+    schema = DIRECTIONS_SCHEMA
+    if project_context:
+        schema = {**DIRECTIONS_SCHEMA, "properties": {**DIRECTIONS_SCHEMA["properties"], "reused": {"type": "string"}},
+                  "required": DIRECTIONS_SCHEMA["required"] + ["reused"]}
     out = claude.json_call(
         usage,
         system="You are the research lead at MarketClue. You split a solo founder's research into independent directions that separate research agents can run in parallel.",
@@ -111,11 +125,12 @@ def plan_directions(usage, brief, max_directions=MAX_DIRECTIONS):
             f"covering {spec['research']}. Give each a short name (2-4 words), one research "
             "question, and 2-3 search hints. Also give the report a short title (max 8 words)."
             + template_notes(brief, "research")
+            + (PROJECT_PLAN_NOTE.format(context=project_context) if project_context else "")
         ),
-        schema=DIRECTIONS_SCHEMA,
+        schema=schema,
         effort="medium",
     )
-    return out["title"], out["directions"][:max_directions]
+    return out["title"], out["directions"][:max_directions], (out.get("reused") or "").strip() if project_context else ""
 
 
 # ---------- 2. Research agents, in parallel ----------
@@ -494,7 +509,16 @@ def report_problems(feature, doc):
     return problems
 
 
-def write_report(usage, brief, cards, directions, effort="medium"):
+PROJECT_WRITER_NOTE = """
+
+What this project already knows (from earlier reports in this project):
+{context}
+
+You may cite an earlier sourced card above by its id when its claim states the fact; it keeps its original date.
+Every new claim still needs one of the new checked fact cards."""
+
+
+def write_report(usage, brief, cards, directions, effort="medium", project_context=None):
     feature = feature_of(brief)
     schema = report_schema(feature, templates.of(brief)["id"])
     card_lines = [
@@ -509,7 +533,7 @@ def write_report(usage, brief, cards, directions, effort="medium"):
         f"Research directions: {', '.join(d['name'] for d in directions)}\n\n"
         f"Checked fact cards (JSON):\n{json.dumps(card_lines, ensure_ascii=False)}\n\n"
         f"{TOOL_INSTRUCTIONS[feature]}"
-    ) + template_notes(brief, "writer")
+    ) + template_notes(brief, "writer") + (PROJECT_WRITER_NOTE.format(context=project_context) if project_context else "")
     doc = claude.json_call(usage, system=WRITER_SYSTEM, prompt=prompt, schema=schema, effort=effort, max_tokens=32000)
     problems = report_problems(feature, doc)
     if problems:
@@ -596,6 +620,16 @@ def check(usage, doc, cards):
     return relabelled
 
 
+def cited_ids(value) -> set:
+    """Every card id a writer answer cites, anywhere in it."""
+    if isinstance(value, dict):
+        found = set(value.get("card_ids") or []) if isinstance(value.get("card_ids"), list) else set()
+        return found.union(*(cited_ids(item) for key, item in value.items() if key != "card_ids"))
+    if isinstance(value, list):
+        return set().union(*(cited_ids(item) for item in value))
+    return set()
+
+
 def mark_official(doc, cards):
     by_id = {c["card_id"]: c for c in cards}
     for step in doc.get("checklist") or []:
@@ -643,7 +677,9 @@ def run(run_id):
         store.update_run(run_id, status="running", stage="planning")
         t0 = time.time()
         set_agent("Research lead", "running", "Splitting the work")
-        title, directions = plan_directions(usage, brief, settings["directions"])
+        project = store.get_project(meta.get("project_id")) if meta.get("project_id") else None
+        context = projects.research_context(project, run_id, sub) if project else None
+        title, directions, reused = plan_directions(usage, brief, settings["directions"], context and context["text"])
         set_agent("Research lead", "done", f"{len(directions)} research directions", time.time() - t0)
         store.update_run(run_id, title=title, stage="researching")
 
@@ -684,7 +720,7 @@ def run(run_id):
         store.update_run(run_id, stage="planning_marketing")
         t0 = time.time()
         set_agent(writer, "running", "Writing the report")
-        doc = write_report(usage, brief, cards, directions, settings["writer_effort"])
+        doc = write_report(usage, brief, cards, directions, settings["writer_effort"], context and context["text"])
         if template["id"] == "ebay":
             doc = ebay_report.asking_wording(doc)
         set_agent(writer, "done", "Report written", time.time() - t0)
@@ -692,8 +728,10 @@ def run(run_id):
         store.update_run(run_id, stage="checking")
         t0 = time.time()
         set_agent("Reviewer", "running", "Checking every sourced statement")
-        relabelled = check(usage, doc, cards)
-        mark_official(doc, cards)
+        earlier = [projects.earlier_card(card) for card in context["cards"]] if context else []
+        known = cards + earlier
+        relabelled = check(usage, doc, known)
+        mark_official(doc, known)
         set_agent("Reviewer", "done", f"{relabelled} statements relabelled as assumptions", time.time() - t0)
 
         store.update_run(run_id, stage="writing")
@@ -736,16 +774,21 @@ def run(run_id):
             "next_steps": doc["next_steps"],
             "missing_evidence": missing,
             "coverage": coverage,
-            "charts": charts.build_charts(feature, doc, cards, coverage, extra=extra_charts,
+            "charts": charts.build_charts(feature, doc, known, coverage, extra=extra_charts,
                                           asking=template["id"] == "ebay" and feature == "competitor_scan"),
             **template_fields,
-            "cards": cards,
+            "cards": cards + [card for card in earlier if card["card_id"] in cited_ids(doc)],
             "cost": usage.as_dict(),
             "agents": timings,
             "seconds": round(time.time() - started),
         }
+        if project:
+            result["project"] = {"project_id": project["project_id"], "name": project["name"],
+                                 "team_id": project.get("team_id"), "reused": reused,
+                                 "earlier_cards": sum(1 for card in result["cards"] if card.get("earlier"))}
         store.save_result(run_id, result)
-        store.update_run(run_id, status="done", stage="done", cost_usd=usage.cost_usd(), agents=agents)
+        store.update_run(run_id, status="done", stage="done", cost_usd=usage.cost_usd(), agents=agents,
+                         takeaway=(doc["takeaway"].get("text") or "")[:300])
     except Exception as exc:
         traceback.print_exc()
         store.update_run(run_id, status="failed", error=str(exc)[:500], cost_usd=usage.cost_usd(), agents=agents)
