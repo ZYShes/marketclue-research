@@ -43,6 +43,19 @@ function measure(text, font) {
   return measureCtx.measureText(text).width;
 }
 
+// Shortens text with "…" to fit maxWidth; the full label stays in <desc> and the data table.
+function fit(text, font, maxWidth) {
+  const full = String(text || "");
+  if (measure(full, font) <= maxWidth) return full;
+  let lo = 0;
+  let hi = full.length;
+  while (lo < hi) {
+    const mid = Math.ceil((lo + hi) / 2);
+    if (measure(`${full.slice(0, mid)}…`, font) <= maxWidth) lo = mid; else hi = mid - 1;
+  }
+  return `${full.slice(0, lo).trimEnd()}…`;
+}
+
 function niceMax(v) {
   if (!(v > 0)) return 1;
   const exp = Math.pow(10, Math.floor(Math.log10(v)));
@@ -179,7 +192,7 @@ function drawBars({ series, unit, width, fs, font, id, kind, type, title, desc }
   series.forEach((s, i) => {
     const y0 = i * rowH;
     const barY = y0 + nameH;
-    root.append(el("text", { x: 0, y: y0 + fs, class: "chart-label", "font-size": fs }, String(s.label || "")));
+    root.append(el("text", { x: 0, y: y0 + fs, class: "chart-label", "font-size": fs }, fit(s.label, labelFont, width)));
     let endX;
     if (finite(s.low) && finite(s.high)) {
       const x1 = x(Math.min(num(s.low), num(s.high)));
@@ -220,7 +233,7 @@ function drawStacked({ series, unit, width, fs, font, id, title, desc }) {
   // Legend items flow into rows.
   const items = series.map((s, i) => {
     const pct = Math.round(((num(s.value) || 0) / total) * 100);
-    const text = `${s.label} · ${fmtValue(s.value, unit)} (${pct}%)`;
+    const text = fit(`${s.label} · ${fmtValue(s.value, unit)} (${pct}%)`, legendFont, width - swatch - 28);
     return { i, text, w: swatch + 8 + measure(text, legendFont) + 20 };
   });
   const rows = [];

@@ -670,7 +670,9 @@ html.reading-reduced-motion *, html.reading-reduced-motion *::before, html.readi
 /* ---- Fact library ---------------------------------------------------------------------- */
 
 .card-grid { list-style: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)); gap: 16px; }
-.fact { padding: 18px; display: grid; gap: 10px; align-content: start; height: 100%; }
+/* minmax(0, 1fr): one long unbreakable line (a URL) must not widen the card's column. */
+.fact { padding: 18px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; align-content: start; height: 100%; min-width: 0; overflow-wrap: anywhere; }
+.card-grid > li { min-width: 0; }
 .fact.is-stale { border-style: dashed; }
 .fact-claim { font-size: 1rem; font-weight: 650; line-height: 1.35; }
 .fact-claim .link-btn { min-height: 44px; padding: 6px 0; font-weight: inherit; }
@@ -685,7 +687,7 @@ html.reading-reduced-motion *, html.reading-reduced-motion *::before, html.readi
   border-left: 2px solid var(--rule-strong); padding-left: 12px; overflow-wrap: anywhere;
 }
 .quote-lg { font-size: 1.125rem; }
-.source-link { font-weight: 600; }
+.source-link { font-weight: 600; overflow-wrap: anywhere; }
 
 /* ---- Team ---------------------------------------------------------------------------------- */
 

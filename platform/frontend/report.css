@@ -165,8 +165,8 @@
 .chip-static { cursor: default; }
 .chip-static::after { display: none; }
 
-.source-tiles { display: grid; gap: 10px; }
-.source-tile { background: var(--surface); border: 1px solid var(--rule); border-radius: 12px; padding: 14px 16px; display: grid; gap: 8px; }
+.source-tiles { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
+.source-tile { background: var(--surface); border: 1px solid var(--rule); border-radius: 12px; padding: 14px 16px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; min-width: 0; overflow-wrap: anywhere; }
 .source-tile-head, .hovercard-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .source-n {
   display: inline-grid; place-items: center; min-width: 22px; height: 22px; padding: 0 5px; border-radius: 6px;
@@ -180,7 +180,8 @@
 .hovercard {
   position: absolute; z-index: 70; width: min(340px, calc(100% - 16px));
   background: var(--surface); border: 1px solid var(--rule-strong); border-radius: 12px;
-  box-shadow: var(--shadow-pop); padding: 12px 14px; display: grid; gap: 8px; font-size: 0.875rem;
+  box-shadow: var(--shadow-pop); padding: 12px 14px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; font-size: 0.875rem;
+  overflow-wrap: anywhere;
 }
 .hovercard-title { font-weight: 650; color: var(--ink); }
 .hovercard-quote { font-family: var(--font-serif); font-style: italic; font-size: 0.9375rem; color: var(--ink-2); line-height: 1.5; }
@@ -192,7 +193,7 @@
   padding: 0; border: 0; border-left: 1px solid var(--rule); border-radius: 16px 0 0 16px;
   background: var(--surface); color: var(--ink); box-shadow: var(--shadow-pop);
 }
-.sheet-inner { padding: 20px 24px 32px; display: grid; gap: 16px; }
+.sheet-inner { padding: 20px 24px 32px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; overflow-wrap: anywhere; }
 .sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .sheet-title { font-size: 1.25rem; line-height: 1.35; }
 html.is-narrow .sheet { border-radius: 0; border-left: 0; }

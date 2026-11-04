@@ -2,7 +2,7 @@
 // Classic structure: brief at a glance → numbered findings with sources → tool section (with charts)
 // → next steps & missing evidence → evidence coverage → all fact cards / about.
 import {
-  h, icon, externalLink, domainOf, fmtDate, fmtMoney, fmtCost, fmtSeconds, isStale,
+  h, icon, externalLink, domainOf, sourceLabel, fmtDate, fmtMoney, fmtCost, fmtSeconds, isStale,
   kindBadge, typeBadge, staleBadge, statusChip, plural, trapFocus, STALE_DAYS,
 } from "./ui.js";
 import { featureById, stageLabel, MODES } from "./features.js";
@@ -247,7 +247,7 @@ export function renderReport(result = {}, { run = null, shared = false, actions 
 export function sourceChip(card, n) {
   const chipEl = h("button", {
     type: "button", class: `chip ${card.type === "sourced" ? "chip-sourced" : "chip-unverified"}`,
-    "aria-label": `Source ${n}: ${card.claim || card.source_title || "fact card"}`,
+    "aria-label": `Source ${n}: ${card.claim || sourceLabel(card, "fact card")}`,
     "aria-haspopup": "dialog",
     onclick: () => { hideHovercard(); openCardPanel(card, n); },
   }, String(n));
@@ -264,7 +264,7 @@ export function cardTile(card, n) {
     card.claim ? h("p", { class: "source-claim" }, card.claim) : null,
     card.quote ? h("blockquote", { class: "quote" }, h("p", {}, `“${card.quote}”`)) : null,
     h("p", { class: "source-foot" },
-      externalLink(card.url, card.source_title || domainOf(card.url) || "Open source", "source-link"),
+      externalLink(card.url, sourceLabel(card, "Open source"), "source-link"),
       h("span", { class: "muted" }, ` · Captured ${fmtDate(card.captured_at) || "date unknown"}`)));
 }
 
@@ -436,7 +436,7 @@ function showHovercard(anchor, card, n) {
       h("span", { class: "source-n" }, String(n)),
       h("span", { class: "source-domain" }, domainOf(card.url) || "Source"),
       typeBadge(card.type), isStale(card) ? staleBadge() : null),
-    card.source_title ? h("p", { class: "hovercard-title" }, card.source_title) : null,
+    card.source_title ? h("p", { class: "hovercard-title" }, sourceLabel(card)) : null,
     quote ? h("p", { class: "hovercard-quote" }, `“${quote.length > 220 ? `${quote.slice(0, 217)}…` : quote}”`) : null,
     h("p", { class: "hovercard-foot" }, `Captured ${fmtDate(card.captured_at) || "date unknown"} · Select for the full fact card`),
   ];
@@ -524,7 +524,7 @@ export function openCardPanel(card, n) {
       card.quote ? h("blockquote", { class: "quote quote-lg" }, h("p", {}, `“${card.quote}”`)) : null,
       h("dl", { class: "kv" },
         h("div", {}, h("dt", {}, "Source"),
-          h("dd", {}, externalLink(card.url, card.source_title || domainOf(card.url) || "Open source", "source-link"),
+          h("dd", {}, externalLink(card.url, sourceLabel(card, "Open source"), "source-link"),
             domainOf(card.url) ? h("span", { class: "muted block" }, domainOf(card.url)) : null)),
         h("div", {}, h("dt", {}, "Captured"), h("dd", {}, fmtDate(card.captured_at) || "Unknown")),
         card.added_by ? h("div", {}, h("dt", {}, "Added by"), h("dd", {}, card.added_by)) : null),

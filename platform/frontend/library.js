@@ -1,6 +1,6 @@
 // Fact library (#/library) and My reports (#/runs), each with a Mine | Team toggle.
 import {
-  h, setTitle, toggleGroup, externalLink, domainOf, fmtDate, fmtAgo, fmtCost, isStale, plural,
+  h, setTitle, toggleGroup, externalLink, domainOf, sourceLabel, fmtDate, fmtAgo, fmtCost, isStale, plural,
   typeBadge, staleBadge, statusChip, emptyState,
 } from "./ui.js";
 import { api, friendlyError } from "./api.js";
@@ -163,6 +163,16 @@ export function viewLibrary(isCurrent) {
     }
   }
 
+  function sourceLine(card) {
+    const label = sourceLabel(card);
+    const domain = domainOf(card.url);
+    // Skip the domain when the label already starts with it (URL-only titles).
+    const meta = [domain && !label.startsWith(domain) ? domain : null, card.captured_at ? `captured ${fmtDate(card.captured_at)}` : null].filter(Boolean);
+    return h("p", { class: "fact-source" },
+      externalLink(card.url, label, "source-link"),
+      meta.length ? h("span", { class: "muted" }, ` · ${meta.join(" · ")}`) : null);
+  }
+
   function cardItem(card) {
     const stale = isStale(card);
     const runIds = [...(card.run_ids || [])];
@@ -176,9 +186,7 @@ export function viewLibrary(isCurrent) {
         h("h2", { class: "fact-claim" },
           h("button", { type: "button", class: "link-btn", "aria-haspopup": "dialog", onclick: () => openCardPanel(card, null) }, card.claim || "Untitled card")),
         card.quote ? h("blockquote", { class: "quote" }, h("p", {}, `“${card.quote}”`)) : null,
-        h("p", { class: "fact-source" },
-          externalLink(card.url, card.source_title || domainOf(card.url) || "Source", "source-link"),
-          h("span", { class: "muted" }, ` · ${domainOf(card.url)}${card.captured_at ? ` · captured ${fmtDate(card.captured_at)}` : ""}`)),
+        sourceLine(card),
         card.added_by && scope === "team" ? h("p", { class: "fact-added muted" }, `Added by ${card.added_by}`) : null,
         used.length
           ? h("div", { class: "fact-used" },

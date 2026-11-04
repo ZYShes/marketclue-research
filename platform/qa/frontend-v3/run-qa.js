@@ -72,7 +72,22 @@ async function checks(page, width) {
         small.push({ el: el.tagName.toLowerCase() + (el.className ? `.${String(el.className).split(" ")[0]}` : ""), label, w: Math.round(w), h: Math.round(h) });
       }
     }
-    return { scrollWidth: doc.scrollWidth, clientWidth: doc.clientWidth, horizontalScroll: doc.scrollWidth > doc.clientWidth + 1, small };
+    // Content that sticks out of its card (e.g. an unbreakable URL widening a grid column).
+    const overflow = [];
+    for (const box of document.querySelectorAll(".fact, .source-tile, .surface, .chart, .hovercard:not([hidden]), .brief-panel-inner, .callout")) {
+      if (box.closest("[hidden]")) continue;
+      const b = box.getBoundingClientRect();
+      if (!b.width) continue;
+      for (const child of box.querySelectorAll("*")) {
+        if (child.closest(".table-scroll, .chart-canvas, .visually-hidden, [hidden]")) continue;
+        const r = child.getBoundingClientRect();
+        if (r.width && r.right > b.right + 1) {
+          overflow.push({ box: box.className.split(" ")[0], el: child.tagName.toLowerCase() + (child.className && typeof child.className === "string" ? `.${child.className.split(" ")[0]}` : ""), by: Math.round(r.right - b.right), text: (child.textContent || "").trim().slice(0, 40) });
+          break;
+        }
+      }
+    }
+    return { scrollWidth: doc.scrollWidth, clientWidth: doc.clientWidth, horizontalScroll: doc.scrollWidth > doc.clientWidth + 1, small, overflow };
   });
   return { axe, layout, width };
 }
@@ -87,6 +102,7 @@ async function snap(page, name, width, { fullPage = true } = {}) {
     res.axe.length ? `axe:${res.axe.map((v) => `${v.id}(${v.count})`).join(",")}` : "axe:ok",
     res.layout.horizontalScroll ? `HSCROLL ${res.layout.scrollWidth}/${res.layout.clientWidth}` : "",
     res.layout.small.length ? `small:${res.layout.small.length}` : "",
+    res.layout.overflow.length ? `OVERFLOW:${res.layout.overflow.length} ${JSON.stringify(res.layout.overflow[0])}` : "",
   ].filter(Boolean).join(" ");
   console.log(`${name.padEnd(34)} ${String(width).padEnd(5)} ${flags}`);
 }
@@ -298,5 +314,6 @@ async function run(width) {
   fs.writeFileSync(path.join(OUT, "qa-report.json"), JSON.stringify(report, null, 2));
   const axeTotal = report.pages.reduce((n, p) => n + p.axe.length, 0);
   const hs = report.pages.filter((p) => p.layout.horizontalScroll).length;
-  console.log(`\npages: ${report.pages.length}, axe violations (rule × page): ${axeTotal}, horizontal scroll: ${hs}, axe source: ${report.axe_source}`);
+  const ov = report.pages.filter((p) => p.layout.overflow.length).length;
+  console.log(`\npages: ${report.pages.length}, axe violations (rule × page): ${axeTotal}, horizontal scroll: ${hs}, content outside its card: ${ov}, axe source: ${report.axe_source}`);
 })();

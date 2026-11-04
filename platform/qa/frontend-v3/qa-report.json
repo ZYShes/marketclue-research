@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-04T02:04:04.170Z",
+  "generated_at": "2026-11-04T03:54:59.778Z",
   "axe_source": "local npm copy (CDN blocked)",
   "pages": [
     {
@@ -11,7 +11,8 @@
         "scrollWidth": 1280,
         "clientWidth": 1280,
         "horizontalScroll": false,
-        "small": []
+        "small": [],
+        "overflow": []
       },
       "width": 1280
     },
@@ -24,7 +25,8 @@
         "scrollWidth": 1280,
         "clientWidth": 1280,
         "horizontalScroll": false,
-        "small": []
+        "small": [],
+        "overflow": []
       },
       "width": 1280
     },
@@ -37,7 +39,8 @@
         "scrollWidth": 1280,
         "clientWidth": 1280,
         "horizontalScroll": false,
-        "small": []
+        "small": [],
+        "overflow": []
       },
       "width": 1280
     },
@@ -50,7 +53,8 @@
         "scrollWidth": 1280,
         "clientWidth": 1280,
         "horizontalScroll": false,
-        "small": []
+        "small": [],
+        "overflow": []
       },
       "width": 1280
     },
@@ -63,7 +67,8 @@
         "scrollWidth": 1280,
         "clientWidth": 1280,
         "horizontalScroll": false,
-        "small": []
+        "small": [],
+        "overflow": []
       },
       "width": 1280
     },
@@ -76,7 +81,8 @@
         "scrollWidth": 1280,
         "clientWidth": 1280,
         "horizontalScroll": false,
-        "small": []
+        "small": [],
+        "overflow": []
       },
       "width": 1280
     },
@@ -89,7 +95,8 @@
         "scrollWidth": 1280,
         "clientWidth": 1280,
         "horizontalScroll": false,
-        "small": []
+        "small": [],
+        "overflow": []
       },
       "width": 1280
     },
@@ -102,7 +109,8 @@
         "scrollWidth": 1280,
         "clientWidth": 1280,
         "horizontalScroll": false,
-        "small": []
+        "small": [],
+        "overflow": []
       },
       "width": 1280
     },
@@ -115,20 +123,22 @@
         "scrollWidth": 1280,
         "clientWidth": 1280,
         "horizontalScroll": false,
-        "small": []
+        "small": [],
+        "overflow": []
       },
       "width": 1280
     },
     {
       "name": "09-run-progress",
       "file": "09-run-progress-1280.jpg",
-      "url": "?mock=1#/runs/f75972ff1b11",
+      "url": "?mock=1#/runs/64d6656772b5",
       "axe": [],
       "layout": {
         "scrollWidth": 1280,
         "clientWidth": 1280,
         "horizontalScroll": false,
-        "small": []
+        "small": [],
+        "overflow": []
       },
       "width": 1280
     },
@@ -141,7 +151,8 @@
         "scrollWidth": 1280,
         "clientWidth": 1280,
         "horizontalScroll": false,
-        "small": []
+        "small": [],
+        "overflow": []
       },
       "width": 1280
     },
@@ -154,7 +165,8 @@
         "scrollWidth": 1280,
         "clientWidth": 1280,
         "horizontalScroll": false,
-        "small": []
+        "small": [],
+        "overflow": []
       },
       "width": 1280
     },
@@ -167,7 +179,8 @@
         "scrollWidth": 1280,
         "clientWidth": 1280,
         "horizontalScroll": false,
-        "small": []
+        "small": [],
+        "overflow": []
       },
       "width": 1280
     },
@@ -180,7 +193,8 @@
         "scrollWidth": 1280,
         "clientWidth": 1280,
         "horizontalScroll": false,
-        "small": []
+        "small": [],
+        "overflow": []
       },
       "width": 1280
     },
@@ -193,7 +207,8 @@
         "scrollWidth": 1280,
         "clientWidth": 1280,
         "horizontalScroll": false,
-        "small": []
+        "small": [],
+        "overflow": []
       },
       "width": 1280
     },
@@ -206,7 +221,8 @@
         "scrollWidth": 1280,
         "clientWidth": 1280,
         "horizontalScroll": false,
-        "small": []
+        "small": [],
+        "overflow": []
       },
       "width": 1280
     },
@@ -219,7 +235,8 @@
         "scrollWidth": 1280,
         "clientWidth": 1280,
         "horizontalScroll": false,
-        "small": []
+        "small": [],
+        "overflow": []
       },
       "width": 1280
     },
@@ -232,7 +249,8 @@
         "scrollWidth": 1280,
         "clientWidth": 1280,
         "horizontalScroll": false,
-        "small": []
+        "small": [],
+        "overflow": []
       },
       "width": 1280
     },
@@ -245,7 +263,8 @@
         "scrollWidth": 1280,
         "clientWidth": 1280,
         "horizontalScroll": false,
-        "small": []
+        "small": [],
+        "overflow": []
       },
       "width": 1280
     },
@@ -258,7 +277,8 @@
         "scrollWidth": 1280,
         "clientWidth": 1280,
         "horizontalScroll": false,
-        "small": []
+        "small": [],
+        "overflow": []
       },
       "width": 1280
     },
@@ -271,7 +291,8 @@
         "scrollWidth": 1280,
         "clientWidth": 1280,
         "horizontalScroll": false,
-        "small": []
+        "small": [],
+        "overflow": []
       },
       "width": 1280
     },
@@ -284,7 +305,8 @@
         "scrollWidth": 1280,
         "clientWidth": 1280,
         "horizontalScroll": false,
-        "small": []
+        "small": [],
+        "overflow": []
       },
       "width": 1280
     },
@@ -297,7 +319,8 @@
         "scrollWidth": 1280,
         "clientWidth": 1280,
         "horizontalScroll": false,
-        "small": []
+        "small": [],
+        "overflow": []
       },
       "width": 1280
     },
@@ -310,7 +333,8 @@
         "scrollWidth": 1280,
         "clientWidth": 1280,
         "horizontalScroll": false,
-        "small": []
+        "small": [],
+        "overflow": []
       },
       "width": 1280
     },
@@ -323,7 +347,8 @@
         "scrollWidth": 1280,
         "clientWidth": 1280,
         "horizontalScroll": false,
-        "small": []
+        "small": [],
+        "overflow": []
       },
       "width": 1280
     },
@@ -336,7 +361,8 @@
         "scrollWidth": 1280,
         "clientWidth": 1280,
         "horizontalScroll": false,
-        "small": []
+        "small": [],
+        "overflow": []
       },
       "width": 1280
     },
@@ -349,7 +375,8 @@
         "scrollWidth": 1280,
         "clientWidth": 1280,
         "horizontalScroll": false,
-        "small": []
+        "small": [],
+        "overflow": []
       },
       "width": 1280
     },
@@ -362,7 +389,8 @@
         "scrollWidth": 1280,
         "clientWidth": 1280,
         "horizontalScroll": false,
-        "small": []
+        "small": [],
+        "overflow": []
       },
       "width": 1280
     },
@@ -375,7 +403,8 @@
         "scrollWidth": 1280,
         "clientWidth": 1280,
         "horizontalScroll": false,
-        "small": []
+        "small": [],
+        "overflow": []
       },
       "width": 1280
     },
@@ -388,7 +417,8 @@
         "scrollWidth": 1280,
         "clientWidth": 1280,
         "horizontalScroll": false,
-        "small": []
+        "small": [],
+        "overflow": []
       },
       "width": 1280
     },
@@ -401,7 +431,8 @@
         "scrollWidth": 1280,
         "clientWidth": 1280,
         "horizontalScroll": false,
-        "small": []
+        "small": [],
+        "overflow": []
       },
       "width": 1280
     },
@@ -414,7 +445,8 @@
         "scrollWidth": 1280,
         "clientWidth": 1280,
         "horizontalScroll": false,
-        "small": []
+        "small": [],
+        "overflow": []
       },
       "width": 1280
     },
@@ -427,7 +459,8 @@
         "scrollWidth": 1280,
         "clientWidth": 1280,
         "horizontalScroll": false,
-        "small": []
+        "small": [],
+        "overflow": []
       },
       "width": 1280
     },
@@ -440,7 +473,8 @@
         "scrollWidth": 1280,
         "clientWidth": 1280,
         "horizontalScroll": false,
-        "small": []
+        "small": [],
+        "overflow": []
       },
       "width": 1280
     },
@@ -453,7 +487,8 @@
         "scrollWidth": 1280,
         "clientWidth": 1280,
         "horizontalScroll": false,
-        "small": []
+        "small": [],
+        "overflow": []
       },
       "width": 1280
     },
@@ -466,7 +501,8 @@
         "scrollWidth": 1280,
         "clientWidth": 1280,
         "horizontalScroll": false,
-        "small": []
+        "small": [],
+        "overflow": []
       },
       "width": 1280
     },
@@ -479,7 +515,8 @@
         "scrollWidth": 1280,
         "clientWidth": 1280,
         "horizontalScroll": false,
-        "small": []
+        "small": [],
+        "overflow": []
       },
       "width": 1280
     },
@@ -492,7 +529,8 @@
         "scrollWidth": 1280,
         "clientWidth": 1280,
         "horizontalScroll": false,
-        "small": []
+        "small": [],
+        "overflow": []
       },
       "width": 1280
     },
@@ -505,7 +543,8 @@
         "scrollWidth": 1280,
         "clientWidth": 1280,
         "horizontalScroll": false,
-        "small": []
+        "small": [],
+        "overflow": []
       },
       "width": 1280
     },
@@ -518,7 +557,8 @@
         "scrollWidth": 375,
         "clientWidth": 375,
         "horizontalScroll": false,
-        "small": []
+        "small": [],
+        "overflow": []
       },
       "width": 375
     },
@@ -531,7 +571,8 @@
         "scrollWidth": 375,
         "clientWidth": 375,
         "horizontalScroll": false,
-        "small": []
+        "small": [],
+        "overflow": []
       },
       "width": 375
     },
@@ -544,7 +585,8 @@
         "scrollWidth": 375,
         "clientWidth": 375,
         "horizontalScroll": false,
-        "small": []
+        "small": [],
+        "overflow": []
       },
       "width": 375
     },
@@ -557,7 +599,8 @@
         "scrollWidth": 375,
         "clientWidth": 375,
         "horizontalScroll": false,
-        "small": []
+        "small": [],
+        "overflow": []
       },
       "width": 375
     },
@@ -570,7 +613,8 @@
         "scrollWidth": 375,
         "clientWidth": 375,
         "horizontalScroll": false,
-        "small": []
+        "small": [],
+        "overflow": []
       },
       "width": 375
     },
@@ -583,7 +627,8 @@
         "scrollWidth": 375,
         "clientWidth": 375,
         "horizontalScroll": false,
-        "small": []
+        "small": [],
+        "overflow": []
       },
       "width": 375
     },
@@ -596,7 +641,8 @@
         "scrollWidth": 375,
         "clientWidth": 375,
         "horizontalScroll": false,
-        "small": []
+        "small": [],
+        "overflow": []
       },
       "width": 375
     },
@@ -609,7 +655,8 @@
         "scrollWidth": 375,
         "clientWidth": 375,
         "horizontalScroll": false,
-        "small": []
+        "small": [],
+        "overflow": []
       },
       "width": 375
     },
@@ -622,20 +669,22 @@
         "scrollWidth": 375,
         "clientWidth": 375,
         "horizontalScroll": false,
-        "small": []
+        "small": [],
+        "overflow": []
       },
       "width": 375
     },
     {
       "name": "09-run-progress",
       "file": "09-run-progress-375.jpg",
-      "url": "?mock=1#/runs/f063a4391264",
+      "url": "?mock=1#/runs/5e2d3be1de60",
       "axe": [],
       "layout": {
         "scrollWidth": 375,
         "clientWidth": 375,
         "horizontalScroll": false,
-        "small": []
+        "small": [],
+        "overflow": []
       },
       "width": 375
     },
@@ -648,7 +697,8 @@
         "scrollWidth": 375,
         "clientWidth": 375,
         "horizontalScroll": false,
-        "small": []
+        "small": [],
+        "overflow": []
       },
       "width": 375
     },
@@ -661,7 +711,8 @@
         "scrollWidth": 375,
         "clientWidth": 375,
         "horizontalScroll": false,
-        "small": []
+        "small": [],
+        "overflow": []
       },
       "width": 375
     },
@@ -674,7 +725,8 @@
         "scrollWidth": 375,
         "clientWidth": 375,
         "horizontalScroll": false,
-        "small": []
+        "small": [],
+        "overflow": []
       },
       "width": 375
     },
@@ -687,7 +739,8 @@
         "scrollWidth": 375,
         "clientWidth": 375,
         "horizontalScroll": false,
-        "small": []
+        "small": [],
+        "overflow": []
       },
       "width": 375
     },
@@ -700,7 +753,8 @@
         "scrollWidth": 375,
         "clientWidth": 375,
         "horizontalScroll": false,
-        "small": []
+        "small": [],
+        "overflow": []
       },
       "width": 375
     },
@@ -713,7 +767,8 @@
         "scrollWidth": 375,
         "clientWidth": 375,
         "horizontalScroll": false,
-        "small": []
+        "small": [],
+        "overflow": []
       },
       "width": 375
     },
@@ -726,7 +781,8 @@
         "scrollWidth": 375,
         "clientWidth": 375,
         "horizontalScroll": false,
-        "small": []
+        "small": [],
+        "overflow": []
       },
       "width": 375
     },
@@ -739,7 +795,8 @@
         "scrollWidth": 375,
         "clientWidth": 375,
         "horizontalScroll": false,
-        "small": []
+        "small": [],
+        "overflow": []
       },
       "width": 375
     },
@@ -752,7 +809,8 @@
         "scrollWidth": 375,
         "clientWidth": 375,
         "horizontalScroll": false,
-        "small": []
+        "small": [],
+        "overflow": []
       },
       "width": 375
     },
@@ -765,7 +823,8 @@
         "scrollWidth": 375,
         "clientWidth": 375,
         "horizontalScroll": false,
-        "small": []
+        "small": [],
+        "overflow": []
       },
       "width": 375
     },
@@ -778,7 +837,8 @@
         "scrollWidth": 375,
         "clientWidth": 375,
         "horizontalScroll": false,
-        "small": []
+        "small": [],
+        "overflow": []
       },
       "width": 375
     },
@@ -791,7 +851,8 @@
         "scrollWidth": 375,
         "clientWidth": 375,
         "horizontalScroll": false,
-        "small": []
+        "small": [],
+        "overflow": []
       },
       "width": 375
     },
@@ -804,7 +865,8 @@
         "scrollWidth": 375,
         "clientWidth": 375,
         "horizontalScroll": false,
-        "small": []
+        "small": [],
+        "overflow": []
       },
       "width": 375
     },
@@ -817,7 +879,8 @@
         "scrollWidth": 375,
         "clientWidth": 375,
         "horizontalScroll": false,
-        "small": []
+        "small": [],
+        "overflow": []
       },
       "width": 375
     },
@@ -830,7 +893,8 @@
         "scrollWidth": 375,
         "clientWidth": 375,
         "horizontalScroll": false,
-        "small": []
+        "small": [],
+        "overflow": []
       },
       "width": 375
     },
@@ -843,7 +907,8 @@
         "scrollWidth": 375,
         "clientWidth": 375,
         "horizontalScroll": false,
-        "small": []
+        "small": [],
+        "overflow": []
       },
       "width": 375
     },
@@ -856,7 +921,8 @@
         "scrollWidth": 375,
         "clientWidth": 375,
         "horizontalScroll": false,
-        "small": []
+        "small": [],
+        "overflow": []
       },
       "width": 375
     },
@@ -869,7 +935,8 @@
         "scrollWidth": 375,
         "clientWidth": 375,
         "horizontalScroll": false,
-        "small": []
+        "small": [],
+        "overflow": []
       },
       "width": 375
     },
@@ -882,7 +949,8 @@
         "scrollWidth": 375,
         "clientWidth": 375,
         "horizontalScroll": false,
-        "small": []
+        "small": [],
+        "overflow": []
       },
       "width": 375
     },
@@ -895,7 +963,8 @@
         "scrollWidth": 375,
         "clientWidth": 375,
         "horizontalScroll": false,
-        "small": []
+        "small": [],
+        "overflow": []
       },
       "width": 375
     },
@@ -908,7 +977,8 @@
         "scrollWidth": 375,
         "clientWidth": 375,
         "horizontalScroll": false,
-        "small": []
+        "small": [],
+        "overflow": []
       },
       "width": 375
     },
@@ -921,7 +991,8 @@
         "scrollWidth": 375,
         "clientWidth": 375,
         "horizontalScroll": false,
-        "small": []
+        "small": [],
+        "overflow": []
       },
       "width": 375
     },
@@ -934,7 +1005,8 @@
         "scrollWidth": 375,
         "clientWidth": 375,
         "horizontalScroll": false,
-        "small": []
+        "small": [],
+        "overflow": []
       },
       "width": 375
     },
@@ -947,7 +1019,8 @@
         "scrollWidth": 375,
         "clientWidth": 375,
         "horizontalScroll": false,
-        "small": []
+        "small": [],
+        "overflow": []
       },
       "width": 375
     },
@@ -960,7 +1033,8 @@
         "scrollWidth": 375,
         "clientWidth": 375,
         "horizontalScroll": false,
-        "small": []
+        "small": [],
+        "overflow": []
       },
       "width": 375
     },
@@ -973,7 +1047,8 @@
         "scrollWidth": 375,
         "clientWidth": 375,
         "horizontalScroll": false,
-        "small": []
+        "small": [],
+        "overflow": []
       },
       "width": 375
     },
@@ -986,7 +1061,8 @@
         "scrollWidth": 375,
         "clientWidth": 375,
         "horizontalScroll": false,
-        "small": []
+        "small": [],
+        "overflow": []
       },
       "width": 375
     },
@@ -999,7 +1075,8 @@
         "scrollWidth": 375,
         "clientWidth": 375,
         "horizontalScroll": false,
-        "small": []
+        "small": [],
+        "overflow": []
       },
       "width": 375
     }

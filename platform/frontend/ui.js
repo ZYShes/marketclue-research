@@ -89,13 +89,41 @@ export function externalLink(href, text, className = "") {
   if (!safe) return h("span", { class: className }, text);
   const words = String(text).split(" ");
   const last = words.pop();
+  // Keep the icon on the line with the end of the text, but let a long last word (a URL, say)
+  // wrap: only its final few characters are glued to the icon.
+  const glued = last.length > 16 ? last.slice(-6) : last;
+  const head = last.slice(0, last.length - glued.length);
   return h(
     "a",
     { class: className, href: safe, target: "_blank", rel: "noopener noreferrer" },
     words.length ? `${words.join(" ")} ` : "",
-    h("span", { class: "nowrap" }, `${last} `, icon("external")),
+    head,
+    h("span", { class: "nowrap" }, `${glued}\u00a0`, icon("external")),
     h("span", { class: "visually-hidden" }, " (opens in a new tab)")
   );
+}
+
+// "example.com/path/to/page" from a URL; "" when it is not a URL.
+export function prettyUrl(url) {
+  try {
+    const u = new URL(url);
+    if (u.protocol !== "http:" && u.protocol !== "https:") return "";
+    let label = u.hostname.replace(/^www\./, "") + u.pathname.replace(/\/+$/, "");
+    try { label = decodeURI(label); } catch { /* keep it encoded */ }
+    return label;
+  } catch {
+    return "";
+  }
+}
+
+// A readable name for a fact card's source. Some sources come back with the URL as their title;
+// show those as "site/path" instead of the raw https://www… string.
+export function sourceLabel(card, fallback = "Source") {
+  const title = String((card && card.source_title) || "").trim();
+  const isUrl = /^(https?:\/\/|www\.)/i.test(title) || (!!card && !!card.url && title === card.url);
+  if (title && !isUrl) return title;
+  const url = isUrl ? (/^www\./i.test(title) ? `https://${title}` : title) : (card && card.url) || "";
+  return prettyUrl(url) || prettyUrl((card && card.url) || "") || title || fallback;
 }
 
 export function domainOf(url) {

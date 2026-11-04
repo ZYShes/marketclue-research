@@ -58,6 +58,10 @@ const CARD_SETS = {
       "Our 6-inch planter and matching saucer make a practical housewarming gift. Gift wrapping is available.", "Cedar House · Planter gifts", "cedar-house/gifts"),
     card("mc-local", "market_check", "Routes to buyers", "A sample plant shop carries locally made ceramics.",
       "Our shelves pair indoor plants with small-batch ceramics made by local artists.", "Greenway Plant Co. · About", "greenway/about"),
+    // Some real sources come back with the page URL as their title; this one reproduces that.
+    { ...card("mc-review", "market_check", "Common buyer complaints", "A sample reviewer said their order did not resemble the photo and supposed that is why it is called designer's choice.",
+      "However, it didn’t resemble the photo. I suppose that is why they refer to it as designer’s choice.", "", "florist/brittany-flowers-of-kirkland-sample-shop/reviews/"),
+      source_title: "https://www.example.com/sample/florist/brittany-flowers-of-kirkland-sample-shop/reviews/", captured_at: daysAgo(120) },
     card("mc-demand", "market_check", "Demand limits", "A claimed local community member count could not be confirmed.",
       "Join 6,200 Seattle plant people swapping cuttings every month.", "Seattle Plant Swap · About", "plant-swap/about", "unverified", 104),
   ],
@@ -267,7 +271,7 @@ function fixtureResult(run, generatedAt) {
     market_check: {
       takeaway: item("Start with indoor-plant owners who care about drainage and matching saucers, then test gift buyers separately. These sample sources suggest a useful audience hypothesis; they do not establish demand.", "assumption", ["mc-buyers", "mc-gift"]),
       findings: [
-        finding("Function is part of the appeal", "One sample buyer mentions a drainage hole and a saucer that protects the shelf. Use those words in interviews before treating them as a wider preference.", "sourced", ["mc-buyers"]),
+        finding("Function is part of the appeal", "One sample buyer mentions a drainage hole and a saucer that protects the shelf; another complains an order did not match its photo. Use those words in interviews before treating them as a wider preference.", "sourced", ["mc-buyers", "mc-review"]),
         finding("Gifts offer a second buying occasion", "A sample retailer presents a planter set as a housewarming gift. That is evidence of its positioning, rather than proof of gift sales.", "sourced", ["mc-gift"]),
         finding("Local shops are a place to learn", "A sample plant shop stocks local ceramics. Its customers may be useful interview candidates, but the shop listing gives no sales volume.", "assumption", ["mc-local", "mc-demand"]),
       ],
