@@ -711,6 +711,14 @@ def _items(doc):
         yield "y-etsy-ads", etsy_ads, etsy_ads.get("text", "")
 
 
+REVIEWER_SYSTEM = (
+    "You are MarketClue's reviewer. You judge whether quoted evidence supports each statement. Be strict: the quotes "
+    "must state the facts, not just relate to them. Each quote comes with the title and URL of the page it was found on; "
+    "a statement may say where a fact comes from (\"A BBB warning says\", \"a Seattle florist guide\", \"a poster on "
+    "Blind\") when that title or URL shows it."
+)
+
+
 def check(usage, doc, cards):
     by_id = {c["card_id"]: c for c in cards if c["type"] == "sourced"}
     items = {}
@@ -718,8 +726,12 @@ def check(usage, doc, cards):
         item["card_ids"] = [cid for cid in item.get("card_ids") or [] if cid in by_id]
         if item.get("kind") == "sourced":
             items[item_id] = (item, statement)
+    # Each quote goes to the reviewer with its source: without it, a statement that names where a fact comes from
+    # ("A BBB warning says ...", "a Seattle florist guide ...") was judged unsupported and lost its sources.
     review = [
-        {"id": item_id, "statement": statement, "quotes": [by_id[cid]["quote"] for cid in item["card_ids"]]}
+        {"id": item_id, "statement": statement,
+         "evidence": [{"quote": by_id[cid]["quote"], "source": by_id[cid]["source_title"], "url": by_id[cid]["url"]}
+                      for cid in item["card_ids"]]}
         for item_id, (item, statement) in items.items()
         if item["card_ids"]
     ]
@@ -727,8 +739,8 @@ def check(usage, doc, cards):
     if review:
         out = claude.json_call(
             usage,
-            system="You are MarketClue's reviewer. You judge whether quoted evidence supports each statement. Be strict: the quotes must state it, not just relate to it.",
-            prompt="List the ids of statements that the quotes do NOT support.\n\n" + json.dumps(review, ensure_ascii=False),
+            system=REVIEWER_SYSTEM,
+            prompt="List the ids of statements that the quoted evidence does NOT support.\n\n" + json.dumps(review, ensure_ascii=False),
             schema=CHECK_SCHEMA,
             effort="low",
         )
