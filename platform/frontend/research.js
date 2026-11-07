@@ -69,7 +69,7 @@ export function viewNew(isCurrent, featureArg) {
   // Template (SPEC v4): loaded from GET /templates; the last choice is remembered per user.
   let templates = null; // null while loading
   let template = query.get("template") || lastTemplate();
-  const PREVIEW = 6; // available templates shown here (cards wrap); the rest are on #/templates
+  const PREVIEW = 3; // templates shown here (one row); every template is on #/templates
   const templateSlot = h("div", { class: "template-slot" });
   const toolStep = h("span", { class: "step-badge", "aria-hidden": "true" }, "1");
   const messageStep = h("span", { class: "step-badge", "aria-hidden": "true" }, "2");
@@ -243,11 +243,13 @@ export function viewNew(isCurrent, featureArg) {
       return;
     }
     rememberTemplate(template);
-    // The first PREVIEW templates in the server's order (an unavailable one is shown disabled with its reason),
-    // always including the current choice; the cards wrap on narrow screens.
-    let shown = templates.slice(0, PREVIEW);
+    // The first PREVIEW available templates in the server's order (General first), always including the current
+    // choice; templates that are not set up yet are listed only on #/templates. The cards wrap on narrow screens.
+    const usable = templates.filter((t) => t.available);
+    let shown = (usable.length ? usable : templates).slice(0, PREVIEW);
     const chosen = templates.find((t) => t.id === template);
     if (chosen && !shown.includes(chosen)) shown = [...shown.slice(0, PREVIEW - 1), chosen];
+    const hidden = templates.filter((t) => !shown.includes(t));
     const cards = shown.map((t) => {
       const base = `template-${t.id}`;
       const described = [`${base}-desc`, `${base}-caps`, t.available ? null : `${base}-reason`].filter(Boolean).join(" ");
@@ -271,10 +273,11 @@ export function viewNew(isCurrent, featureArg) {
       h("div", { class: "template-grid" }, cards),
       h("p", { class: "see-all" },
         h("a", { class: "see-all-link", href: "#/templates" },
-          templates.length > shown.length ? `See all ${templates.length} templates` : "Browse templates",
+          hidden.length ? `See all ${templates.length} templates` : "Browse templates",
           icon("arrow")),
-        templates.length > shown.length
-          ? h("span", { class: "field-hint" }, ` ${templates.length - shown.length} more, including ones not set up yet`)
+        hidden.length
+          ? h("span", { class: "field-hint" },
+              ` ${hidden.length} more${hidden.some((t) => !t.available) ? ", including ones not set up yet" : ""}`)
           : null)));
     updateTools();
   }

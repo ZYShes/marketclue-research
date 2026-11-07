@@ -234,7 +234,7 @@ async function context(browser, width = 1280) {
     await page.goto(`${BASE}#/new`);
     await wait(900);
     const cardsOnNew = await page.locator(".template-card").count();
-    check(cardsOnNew === 6, `#/new previews the six templates (${cardsOnNew})`);
+    check(cardsOnNew === 3, `#/new previews three templates (${cardsOnNew})`);
     const seeAll = page.locator(".see-all-link");
     check((await seeAll.textContent()).includes("See all 16 templates"), "#/new has 'See all 16 templates'");
     await seeAll.click();
@@ -275,7 +275,7 @@ async function context(browser, width = 1280) {
     check(await page.locator("#template-ebay").isChecked(), "the chosen template is preselected on #/new");
     await page.goto(`${BASE}&templates=few#/new`);
     await wait(900);
-    check((await page.locator(".see-all-link").textContent()).includes("Browse templates"), "with only the six real templates the link reads 'Browse templates'");
+    check((await page.locator(".see-all-link").textContent()).includes("See all 6 templates"), "with only the six real templates the link reads 'See all 6 templates'");
     await page.goto(`${BASE}&templates=few#/templates`);
     await wait(900);
     check(await page.locator(".template-tile").count() === 6 && await page.locator(".pager").count() === 0, "six templates: one page, no pager");

@@ -1,14 +1,18 @@
 {
-  "generated_at": "2026-11-04T20:00:01.584Z",
+  "generated_at": "2026-11-07T08:14:23.535Z",
   "axe_source": "cdn",
   "checks": [
     {
       "ok": true,
-      "label": "#/new shows six template cards"
+      "label": "#/new shows three template cards"
     },
     {
       "ok": true,
-      "label": "the six cards are General, eBay seller, Food truck, Restaurant / café, Daycare / childcare, Etsy seller"
+      "label": "the three cards are General, eBay seller, Food truck"
+    },
+    {
+      "ok": true,
+      "label": "#/new links to every template"
     },
     {
       "ok": true,
@@ -20,19 +24,7 @@
     },
     {
       "ok": true,
-      "label": "restaurant card shows its three capability badges"
-    },
-    {
-      "ok": true,
-      "label": "daycare card shows its three capability badges"
-    },
-    {
-      "ok": true,
-      "label": "Etsy card shows its capability badge"
-    },
-    {
-      "ok": true,
-      "label": "at 1280 px the six cards wrap into two rows of three"
+      "label": "at 1280 px the three cards sit in one row"
     },
     {
       "ok": true,
@@ -172,11 +164,7 @@
     },
     {
       "ok": true,
-      "label": "eBay template is disabled when not connected"
-    },
-    {
-      "ok": true,
-      "label": "disabled card shows the reason"
+      "label": "eBay (not connected) is left out of the #/new preview"
     },
     {
       "ok": true,
@@ -184,15 +172,15 @@
     },
     {
       "ok": true,
-      "label": "arrow keys skip the disabled template (ArrowRight goes from General to Food truck)"
+      "label": "ArrowRight goes from General to Food truck"
     },
     {
       "ok": true,
-      "label": "the reason is announced with the disabled card"
+      "label": "#/templates shows eBay as not available, with the reason"
     },
     {
       "ok": true,
-      "label": "phone: #/new shows the six template cards"
+      "label": "phone: #/new shows the three template cards"
     },
     {
       "ok": true,
@@ -204,7 +192,11 @@
     },
     {
       "ok": true,
-      "label": "ArrowRight walks through all six cards to Etsy seller"
+      "label": "ArrowRight walks through the three cards to Food truck"
+    },
+    {
+      "ok": true,
+      "label": "a template from #/templates is shown and chosen on #/new"
     },
     {
       "ok": true,
@@ -212,7 +204,7 @@
     },
     {
       "ok": true,
-      "label": "ArrowLeft goes back to Daycare / childcare"
+      "label": "Daycare / childcare can be chosen from a link"
     },
     {
       "ok": true,
@@ -229,6 +221,22 @@
     {
       "ok": true,
       "label": "all six are available"
+    },
+    {
+      "ok": true,
+      "label": "food_truck tile shows its three capability badges"
+    },
+    {
+      "ok": true,
+      "label": "restaurant tile shows its three capability badges"
+    },
+    {
+      "ok": true,
+      "label": "daycare tile shows its three capability badges"
+    },
+    {
+      "ok": true,
+      "label": "Etsy tile shows its capability badge"
     },
     {
       "ok": true,

@@ -119,19 +119,17 @@ const bodyText = (page) => page.evaluate(() => document.body.innerText);
     const { ctx, page } = await context(browser);
     await signIn(page);
     await go(page, "/new");
-    check(await page.locator(".template-card").count() === 6, "#/new shows six template cards");
+    check(await page.locator(".template-card").count() === 3, "#/new shows three template cards");
     const names = await page.locator(".template-card .tool-name").allTextContents();
-    check(JSON.stringify(names) === JSON.stringify(TEMPLATE_NAMES), "the six cards are General, eBay seller, Food truck, Restaurant / café, Daycare / childcare, Etsy seller");
+    check(JSON.stringify(names) === JSON.stringify(TEMPLATE_NAMES.slice(0, 3)), "the three cards are General, eBay seller, Food truck");
+    check((await page.locator(".see-all-link").textContent()).includes("See all"), "#/new links to every template");
     const parts = await page.evaluate(() => [...document.querySelectorAll(".template-card")].map((card) => ({
       icon: !!card.querySelector(".tool-icon svg"), desc: (card.querySelector(".tool-question")?.textContent || "").length,
       badges: card.querySelectorAll(".badge-cap").length })));
     check(parts.every((p) => p.icon && p.desc > 20 && p.badges >= 1), "every card has an icon, a one-line description and capability badges");
-    for (const id of ["food_truck", "restaurant", "daycare"]) {
-      const labels = await page.locator(`.template-card:has(#template-${id}) .badge-cap`).allTextContents();
-      check(labels.join("|") === "Checks permits from official pages|Compares nearby businesses|Estimates startup costs", `${id} card shows its three capability badges`);
-    }
-    check((await page.locator(".template-card:has(#template-etsy) .badge-cap").allTextContents()).join("|") === "Estimates Etsy fees and ad costs", "Etsy card shows its capability badge");
-    check(await cardRows(page) === 2, "at 1280 px the six cards wrap into two rows of three");
+    const ftLabels = await page.locator(".template-card:has(#template-food_truck) .badge-cap").allTextContents();
+    check(ftLabels.join("|") === "Checks permits from official pages|Compares nearby businesses|Estimates startup costs", "food_truck card shows its three capability badges");
+    check(await cardRows(page) === 1, "at 1280 px the three cards sit in one row");
     check(await page.locator("#template-general").isChecked(), "General is the default template");
     const caps = await page.locator(".template-card:has(#template-ebay) .badge-cap").allTextContents();
     check(caps.includes("Searches live eBay listings") && caps.includes("Estimates eBay fees and ad costs"), "eBay card shows its capability badges");
@@ -222,15 +220,16 @@ const bodyText = (page) => page.evaluate(() => document.body.innerText);
     await signIn(page, "owner", "&ebay=off");
     await page.evaluate(() => { try { localStorage.setItem("mc_last_template_demo-owner", "ebay"); } catch { /* ignore */ } });
     await go(page, "/new", "&ebay=off");
-    check(await page.locator("#template-ebay").isDisabled(), "eBay template is disabled when not connected");
-    check((await page.locator("#template-ebay-reason").textContent()).includes("eBay is not connected yet"), "disabled card shows the reason");
+    check(await page.locator("#template-ebay").count() === 0, "eBay (not connected) is left out of the #/new preview");
     check(await page.locator("#template-general").isChecked(), "a remembered but unavailable template falls back to General");
     await page.focus("#template-general");
     await page.keyboard.press("ArrowRight");
-    check(await page.evaluate(() => !document.getElementById("template-ebay").checked && document.activeElement.id === "template-food_truck"),
-      "arrow keys skip the disabled template (ArrowRight goes from General to Food truck)");
-    const described = await page.getAttribute("#template-ebay", "aria-describedby");
-    check(described.includes("template-ebay-reason"), "the reason is announced with the disabled card");
+    check(await page.evaluate(() => document.activeElement.id === "template-food_truck"),
+      "ArrowRight goes from General to Food truck");
+    await go(page, "/templates", "&ebay=off");
+    const ebayTile = page.locator(".template-tile", { hasText: "eBay seller" });
+    check((await ebayTile.textContent()).includes("eBay is not connected yet") && await ebayTile.locator(".status-done").count() === 0,
+      "#/templates shows eBay as not available, with the reason");
     await ctx.close();
   }
 
@@ -239,8 +238,8 @@ const bodyText = (page) => page.evaluate(() => document.body.innerText);
     const { ctx, page } = await context(browser, 375);
     await signIn(page);
     await go(page, "/new");
-    check(await page.locator(".template-card").count() === 6, "phone: #/new shows the six template cards");
-    check(await cardRows(page) === 6, "phone: the cards wrap into one column");
+    check(await page.locator(".template-card").count() === 3, "phone: #/new shows the three template cards");
+    check(await cardRows(page) === 3, "phone: the cards wrap into one column");
     const widths = await page.evaluate(() => [...document.querySelectorAll(".template-card")].map((el) => el.getBoundingClientRect().right));
     check(widths.every((right) => right <= 375), "phone: no card runs past the screen edge");
     await ctx.close();
@@ -250,18 +249,26 @@ const bodyText = (page) => page.evaluate(() => document.body.innerText);
     await signIn(page);
     await go(page, "/new");
     await page.focus("#template-general");
-    for (let i = 0; i < 5; i += 1) await page.keyboard.press("ArrowRight");
-    check(await page.evaluate(() => document.activeElement.id === "template-etsy" && document.getElementById("template-etsy").checked),
-      "ArrowRight walks through all six cards to Etsy seller");
+    for (let i = 0; i < 2; i += 1) await page.keyboard.press("ArrowRight");
+    check(await page.evaluate(() => document.activeElement.id === "template-food_truck" && document.getElementById("template-food_truck").checked),
+      "ArrowRight walks through the three cards to Food truck");
+    await go(page, "/new?template=etsy");
+    check(await page.locator("#template-etsy").isChecked() && await page.locator(".template-card").count() === 3,
+      "a template from #/templates is shown and chosen on #/new");
     check((await page.locator("#first-message-hint").textContent()).includes("who pays shipping"), "composer hint names the Etsy questions");
-    await page.keyboard.press("ArrowLeft");
-    check(await page.evaluate(() => document.getElementById("template-daycare").checked), "ArrowLeft goes back to Daycare / childcare");
+    await go(page, "/new?template=daycare");
+    check(await page.locator("#template-daycare").isChecked(), "Daycare / childcare can be chosen from a link");
     check((await page.locator("#first-message-hint").textContent()).includes("never asks about specific children or families"),
       "daycare hint says it never asks about specific children or families");
     await go(page, "/templates", "&templates=few");
     check(await page.locator(".template-tile").count() === 6 && await page.locator(".pager").count() === 0, "#/templates lists all six on one page");
     check(JSON.stringify(await page.locator(".template-tile-name").allTextContents()) === JSON.stringify(TEMPLATE_NAMES), "#/templates names all six in order");
     check(await page.locator(".template-tile .status-done").count() === 6, "all six are available");
+    for (const id of ["food_truck", "restaurant", "daycare"]) {
+      const labels = await page.locator(`#tpl-${id}-caps .badge-cap`).allTextContents();
+      check(labels.join("|") === "Checks permits from official pages|Compares nearby businesses|Estimates startup costs", `${id} tile shows its three capability badges`);
+    }
+    check((await page.locator("#tpl-etsy-caps .badge-cap").allTextContents()).join("|") === "Estimates Etsy fees and ad costs", "Etsy tile shows its capability badge");
     await go(page, "/templates");
     await page.click(".toggle-btn:has-text('Available now')");
     await wait(300);
