@@ -1772,6 +1772,17 @@ function route(method, segments, query, body) {
         project: project && canSeeProject(project) ? { project_id: project.project_id, name: project.name, team_id: project.team_id } : null,
       });
     }
+    if (!c && method === "DELETE") {
+      if (run.owner !== user.sub) return fail(404, "not_found", "Run not found.");
+      const status = runStatus(run);
+      if (status !== "done" && status !== "failed") {
+        return fail(409, "run_in_progress", "This report is still being written. You can delete it when it is ready.");
+      }
+      state.runs = state.runs.filter((entry) => entry.run_id !== run.run_id);
+      if (run.share_token) delete state.shares[run.share_token];
+      for (const [id, conv] of Object.entries(state.convs)) if (conv.run_id === run.run_id) delete state.convs[id];
+      return ok({ deleted: true, run_id: run.run_id });
+    }
     if (!c && method === "PATCH") {
       if (run.owner !== user.sub) return fail(403, "forbidden", "Only the author can move this report.");
       const target = body.project_id ? findProject(body.project_id) : null;

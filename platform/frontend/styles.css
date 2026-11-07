@@ -595,6 +595,11 @@ a.pager-link:hover { background: var(--surface-2); color: var(--ink); border-col
 .history-list li { display: flex; align-items: center; gap: 12px; border-top: 1px solid var(--rule); padding-right: 16px; }
 .history-list li:first-child { border-top: 0; }
 .history-list .history-row { flex: 1; min-width: 0; border-radius: 0; padding: 10px 16px; min-height: 64px; }
+.history-delete { flex: none; width: 44px; height: 44px; color: var(--muted); }
+.history-delete:hover { color: var(--accent-ink); background: var(--accent-wash); }
+.history-delete-spacer { flex: none; width: 44px; }
+.row-list li.row-with-action { display: flex; align-items: center; gap: 8px; padding-right: 12px; }
+.row-list li.row-with-action .row-link { flex: 1; min-width: 0; }
 .history-list .history-row:hover { background: var(--surface-2); }
 .history-when { flex: none; font-size: 0.8125rem; color: var(--muted); }
 @container main (max-width: 560px) { .history-when { display: none; } .history-list li { padding-right: 0; } }

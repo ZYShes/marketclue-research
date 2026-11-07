@@ -680,6 +680,17 @@ def _delete_conversation(user: dict, conv_id: str) -> dict:
     return {"deleted": True, "conv_id": conv_id}
 
 
+def _delete_run(user: dict, run_id: str) -> dict:
+    """DELETE /api/runs/{id}: the owner removes a finished or failed report and the conversation that started it."""
+    run = _owned_run(user["sub"], run_id)
+    if run.get("status") in ("queued", "running"):
+        raise HTTPError(409, "run_in_progress", "This report is still being written. You can delete it when it is ready.")
+    if run.get("conv_id"):
+        store.delete_conversation(user["sub"], run["conv_id"])
+    store.delete_run(run)
+    return {"deleted": True, "run_id": run_id}
+
+
 def _file_run(user: dict, run_id: str, data: dict) -> dict:
     run = _owned_run(user["sub"], run_id)
     if "project_id" not in data:
@@ -768,6 +779,8 @@ def _dispatch(event: dict) -> dict:
                               "project": _project_ref(run.get("project_id"))})
         if method == "PATCH" and len(parts) == 3:
             return _response(_file_run(user, parts[2], _body(event)))
+        if method == "DELETE" and len(parts) == 3:
+            return _response(_delete_run(user, parts[2]))
         if method == "POST" and len(parts) == 4 and parts[3] == "share":
             run = _owned_run(sub, parts[2])
             token = store.create_share(run["run_id"])

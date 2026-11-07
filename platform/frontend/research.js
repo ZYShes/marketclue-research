@@ -16,7 +16,7 @@ import { depthPicker } from "./depth.js";
 import {
   GENERAL_FALLBACK, templateIcon, fetchTemplates, rememberTemplate, lastTemplate, capabilityBadges,
 } from "./templates.js";
-import { refreshHistory, getHistory, onHistory, historyRow, groupHistory } from "./shell.js";
+import { refreshHistory, getHistory, onHistory, historyRow, groupHistory, deleteHistoryItem } from "./shell.js";
 import {
   refreshProjects, getProjects, onProjects, projectById, projectDetail, lastProjectId, rememberProject,
   briefLine, newProjectForm, projectCrumb,
@@ -415,7 +415,13 @@ export function viewNew(isCurrent, featureArg) {
       h("h2", { class: "group-title" }, label),
       h("ul", { class: "history-list" }, list.map((item) => h("li", {},
         historyRow(item),
-        h("span", { class: "history-when" }, fmtAgo(item.at))))))));
+        h("span", { class: "history-when" }, fmtAgo(item.at)),
+        item.status === "running" ? h("span", { class: "history-delete-spacer", "aria-hidden": "true" })
+          : h("button", {
+            type: "button", class: "icon-btn history-delete", title: item.type === "report" ? "Delete report" : "Delete conversation",
+            "aria-label": `${item.type === "report" ? "Delete report" : "Delete conversation"}: ${item.title}`,
+            onclick: () => deleteHistoryItem(item),
+          }, icon("trash"))))))));
   }
   search.addEventListener("input", renderExisting);
   statusSel.addEventListener("change", renderExisting);

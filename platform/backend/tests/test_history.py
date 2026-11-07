@@ -157,3 +157,47 @@ def test_limit_counts_only_conversations_without_a_report(aws, monkeypatch):
     assert "Delete one you no longer need" in body(full)["error"]["message"]
     assert request("/api/conversations/draft0", "DELETE", session=session)["statusCode"] == 200
     assert request("/api/chat", "POST", {"message": "Cups", "feature": "market_check"}, session)["statusCode"] == 200
+
+
+# ---------- Deleting a report ----------
+
+def test_owner_deletes_a_report_with_its_conversation_share_link_mockups_and_files(aws, monkeypatch):
+    from helpers import done_run
+    session = signed_in()
+    ready_conversation()
+    card = store.put_cards("founder", [{"claim": "Mugs sell", "quote": "Mugs sell well at markets", "url": "https://a.example",
+                                         "source_title": "A", "captured_at": "2026-11-03T10:00:00Z", "type": "sourced"}], "x")[0]
+    project = store.create_project("founder", "Mugs")
+    run = done_run(project_id=project["project_id"])
+    store.save_ebay_snapshot(run["run_id"], "123", "{}", "2026-11-03T10:00:00Z")
+    store.save_mockup(run["run_id"], b"png", "image/png", "logo", "a mug")
+    token = store.create_share(run["run_id"])
+    assert request(f"/api/shared/{token}")["statusCode"] == 200
+    other = signed_in(sub="someone", email="someone@example.com", name="Someone")
+    assert request(f"/api/runs/{run['run_id']}", "DELETE", session=other)["statusCode"] == 404
+
+    response = request(f"/api/runs/{run['run_id']}", "DELETE", session=session)
+    assert response["statusCode"] == 200 and body(response) == {"deleted": True, "run_id": run["run_id"]}
+    assert store.get_run(run["run_id"]) is None
+    assert request(f"/api/runs/{run['run_id']}", session=session)["statusCode"] == 404
+    assert body(request("/api/runs", session=session))["runs"] == []
+    assert store.project_runs(project["project_id"]) == []
+    assert request(f"/api/shared/{token}")["statusCode"] == 404
+    assert store.list_mockups(run["run_id"]) == []
+    assert request("/api/conversations/conversation", session=session)["statusCode"] == 404
+    import boto3
+    listed = boto3.client("s3").list_objects_v2(Bucket=store.get_settings().data_bucket, Prefix="runs/")
+    assert not [obj["Key"] for obj in listed.get("Contents") or [] if run["run_id"] in obj["Key"]]
+    assert not boto3.client("s3").list_objects_v2(Bucket=store.get_settings().data_bucket, Prefix=f"mockups/{run['run_id']}/").get("Contents")
+    assert [c["card_id"] for c in store.list_cards("founder")] == [card["card_id"]]  # fact cards stay
+
+
+def test_a_running_report_cannot_be_deleted(aws, monkeypatch):
+    session = signed_in()
+    conv_id = ready_conversation()
+    lambda_client(monkeypatch)
+    run = body(request("/api/runs", "POST", {"conv_id": conv_id}, session))["run"]
+    blocked = request(f"/api/runs/{run['run_id']}", "DELETE", session=session)
+    assert blocked["statusCode"] == 409 and body(blocked)["error"]["code"] == "run_in_progress"
+    store.update_run(run["run_id"], status="failed", stage="failed")
+    assert request(f"/api/runs/{run['run_id']}", "DELETE", session=session)["statusCode"] == 200

@@ -121,7 +121,7 @@ export function friendlyError(err) {
   if (err.code === "conversation_limit") {
     return "You have 20 conversations that have not started a report. Open one you no longer need and delete it, then start again.";
   }
-  if (err.code === "run_in_progress") return "This research is still running. You can delete the conversation when the report is ready.";
+  if (err.code === "run_in_progress") return "This research is still running. You can delete it when the report is ready.";
   if (err.code === "invalid_new_owner") return "Choose another member of this team to take over.";
   if (err.code === "owner_cannot_leave") return "You are the only member of this team, so you cannot leave it. Invite someone first.";
   if (err.code === "team_limit") return "You can be in at most 10 teams. Leave one before joining or creating another.";

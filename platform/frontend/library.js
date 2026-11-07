@@ -2,7 +2,7 @@
 // person's teams (that team's project reports and cards) and each visible project. The choice is kept in the
 // address (?scope=team:<id> | project:<id>) and remembered per page; a scope that no longer exists falls back to Mine.
 import {
-  h, setTitle, toggleGroup, externalLink, domainOf, sourceLabel, fmtDate, fmtAgo, fmtCost, isStale, plural, storage, toast,
+  h, icon, setTitle, toggleGroup, externalLink, domainOf, sourceLabel, fmtDate, fmtAgo, fmtCost, isStale, plural, storage, toast,
   typeBadge, staleBadge, statusChip, emptyState,
 } from "./ui.js";
 import { api, friendlyError } from "./api.js";
@@ -10,6 +10,7 @@ import { state, main, page, pageHeader, loadingBlock, routeQuery, setRouteQuery 
 import { FEATURES, featureById } from "./features.js";
 import { openCardPanel } from "./report.js";
 import { loadTeams, projectHref } from "./projects.js";
+import { deleteHistoryItem } from "./shell.js";
 
 const MINE = { kind: "mine", value: "mine", name: "Mine" };
 const scopeKey = (pageId) => `mc_scope_${pageId}_${(state.user && state.user.sub) || "anon"}`;
@@ -155,7 +156,8 @@ export async function viewReports(isCurrent) {
       h("ul", { class: "row-list" }, runs.map((run) => {
         const feature = featureById(run.feature || run.brief?.feature);
         const author = run.user_sub || run.owner_sub;
-        const own = run.mine === true || (!!author && author === state.user?.sub);
+        // GET /runs (Mine) lists only the person's own reports; its rows carry no user_sub.
+        const own = scope.kind === "mine" || run.mine === true || (!!author && author === state.user?.sub);
         const byOther = scope.kind !== "mine" && run.owner_name && !own;
         const meta = [
           feature.name,
@@ -163,12 +165,29 @@ export async function viewReports(isCurrent) {
           fmtAgo(run.created_at),
           scope.kind === "mine" && run.status === "done" && run.cost_usd != null ? `cost about ${fmtCost(run.cost_usd)}` : null,
         ].filter(Boolean).join(" · ");
-        return h("li", {},
+        const running = run.status === "queued" || run.status === "running";
+        const title = run.title || "Untitled research";
+        const li = h("li", { class: own ? "row-with-action" : null },
           h("a", { class: "row-link", href: `#/runs/${encodeURIComponent(run.run_id)}` },
             h("span", { class: "row-main" },
-              h("span", { class: "row-title" }, run.title || "Untitled research"),
+              h("span", { class: "row-title" }, title),
               h("span", { class: "row-meta" }, meta)),
-            statusChip(run.status === "queued" ? "running" : (run.status || "done"))));
+            statusChip(run.status === "queued" ? "running" : (run.status || "done"))),
+          own && !running
+            ? h("button", {
+              type: "button", class: "icon-btn history-delete", title: "Delete report", "aria-label": `Delete report: ${title}`,
+              onclick: async () => {
+                if (await deleteHistoryItem({ type: "report", id: run.run_id, key: `run:${run.run_id}`, title })) {
+                  li.remove();
+                  const left = body.querySelectorAll(".row-list li").length;
+                  const countEl = body.querySelector(".result-count");
+                  if (countEl) countEl.textContent = plural(left, "report");
+                  if (!left) body.replaceChildren(emptyFor());
+                }
+              },
+            }, icon("trash"))
+            : null);
+        return li;
       })));
   }
 

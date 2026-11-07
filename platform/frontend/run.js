@@ -3,10 +3,10 @@ import {
   h, icon, setTitle, toast, copyText, statusChip, fmtDate, emptyState, trapFocus, templateBadge,
 } from "./ui.js";
 import { api, friendlyError } from "./api.js";
-import { state, main, page, loadingBlock, announce, isOwner, rerender } from "./core.js";
+import { state, main, page, loadingBlock, announce, isOwner, rerender, go } from "./core.js";
 import { featureById, stageLabel, MODES, templateName, isGeneralTemplate, toolIcon } from "./features.js";
 import { renderReport } from "./report.js";
-import { refreshHistory } from "./shell.js";
+import { refreshHistory, deleteHistoryItem } from "./shell.js";
 import { projectCrumb, openMoveDialog } from "./projects.js";
 
 const STAGES = [
@@ -55,6 +55,18 @@ function agentRows(agents) {
     }));
 }
 
+// "Delete report" for the owner of a finished or failed run: removes it and its chat, then opens history.
+function deleteRunButton(run, title) {
+  const btn = h("button", { type: "button", class: "btn btn-danger-quiet btn-sm run-delete" }, icon("trash"), "Delete report");
+  btn.addEventListener("click", async () => {
+    btn.disabled = true;
+    const deleted = await deleteHistoryItem({ type: "report", id: run.run_id, key: `run:${run.run_id}`, title: title || "Untitled research" });
+    if (deleted) go(run.project_id ? `#/p/${encodeURIComponent(run.project_id)}` : "#/new?tab=existing");
+    else btn.disabled = false;
+  });
+  return btn;
+}
+
 export function viewRun(runId, isCurrent) {
   setTitle("Research run");
   main.replaceChildren(loadingBlock("Loading the run…"));
@@ -83,7 +95,8 @@ export function viewRun(runId, isCurrent) {
       failed
         ? h("div", { class: "callout callout-error", role: "alert" },
             h("p", {}, h("strong", {}, "What happened: "), run.error || "The research agents ran into a problem."),
-            h("p", {}, "This run did not produce a report. ", h("a", { href: "#/new" }, "Start new research"), "."))
+            h("p", {}, "This run did not produce a report. ", h("a", { href: "#/new" }, "Start new research"), "."),
+            !run.user_sub || !state.user || run.user_sub === state.user.sub ? deleteRunButton(run, run.title) : null)
         : h("div", { class: "progress", "aria-hidden": "true" }, h("span", { class: "progress-bar", style: `width: ${pct}%` })),
       h("div", { class: "run-grid" },
         h("section", { class: "surface run-card", "aria-labelledby": "stages-h" },
@@ -136,6 +149,7 @@ export function viewRun(runId, isCurrent) {
         onclick: () => openMoveDialog({ kind: "run", id: run.run_id, current: project?.project_id || run.project_id || null, onMoved: () => rerender() }),
       }, icon("folder"), "Move to project"));
     }
+    if (mine) actions.push(deleteRunButton(run, result.title || run.title));
     const mockupReason = h("p", { class: "field-hint", id: "mockup-reason", hidden: true });
     actions.push(mockupReason, shareSlot);
     const mockupSection = h("div", { class: "mockups" });

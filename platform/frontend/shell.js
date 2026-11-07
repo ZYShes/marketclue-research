@@ -1,9 +1,9 @@
 // App shell: left sidebar (New research, Recent history, links, account), mobile top bar
 // and drawer, plus the history store that mixes conversations and reports.
 import {
-  h, svg, icon, ICONS, avatar, statusChip, historyGroup, openReadingDialog, currentZoom,
+  h, svg, icon, ICONS, avatar, statusChip, historyGroup, openReadingDialog, currentZoom, confirmDialog, toast,
 } from "./ui.js";
-import { api } from "./api.js";
+import { api, friendlyError } from "./api.js";
 import { state, runsLeftText } from "./core.js";
 import { featureById } from "./features.js";
 import {
@@ -103,6 +103,34 @@ function schedulePoll() {
   if (state.user && (historyItems || []).some((item) => item.status === "running")) {
     pollTimer = setTimeout(refreshHistory, 15000);
   }
+}
+
+// Delete a history item after a confirm dialog: a draft conversation (DELETE /conversations/{id}) or a report
+// with the conversation that started it (DELETE /runs/{id}). Resolves true when it was deleted.
+export async function deleteHistoryItem(item) {
+  const report = item.type === "report";
+  const ok = await confirmDialog({
+    title: report ? "Delete this report?" : "Delete this conversation?",
+    body: report
+      ? `“${item.title}” and its chat are removed, and its share link stops working. Fact cards stay in your Fact library. This cannot be undone.`
+      : `“${item.title}” and the brief so far are removed. This cannot be undone.`,
+    confirmLabel: report ? "Delete report" : "Delete conversation", danger: true,
+  });
+  if (!ok) return false;
+  try {
+    await api(report ? `/runs/${encodeURIComponent(item.id)}` : `/conversations/${encodeURIComponent(item.id)}`, { method: "DELETE" });
+  } catch (err) {
+    toast(friendlyError(err));
+    return false;
+  }
+  if (historyItems) {
+    historyItems = historyItems.filter((entry) => entry.key !== item.key);
+    listeners.forEach((fn) => fn(historyItems));
+  }
+  refreshHistory();
+  if (report) refreshProjects();
+  toast(report ? "Report deleted." : "Conversation deleted.");
+  return true;
 }
 
 export function getHistory() {

@@ -797,6 +797,28 @@ def release_mockup(run_id) -> None:
     )
 
 
+def delete_run(run) -> None:
+    """Removes a report: its record, the owner's and the project's index rows, its share link, its mock-ups and its
+    stored files. Fact cards stay in the library; a card lists only the reports that still exist."""
+    run_id = run["run_id"]
+    keys = [(f"RUN#{run_id}", "META"), (f"USER#{run['user_sub']}", f"RUN#{run['created_at']}#{run_id}")]
+    if run.get("project_id"):
+        keys.append((f"PROJECT#{run['project_id']}", f"RUN#{run['created_at']}#{run_id}"))
+    if run.get("share_token"):
+        keys.append((f"SHARE#{run['share_token']}", "META"))
+    keys += [(f"RUN#{run_id}", item["SK"]) for item in _query_pk(f"RUN#{run_id}", "MOCKUP#")]
+    bucket = get_settings().data_bucket
+    objects = [{"Key": run["result_key"]}] if run.get("result_key") else []
+    for prefix in (f"runs/{run_id}/", f"mockups/{run_id}/"):
+        for page in _s3().get_paginator("list_objects_v2").paginate(Bucket=bucket, Prefix=prefix):
+            objects += [{"Key": obj["Key"]} for obj in page.get("Contents") or []]
+    for start in range(0, len(objects), 1000):
+        _s3().delete_objects(Bucket=bucket, Delete={"Objects": objects[start:start + 1000], "Quiet": True})
+    with _table().batch_writer() as batch:
+        for pk, sk in keys:
+            batch.delete_item(Key={"PK": pk, "SK": sk})
+
+
 def save_mockup(run_id, image: bytes, content_type, prompt_kind, prompt) -> dict:
     mockup_id = uuid4().hex[:12]
     extension = {"image/png": "png", "image/jpeg": "jpg", "image/webp": "webp"}.get(content_type, "img")
