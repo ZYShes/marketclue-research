@@ -160,6 +160,18 @@ html.is-narrow .sidebar .sb-close { display: inline-flex; }
 .sb-group + .sb-group { margin-top: 8px; }
 .sb-group-title { font-size: 0.78125rem; font-weight: 600; color: var(--muted); padding: 8px 10px 2px; }
 .sb-list { list-style: none; }
+/* Delete in the Recent list: shown on hover or keyboard focus, always on touch screens. */
+.sb-list li { position: relative; }
+.sb-list .sb-delete { display: none; position: absolute; right: 0; top: 50%; transform: translateY(-50%); width: 44px; height: 44px; color: var(--muted); }
+.sb-list .sb-delete:hover { color: var(--accent-ink); background: var(--accent-wash); }
+@media (hover: hover) {
+  .sb-list li:hover .sb-delete, .sb-list li:focus-within .sb-delete { display: inline-flex; }
+  .sb-list li:hover .history-row, .sb-list li:focus-within .history-row { padding-right: 46px; }
+}
+@media (hover: none) {
+  .sb-list .sb-delete { display: inline-flex; }
+  .sb-list li:has(.sb-delete) .history-row { padding-right: 46px; }
+}
 .sb-note { font-size: 0.875rem; color: var(--muted); padding: 6px 10px; }
 .sb-more {
   display: flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 10px;

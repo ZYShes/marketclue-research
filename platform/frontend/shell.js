@@ -4,7 +4,7 @@ import {
   h, svg, icon, ICONS, avatar, statusChip, historyGroup, openReadingDialog, currentZoom, confirmDialog, toast,
 } from "./ui.js";
 import { api, friendlyError } from "./api.js";
-import { state, runsLeftText } from "./core.js";
+import { state, runsLeftText, go } from "./core.js";
 import { featureById } from "./features.js";
 import {
   refreshProjects, getProjects, onProjects, projectById, projectsFailed, resetProjects, openNewProjectDialog,
@@ -307,7 +307,17 @@ function renderRecent(container) {
     body = [
       groupHistory(shown).map(([label, list]) => h("div", { class: "sb-group" },
         h("h3", { class: "sb-group-title" }, label),
-        h("ul", { class: "sb-list" }, list.map((item) => h("li", {}, historyRow(item, { compact: true, current: isCurrent(item) })))))),
+        h("ul", { class: "sb-list" }, list.map((item) => h("li", {},
+          historyRow(item, { compact: true, current: isCurrent(item) }),
+          item.status === "running" ? null : h("button", {
+            type: "button", class: "icon-btn sb-delete",
+            title: item.type === "report" ? "Delete report" : "Delete conversation",
+            "aria-label": `${item.type === "report" ? "Delete report" : "Delete conversation"}: ${item.title}`,
+            onclick: async () => {
+              const wasOpen = isCurrent(item);
+              if (await deleteHistoryItem(item) && wasOpen) go("#/new");
+            },
+          }, icon("trash"))))))),
       items.length > shown.length || items.length > 6
         ? h("a", { class: "sb-more", href: "#/new?tab=existing" }, "View all history", icon("arrow"))
         : null,
