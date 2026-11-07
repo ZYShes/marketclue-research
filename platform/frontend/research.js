@@ -1,6 +1,7 @@
 // New research (#/new: tool picker + existing history) and the conversation view (#/c/<id>).
 import {
   h, icon, svg, storage, setTitle, tabs, statusChip, fmtMoney, fmtAgo, emptyState, plural, templateBadge,
+  confirmDialog, toast,
 } from "./ui.js";
 import { api, friendlyError } from "./api.js";
 import {
@@ -553,6 +554,9 @@ function renderConversation(initial, isCurrent) {
   const readyNote = h("div", { class: "ready-slot" });
   const finishedNote = h("div", { class: "finished-slot" });
   const panel = h("aside", { class: "brief-panel", id: "brief", "aria-labelledby": "brief-title" });
+  // Delete the chat (DELETE /conversations/{id}); a report it started stays. Hidden while that report runs.
+  const deleteBtn = h("button", { type: "button", class: "btn btn-danger-quiet btn-sm conv-delete", onclick: deleteConversation },
+    icon("trash"), h("span", {}, "Delete conversation"));
 
   main.replaceChildren(h("div", { class: "page page-wide conv-page" },
     h("div", { class: "conv-layout" },
@@ -562,7 +566,8 @@ function renderConversation(initial, isCurrent) {
           h("p", { class: "eyebrow tool-eyebrow" }, toolIcon(feature.id, 18), `${stageLabel(feature)} · ${feature.name}`),
           titleEl,
           isGeneralTemplate(conv.template) ? null
-            : h("p", { class: "run-mode conv-template" }, templateBadge(templateName(conv.template)))),
+            : h("p", { class: "run-mode conv-template" }, templateBadge(templateName(conv.template))),
+          h("div", { class: "conv-actions" }, deleteBtn)),
         finishedNote,
         log, readyNote, composer),
       panel)));
@@ -598,6 +603,7 @@ function renderConversation(initial, isCurrent) {
   function renderNotes() {
     const done = !!conv.run_id;
     composer.hidden = done;
+    deleteBtn.hidden = done && (conv.run_status === "queued" || conv.run_status === "running");
     finishedNote.replaceChildren(done
       ? h("div", { class: "callout" },
           h("p", {}, h("strong", {}, "Research started from this brief. "), "This conversation is closed; start new research to ask something else."),
@@ -610,6 +616,29 @@ function renderConversation(initial, isCurrent) {
           h("p", {}, h("strong", {}, "Your brief is ready. "), "Check it, choose a research depth, then start research."),
           h("a", { class: "btn btn-secondary btn-sm only-narrow", href: "#brief", onclick: (ev) => { ev.preventDefault(); jumpToBrief(); } }, "Review brief", icon("arrow")))
       : "");
+  }
+
+  async function deleteConversation() {
+    const ok = await confirmDialog({
+      title: "Delete this conversation?",
+      body: conv.run_id
+        ? "The chat is removed. The report it started stays in My reports and its project."
+        : "The chat and the brief so far are removed. This cannot be undone.",
+      confirmLabel: "Delete conversation", danger: true,
+    });
+    if (!ok) return;
+    deleteBtn.disabled = true;
+    try {
+      await api(`/conversations/${encodeURIComponent(conv.conv_id)}`, { method: "DELETE" });
+    } catch (err) {
+      deleteBtn.disabled = false;
+      toast(friendlyError(err));
+      return;
+    }
+    if (openConvId() === conv.conv_id) setOpenConv(null);
+    refreshHistory();
+    toast("Conversation deleted.");
+    go(conv.project_id ? `#/p/${encodeURIComponent(conv.project_id)}` : "#/new");
   }
 
   function jumpToBrief() {

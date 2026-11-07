@@ -144,8 +144,14 @@ def release_run(reservation: RunReservation) -> None:
     reservation.released = True
 
 
+# Conversations that have not started a report; one that started a report no longer counts.
+MAX_OPEN_CONVERSATIONS = 20
+
+
 def check_chat_limits(sub: str, conv: dict, is_new: bool) -> None:
-    if is_new and store.count_conversations(sub) >= 20:
-        raise QuotaError(429, "conversation_limit", "You can create at most 20 conversations.")
+    if is_new and store.count_open_conversations(sub) >= MAX_OPEN_CONVERSATIONS:
+        raise QuotaError(429, "conversation_limit",
+                         f"You have {MAX_OPEN_CONVERSATIONS} conversations that have not started a report. "
+                         "Delete one you no longer need to start a new one.")
     if len(conv.get("messages", [])) + 2 > 30:
         raise QuotaError(429, "message_limit", "This conversation has reached its 30-message limit.")

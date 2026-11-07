@@ -605,6 +605,8 @@ a.pager-link:hover { background: var(--surface-2); color: var(--ink); border-col
 @container main (max-width: 960px) { .conv-layout { grid-template-columns: minmax(0, 1fr); gap: 32px; } }
 .conv-main { display: grid; gap: 20px; max-width: 760px; min-width: 0; }
 .conv-head { display: grid; gap: 8px; }
+.conv-actions { display: flex; justify-content: flex-start; }
+.conv-delete .icon, .conv-delete svg { flex: none; }
 .conv-title { font-size: 1.625rem; overflow-wrap: anywhere; }
 .messages { list-style: none; display: grid; gap: 20px; }
 .msg { display: grid; min-width: 0; }

@@ -143,6 +143,16 @@ def count_conversations(sub) -> int:
     return sum(1 for _ in _query(sub, "CONV#", ProjectionExpression="PK"))
 
 
+def count_open_conversations(sub) -> int:
+    """Conversations that have not started a report yet (the ones the 20-conversation limit counts)."""
+    return sum(1 for item in _query(sub, "CONV#", ProjectionExpression="PK, run_id") if not item.get("run_id"))
+
+
+def delete_conversation(sub, conv_id) -> None:
+    """Removes the chat only; a report it started keeps its own records (My reports, projects, fact cards)."""
+    _table().delete_item(Key={"PK": f"USER#{sub}", "SK": f"CONV#{conv_id}"})
+
+
 def conversation_title(conv) -> str:
     text = ((conv.get("brief") or {}).get("business") or "").strip()
     if not text:

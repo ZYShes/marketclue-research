@@ -670,6 +670,16 @@ def _file_conversation(user: dict, conv_id: str, data: dict) -> dict:
     return _conversation_view(store.get_conversation(user["sub"], conv_id))
 
 
+def _delete_conversation(user: dict, conv_id: str) -> dict:
+    """DELETE /api/conversations/{id}: removes the owner's chat. A report it started stays readable."""
+    conv = _conversation(user["sub"], conv_id)
+    if conv.get("run_id") and conv.get("run_status") in ("queued", "running"):
+        raise HTTPError(409, "run_in_progress",
+                        "This research is still running. You can delete the conversation when the report is ready.")
+    store.delete_conversation(user["sub"], conv_id)
+    return {"deleted": True, "conv_id": conv_id}
+
+
 def _file_run(user: dict, run_id: str, data: dict) -> dict:
     run = _owned_run(user["sub"], run_id)
     if "project_id" not in data:
@@ -744,6 +754,8 @@ def _dispatch(event: dict) -> dict:
             return _response(_conversation_view(_conversation(sub, parts[2])))
         if method == "PATCH":
             return _response(_file_conversation(user, parts[2], _body(event)))
+        if method == "DELETE":
+            return _response(_delete_conversation(user, parts[2]))
     if path == "/api/runs":
         if method == "POST":
             return _response({"run": _start_run(user, _body(event))}, 201)

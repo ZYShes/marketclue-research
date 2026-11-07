@@ -112,3 +112,48 @@ def test_conversation_titles_fall_back_and_collapse_whitespace():
     assert store.conversation_title({"messages": [{"role": "assistant", "text": "Hi"}, {"role": "user", "text": "Tea"}]}) == "Tea"
     assert store.conversation_title({"messages": []}) == "Untitled research"
     assert len(store.conversation_title({"brief": {"business": "x" * 200}})) == 80
+
+
+# ---------- Deleting a conversation ----------
+
+def test_owner_deletes_a_draft_conversation(aws, monkeypatch):
+    session = signed_in()
+    monkeypatch.setattr(intake, "chat", lambda conv, message: {"reply": "What do you sell?", "ready": False, "brief": None})
+    conv_id = body(request("/api/chat", "POST", {"message": "Mugs", "feature": "market_check"}, session))["conv_id"]
+    other = signed_in(sub="someone", email="someone@example.com", name="Someone")
+    assert request(f"/api/conversations/{conv_id}", "DELETE", session=other)["statusCode"] == 404
+    response = request(f"/api/conversations/{conv_id}", "DELETE", session=session)
+    assert response["statusCode"] == 200 and body(response) == {"deleted": True, "conv_id": conv_id}
+    assert request(f"/api/conversations/{conv_id}", session=session)["statusCode"] == 404
+    assert body(request("/api/conversations", session=session))["conversations"] == []
+    assert request(f"/api/conversations/{conv_id}", "DELETE", session=session)["statusCode"] == 404
+
+
+def test_a_running_report_blocks_delete_and_a_finished_report_stays(aws, monkeypatch, clock):
+    session = signed_in()
+    conv_id = ready_conversation()
+    lambda_client(monkeypatch)
+    run = body(request("/api/runs", "POST", {"conv_id": conv_id}, session))["run"]
+    blocked = request(f"/api/conversations/{conv_id}", "DELETE", session=session)
+    assert blocked["statusCode"] == 409 and body(blocked)["error"]["code"] == "run_in_progress"
+    store.update_run(run["run_id"], status="done", stage="done")
+    assert request(f"/api/conversations/{conv_id}", "DELETE", session=session)["statusCode"] == 200
+    assert request(f"/api/runs/{run['run_id']}", session=session)["statusCode"] == 200
+    assert [r["run_id"] for r in body(request("/api/runs", session=session))["runs"]] == [run["run_id"]]
+    store.update_run(run["run_id"], status="failed")  # a status change after the delete does not bring the chat back
+    assert request(f"/api/conversations/{conv_id}", session=session)["statusCode"] == 404
+
+
+def test_limit_counts_only_conversations_without_a_report(aws, monkeypatch):
+    session = signed_in()
+    monkeypatch.setattr(intake, "chat", lambda conv, message: {"reply": "What do you sell?", "ready": False, "brief": None})
+    for n in range(19):
+        store.save_conversation("founder", {"conv_id": f"draft{n}", "messages": [], "brief": None, "ready": False})
+    ready_conversation(conv_id="with-report")
+    store.create_run("founder", "with-report", "Mug prices", dict(BRIEF))
+    assert body(request("/api/chat", "POST", {"message": "Mugs", "feature": "market_check"}, session))["conv_id"]
+    full = request("/api/chat", "POST", {"message": "Cups", "feature": "market_check"}, session)
+    assert full["statusCode"] == 429 and body(full)["error"]["code"] == "conversation_limit"
+    assert "Delete one you no longer need" in body(full)["error"]["message"]
+    assert request("/api/conversations/draft0", "DELETE", session=session)["statusCode"] == 200
+    assert request("/api/chat", "POST", {"message": "Cups", "feature": "market_check"}, session)["statusCode"] == 200

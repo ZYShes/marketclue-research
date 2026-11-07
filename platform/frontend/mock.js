@@ -1671,8 +1671,8 @@ function route(method, segments, query, body) {
       if (!known) return fail(400, "invalid_template", "Choose one of the listed templates.");
       if (!known.tools.includes(featureId(body.feature))) return fail(400, "invalid_template", "This template does not offer that tool.");
       if (!known.available) return fail(409, "template_unavailable", known.unavailable_reason);
-      const mine = Object.values(state.convs).filter((x) => x.owner === user.sub);
-      if (mine.length >= 20) return fail(429, "conversation_limit", "You have reached the limit of 20 conversations.");
+      const open = Object.values(state.convs).filter((x) => x.owner === user.sub && !x.run_id);
+      if (open.length >= 20) return fail(429, "conversation_limit", "You have 20 conversations that have not started a report. Delete one you no longer need to start a new one.");
       const now = new Date().toISOString();
       conv = { conv_id: newId(), owner: user.sub, feature: featureId(body.feature), template, project_id: project ? project.project_id : null, messages: [], brief: null, ready: false, run_id: null, created_at: now, updated_at: now };
       state.convs[conv.conv_id] = conv;
@@ -1712,6 +1712,16 @@ function route(method, segments, query, body) {
     conv.project_id = target ? target.project_id : null;
     const { owner: _o, ...rest } = conv;
     return ok({ ...rest, template: templateOf(conv.template), run_status: conv.run_id ? runStatus(findRun(conv.run_id)) : null });
+  }
+  if (a === "conversations" && b && method === "DELETE") {
+    const conv = state.convs[b];
+    if (!conv || conv.owner !== user.sub) return fail(404, "not_found", "Conversation not found.");
+    const run = conv.run_id ? findRun(conv.run_id) : null;
+    if (run && runStatus(run) !== "done" && runStatus(run) !== "failed") {
+      return fail(409, "run_in_progress", "This research is still running. You can delete the conversation when the report is ready.");
+    }
+    delete state.convs[b];
+    return ok({ deleted: true, conv_id: b });
   }
   if (a === "conversations" && b && method === "GET") {
     const conv = state.convs[b];
