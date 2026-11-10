@@ -191,3 +191,22 @@ def test_zero_smarter_limit_rejects_before_writing(aws, monkeypatch):
         quota.reserve_run(founder, smarter=True)
     assert_quota(error, 429, "smarter_daily_limit")
     assert day_item() is None
+
+
+def test_a_hand_granted_unlimited_account_runs_past_the_free_limit_and_keeps_it_after_sign_in(aws, monkeypatch):
+    limits(monkeypatch, owner_emails=frozenset(), free_runs_per_user=1, max_runs_per_day=100, max_smarter_per_day=10)
+    mentor = user("mentor", "mentor@example.com")
+    quota.reserve_run(mentor)
+    with pytest.raises(quota.QuotaError) as error:
+        quota.reserve_run(store.get_user("mentor"))
+    assert_quota(error, 402, "free_run_used")
+    store._table().update_item(Key={"PK": "USER#mentor", "SK": "PROFILE"}, UpdateExpression="SET unlimited = :yes",
+                               ExpressionAttributeValues={":yes": True})
+    granted = store.get_user("mentor")
+    assert quota.free_runs_left(granted) is None
+    quota.reserve_run(granted)
+    quota.reserve_run(store.get_user("mentor"))
+    assert int(store.get_user("mentor")["runs_started"]) == 3
+    store.upsert_user("mentor", "mentor@example.com", "Mentor", "")  # signing in again keeps the grant
+    assert store.get_user("mentor")["unlimited"] is True and quota.free_runs_left(store.get_user("mentor")) is None
+    assert quota.free_runs_left(user("someone", "someone@example.com")) == 1

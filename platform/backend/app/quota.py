@@ -28,8 +28,14 @@ def _is_owner(user: dict) -> bool:
     return user.get("email", "").strip().lower() in get_settings().owner_emails
 
 
+def _unlimited(user: dict) -> bool:
+    """Owners, and accounts given unlimited reports by hand (PROFILE.unlimited = true, for example a mentor trying
+    the product). Smarter's owner-only rule still goes by the owner list."""
+    return _is_owner(user) or user.get("unlimited") is True
+
+
 def free_runs_left(user: dict) -> int | None:
-    if _is_owner(user):
+    if _unlimited(user):
         return None
     return max(0, get_settings().free_runs_per_user - int(user.get("runs_started", 0)))
 
@@ -50,7 +56,7 @@ def reserve_run(user: dict, smarter: bool = False) -> RunReservation:
     """Atomically counts one run against the user's free runs, the site's daily limit and, for a
     Smarter run, the site-wide daily Smarter limit (MAX_SMARTER_PER_DAY, owners included)."""
     settings = get_settings()
-    owner = _is_owner(user)
+    owner = _unlimited(user)
     if not owner and settings.free_runs_per_user < 1:
         raise _free_run_used()
     if settings.max_runs_per_day < 1:
