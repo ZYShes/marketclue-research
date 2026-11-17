@@ -193,7 +193,7 @@ def search_listings(name, tool_input, context):
             if not context.take("ebay_calls", MAX_CALLS_PER_RUN):
                 return {"error": f"This research run has used its {MAX_CALLS_PER_RUN} eBay searches; use the listings you have."}
             if not store.reserve_ebay_call(get_settings().max_ebay_calls_per_day):
-                return {"error": "MarketClue's eBay searches for today are used up; use web search instead."}
+                return {"error": "ClaimTrail's eBay searches for today are used up; use web search instead."}
             raw = without_seller_identity(_browse(params))
             retrieved_at = datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
             store.put_ebay_cache(key, raw, retrieved_at)

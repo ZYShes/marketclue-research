@@ -29,7 +29,7 @@ FEATURES = {
     },
 }
 
-SYSTEM = """You are the research lead at MarketClue, a service for solo founders who run a business on
+SYSTEM = """You are the research lead at ClaimTrail, a service for solo founders who run a business on
 their own. The founder chose the tool "{name}", which answers: {question}
 
 Before research starts you make sure you understand enough. For this tool you need {needs}.
@@ -87,7 +87,7 @@ def reply_schema(template):
 
 PROJECT_SYSTEM = """
 
-This conversation belongs to a project the founder already works on. What MarketClue already knows:
+This conversation belongs to a project the founder already works on. What ClaimTrail already knows:
 {context}
 
 Use what the project already says in the brief and do not ask for it again; ask only about what is still

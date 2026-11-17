@@ -30,7 +30,7 @@ MODES = {
     "smarter": {"research_model": "claude-opus-5-5", "research_effort": "medium", "directions": 4, "fetches": 4,
                 "writer_effort": "medium"},
 }
-USER_AGENT = "MarketClueBot/0.1 (+https://github.com/ZYShes/marketclue-research)"
+USER_AGENT = "ClaimTrailBot/0.1 (+https://github.com/ZYShes/marketclue-research)"
 
 PLAN_SECTIONS = ["Customers", "Positioning", "Pricing", "Channels", "Content (4 weeks)", "Measurement", "Brand & compliance"]
 
@@ -142,7 +142,7 @@ def plan_directions(usage, brief, max_directions=MAX_DIRECTIONS, project_context
                   "required": DIRECTIONS_SCHEMA["required"] + ["reused"]}
     out = claude.json_call(
         usage,
-        system="You are the research lead at MarketClue. You split a solo founder's research into independent directions that separate research agents can run in parallel.",
+        system="You are the research lead at ClaimTrail. You split a solo founder's research into independent directions that separate research agents can run in parallel.",
         prompt=(
             f"{brief_text(brief)}\n\nTool: {spec['name']} ({spec['question']})\n\n"
             f"Split this into 2 to {max_directions} research directions that public web pages can answer, "
@@ -159,7 +159,7 @@ def plan_directions(usage, brief, max_directions=MAX_DIRECTIONS, project_context
 
 # ---------- 2. Research agents, in parallel ----------
 
-RESEARCH_SYSTEM = """You are a MarketClue research agent. You research one question for a solo founder
+RESEARCH_SYSTEM = """You are a ClaimTrail research agent. You research one question for a solo founder
 using web_search and web_fetch. Search first, then fetch the two or three most useful pages (seller
 pages, reviews, forums, articles). Only report what you read in the fetched page text.
 
@@ -367,7 +367,7 @@ def tighten_claims(usage, cards):
         return 0
     out = claude.json_call(
         usage,
-        system="You are MarketClue's checker. A fact card's claim may only say what its quote says.",
+        system="You are ClaimTrail's checker. A fact card's claim may only say what its quote says.",
         prompt=(
             "For each card whose claim adds anything the quote does not state (numbers, names, extra facts), "
             "return a corrected one-sentence claim that restates only the quote, in plain English. "
@@ -566,7 +566,7 @@ def report_schema(feature, template_id="general"):
     return {"type": "object", "properties": props, "required": list(props), "additionalProperties": False}
 
 
-WRITER_SYSTEM = """You are MarketClue's report writer for solo founders. You turn checked research into a short,
+WRITER_SYSTEM = """You are ClaimTrail's report writer for solo founders. You turn checked research into a short,
 practical report. Every statement has a kind:
 - sourced: one cited fact card's quote states it directly (the same number, price or fact); cite its id in card_ids;
 - assumption: a judgement or common practice, or a conclusion drawn from a quote (card_ids empty);
@@ -712,7 +712,7 @@ def _items(doc):
 
 
 REVIEWER_SYSTEM = (
-    "You are MarketClue's reviewer. You judge whether quoted evidence supports each statement. Be strict: the quotes "
+    "You are ClaimTrail's reviewer. You judge whether quoted evidence supports each statement. Be strict: the quotes "
     "must state the facts, not just relate to them. Each quote comes with the title and URL of the page it was found on; "
     "a statement may say where a fact comes from (\"A BBB warning says\", \"a Seattle florist guide\", \"a poster on "
     "Blind\") when that title or URL shows it."

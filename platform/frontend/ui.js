@@ -352,7 +352,7 @@ export function renderWelcome(onEnter) {
   welcomeEnter = () => { welcomeForm = null; welcomeEnter = null; onEnter(); };
   welcomeForm = readingForm({ prefix: "welcome", welcome: true, onSave: welcomeEnter });
   return h("div", { class: "welcome-page" },
-    h("div", { class: "welcome-brand" }, svg(ICONS.mark), h("span", {}, "MarketClue")),
+    h("div", { class: "welcome-brand" }, svg(ICONS.mark), h("span", {}, "ClaimTrail")),
     h("section", { class: "welcome-card surface", "aria-labelledby": "welcome-title" },
       h("p", { class: "eyebrow" }, "Reading & motion"),
       h("h1", { id: "welcome-title", tabindex: "-1" }, "A little more your way."),
@@ -521,7 +521,7 @@ export function tabs({ id, label, items, selected, onSelect }) {
 }
 
 export function setTitle(page) {
-  document.title = page ? `${page} · MarketClue` : "MarketClue · See the market differently";
+  document.title = page ? `${page} · ClaimTrail` : "ClaimTrail · See the market differently";
 }
 
 let toastTimer = null;

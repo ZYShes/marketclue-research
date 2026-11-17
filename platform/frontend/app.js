@@ -1,4 +1,4 @@
-// MarketClue single-page app: boot, sign-in and the hash router.
+// ClaimTrail single-page app: boot, sign-in and the hash router.
 import {
   h, storage, setTitle, toast, hideToast, emptyState,
   initializeReadingPreferences, hasReadingPreferences, renderWelcome,
@@ -146,7 +146,7 @@ setRouter(router);
 function showLoadError() {
   main.replaceChildren(page(emptyState({
     title: "This page could not load", headingLevel: 1,
-    text: "Check your connection. If MarketClue was just updated, reloading the page fixes this.",
+    text: "Check your connection. If ClaimTrail was just updated, reloading the page fixes this.",
     action: h("button", { type: "button", class: "btn btn-primary", onclick: () => location.reload() }, "Reload"),
   })));
 }
@@ -344,7 +344,7 @@ async function boot() {
     user: null,
     error: err instanceof ApiError && err.status === 401 ? null
       : err instanceof ApiError && err.code === "network" ? err.message
-        : "MarketClue could not check your sign-in just now. Please reload the page in a moment.",
+        : "ClaimTrail could not check your sign-in just now. Please reload the page in a moment.",
   }));
 
   renderShell({ head: "", arg: null });

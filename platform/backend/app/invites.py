@@ -15,7 +15,7 @@ def send_invite(to, team_name, inviter_name, invite_url) -> bool:
     if not settings.ses_from:
         return False
     body = (
-        f"{inviter_name} invited you to the team \"{team_name}\" on MarketClue.\n\n"
+        f"{inviter_name} invited you to the team \"{team_name}\" on ClaimTrail.\n\n"
         f"Open this link and sign in with Google as {to} to join:\n{invite_url}\n\n"
         "The link works for 7 days. Team members share finished reports and fact cards; "
         "conversations stay private.\n"
@@ -25,7 +25,7 @@ def send_invite(to, team_name, inviter_name, invite_url) -> bool:
             FromEmailAddress=settings.ses_from,
             Destination={"ToAddresses": [to]},
             Content={"Simple": {
-                "Subject": {"Data": f"Join {team_name} on MarketClue", "Charset": "UTF-8"},
+                "Subject": {"Data": f"Join {team_name} on ClaimTrail", "Charset": "UTF-8"},
                 "Body": {"Text": {"Data": body, "Charset": "UTF-8"}},
             }},
         )

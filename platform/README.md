@@ -1,4 +1,4 @@
-# MarketClue Platform
+# ClaimTrail Platform (formerly MarketClue)
 
 Author: **Yuexizi Zhang**
 

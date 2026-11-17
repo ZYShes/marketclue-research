@@ -231,7 +231,7 @@ document.addEventListener("keydown", (event) => {
 // ---- Rendering ------------------------------------------------------------------
 
 function wordmark(href) {
-  return h("a", { class: "wordmark", href }, svg(ICONS.mark), h("span", { class: "wordmark-text" }, "MarketClue"));
+  return h("a", { class: "wordmark", href }, svg(ICONS.mark), h("span", { class: "wordmark-text" }, "ClaimTrail"));
 }
 
 function readingButton(extraClass = "") {

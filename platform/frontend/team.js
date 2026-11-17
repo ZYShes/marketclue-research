@@ -375,12 +375,12 @@ export function viewJoin(token, isCurrent, { mountSignIn }) {
   setTitle("Join a team");
   const status = h("div", { class: "join-status", role: "status" });
   const intro = h("p", { class: "lede" },
-    "Someone invited you to their MarketClue team. Members share finished reports and fact cards; your conversations stay private.");
+    "Someone invited you to their ClaimTrail team. Members share finished reports and fact cards; your conversations stay private.");
   const forWhom = h("p", { class: "muted join-for" });
   // Public preview: who invited you, to which team, and for which address (no sign-in needed).
   api(`/invites/${encodeURIComponent(token)}`, { quiet401: true }).then((inv) => {
     if (!isCurrent()) return;
-    intro.textContent = `${inv.inviter_name} invited you to join ${inv.team_name} on MarketClue. ` +
+    intro.textContent = `${inv.inviter_name} invited you to join ${inv.team_name} on ClaimTrail. ` +
       "Members share finished reports and fact cards; your conversations stay private.";
     if (inv.status === "expired") forWhom.textContent = "This invite has expired. Ask the team owner for a new link.";
     else if (inv.status !== "pending") forWhom.textContent = "This invite was already used or revoked. Ask the team owner for a new link.";
@@ -393,7 +393,7 @@ export function viewJoin(token, isCurrent, { mountSignIn }) {
   if (!state.user) {
     const signin = h("div", { class: "signin" });
     main.replaceChildren(page(h("div", { class: "narrow-page" },
-      pageHeader({ eyebrow: "Team invite", title: "Join your team on MarketClue" }),
+      pageHeader({ eyebrow: "Team invite", title: "Join your team on ClaimTrail" }),
       intro, forWhom,
       h("section", { class: "surface form-card stack", "aria-labelledby": "join-signin-h" },
         h("h2", { id: "join-signin-h" }, "Sign in to accept"),
@@ -426,7 +426,7 @@ export function viewJoin(token, isCurrent, { mountSignIn }) {
     }
   });
   main.replaceChildren(page(h("div", { class: "narrow-page" },
-    pageHeader({ eyebrow: "Team invite", title: "Join your team on MarketClue" }),
+    pageHeader({ eyebrow: "Team invite", title: "Join your team on ClaimTrail" }),
     intro, forWhom,
     h("section", { class: "surface form-card stack", "aria-labelledby": "join-h" },
       h("h2", { id: "join-h" }, "Accept the invite"),

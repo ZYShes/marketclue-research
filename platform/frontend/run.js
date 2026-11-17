@@ -391,7 +391,7 @@ export async function viewShared(token, isCurrent) {
     main.replaceChildren(page(emptyState({
       title: "This link does not work", headingLevel: 1,
       text: err.status === 404 ? "The link may be mistyped, or the report is no longer shared." : friendlyError(err),
-      action: h("a", { class: "btn btn-secondary", href: "#/" }, "Go to MarketClue"),
+      action: h("a", { class: "btn btn-secondary", href: "#/" }, "Go to ClaimTrail"),
     })));
     main.querySelector("h1")?.setAttribute("tabindex", "-1");
     return;
@@ -414,6 +414,6 @@ export async function viewShared(token, isCurrent) {
       : h("aside", { class: "cta surface", "aria-labelledby": "cta-h" },
           h("h2", { id: "cta-h" }, "Research your own market"),
           h("p", { class: "muted" }, "Get a sourced report for your business. Your first one is free."),
-          h("a", { class: "btn btn-primary", href: "#/" }, "Try MarketClue"))));
+          h("a", { class: "btn btn-primary", href: "#/" }, "Try ClaimTrail"))));
 }
 

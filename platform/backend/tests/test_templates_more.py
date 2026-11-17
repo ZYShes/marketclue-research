@@ -112,9 +112,10 @@ EBAY_ANSWERS = {"category": "Mugs", "example_listing": None, "condition": "new",
 FINGERPRINT_BRIEF = {"business": "Mugs", "customer": "Gift buyers", "location": "Portland, Oregon", "stage": "markets",
                      "budget_usd": 200, "goal": "Price", "questions": ["What do mugs cost?"]}
 # Digests of every General and eBay prompt, schema and template field taken before v4.1 was added. Update them only
-# when General or eBay is meant to change (eBay changed on 2026-11-04: its fee inputs became one list of numbers).
-FINGERPRINTS = {"general": "4fef6eedf8c35218de5c92185ff8246303473d4127b1b1b88f8065c30ee3aeb3",
-                "ebay": "07faef1d4e61372b926dc09a1a9bf462776b1e73c7b3c71eb693cd9774df12dd"}
+# when General or eBay is meant to change (eBay changed on 2026-11-04: its fee inputs became one list of numbers;
+# both changed on 2026-11-17: the product name in the prompts is now ClaimTrail).
+FINGERPRINTS = {"general": "2bca0e2e5375d7e6619fc3dbf098f5434790b6892df60768d0f126768e28c95c",
+                "ebay": "4213bd90c7b6ee3bc4dc8d9bc994e1c688e8a41514bf9d0b753f224ca4da4461"}
 
 
 def fingerprint(template_id):

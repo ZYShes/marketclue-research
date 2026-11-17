@@ -1,4 +1,4 @@
-"""Claude API calls for MarketClue, with per-run usage and cost accounting."""
+"""Claude API calls for ClaimTrail, with per-run usage and cost accounting."""
 
 import json
 import os

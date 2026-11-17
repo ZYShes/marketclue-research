@@ -604,10 +604,10 @@ function ebayResult(run, base) {
         finding("Condition matters on eBay", "One comparable listing is pre-owned; eBay asks sellers to state the condition and describe flaws.", "sourced", ["eb-l2", "eb-cond"]),
       ],
       next_steps: [
-        { text: "Watch three comparable listings for two weeks.", how: "Note whether each one ends, is relisted or lowers its asking price. MarketClue cannot see sold prices." },
+        { text: "Watch three comparable listings for two weeks.", how: "Note whether each one ends, is relisted or lowers its asking price. ClaimTrail cannot see sold prices." },
         { text: "Price one shipped planter to three ZIP codes.", how: "Use eBay's shipping calculator for a near, middle and far address and compare with the listings above." },
       ],
-      missing_evidence: ["Sold prices: eBay's sold-item data is not available to MarketClue, so every price here is an asking price.", "One listing did not give a shipping cost."],
+      missing_evidence: ["Sold prices: eBay's sold-item data is not available to ClaimTrail, so every price here is an asking price.", "One listing did not give a shipping cost."],
     };
   }
   if (run.feature === "marketing_plan") {
@@ -920,7 +920,7 @@ function etsyResult(run, base) {
       { text: "Check the fees on Etsy's own fee page.", how: "Open Etsy's Fees & Payments Policy and compare the listing, transaction and processing fees with the table above." },
       { text: "Price a shipped mug to three ZIP codes.", how: "Use Etsy's shipping calculator for a near, middle and far address." },
     ],
-    missing_evidence: ["Sold prices: MarketClue sees only asking prices on Etsy listing pages.", "Sales tax is left out of the fee estimate."],
+    missing_evidence: ["Sold prices: ClaimTrail sees only asking prices on Etsy listing pages.", "Sales tax is left out of the fee estimate."],
   };
 }
 

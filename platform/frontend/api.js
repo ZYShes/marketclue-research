@@ -65,7 +65,7 @@ export async function api(path, { method = "GET", body, query, quiet401 = false 
         body: body !== undefined ? JSON.stringify(body) : undefined,
       });
     } catch {
-      throw new ApiError(0, "network", "Could not reach MarketClue. Check your connection and try again.");
+      throw new ApiError(0, "network", "Could not reach ClaimTrail. Check your connection and try again.");
     }
     status = res.status;
     try {
@@ -90,7 +90,7 @@ export function friendlyError(err) {
     return "Your first report is free, and you have already used it. More runs are coming soon.";
   }
   if (err.code === "daily_limit") {
-    return "MarketClue has reached today's limit for new reports. Please try again tomorrow.";
+    return "ClaimTrail has reached today's limit for new reports. Please try again tomorrow.";
   }
   if (err.code === "smarter_daily_limit") {
     return "Smarter research has reached today's limit for the site. Choose a lighter depth, or try Smarter tomorrow.";

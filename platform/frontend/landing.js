@@ -39,7 +39,7 @@ export function landingPage(signin, bootError) {
         h("p", { class: "pill" }, "Market research you can check"),
         h("h1", { id: "hero-title", tabindex: "-1" }, "See the market ", h("em", {}, "differently.")),
         h("p", { class: "hero-sub" },
-          "Tell MarketClue what you are building. Agents read public pages and return a short report where every statement is Sourced, an Assumption or an Estimate."),
+          "Tell ClaimTrail what you are building. Agents read public pages and return a short report where every statement is Sourced, an Assumption or an Estimate."),
         h("div", { class: "hero-cta", id: "signin-area" }, signin),
         h("p", { class: "fine" }, "Your first report is free. No card needed.")),
       previewWindow()),

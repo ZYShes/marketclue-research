@@ -434,8 +434,8 @@ def _invite_preview(token: str) -> dict:
     if status == "pending" and store.invite_expired(invite):
         status = "expired"
     return {
-        "team_name": team.get("name") or "a MarketClue team",
-        "inviter_name": inviter.get("name") or "A MarketClue user",
+        "team_name": team.get("name") or "a ClaimTrail team",
+        "inviter_name": inviter.get("name") or "A ClaimTrail user",
         "email_hint": _email_hint(invite["email"]),
         "status": status,
         "expires_at": invite["expires_at"],

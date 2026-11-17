@@ -1,4 +1,4 @@
-# MarketClue backend
+# ClaimTrail backend (formerly MarketClue)
 
 Python 3.12 Lambda entry point: `app.handler.lambda_handler`. HTTP requests use
 Lambda Function URL payload v2.0. Worker events have the shape

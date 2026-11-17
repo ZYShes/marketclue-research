@@ -1,4 +1,4 @@
-/* MarketClue v3 — tokens, base, app shell, controls and pages.
+/* ClaimTrail v3 — tokens, base, app shell, controls and pages.
    Responsive rules use container queries on <main> (container "main") so the
    Reading & motion zoom setting gets the narrow layouts too. The shell itself
    switches with html.is-narrow, set from JS (viewport width ÷ page zoom). */

@@ -1,4 +1,8 @@
-# MarketClue Platform — 48-hour prototype spec
+# ClaimTrail Platform (formerly MarketClue) — 48-hour prototype spec
+
+> 2026-11-17: the product was renamed from MarketClue to ClaimTrail (owner's decision). User-facing text, prompts and the
+> crawler user agent say ClaimTrail; AWS resource names, the repository and the CloudFront address keep "marketclue".
+> Older sections below still say MarketClue where they describe history.
 
 Author: Yuexizi Zhang. Branch `platform` of ZYShes/marketclue-research; everything lives under `platform/`.
 The old Streamlit site (repo root, `cloud_app.py`, `MarketMind-A6-deploy.zip`) must not change.
@@ -164,7 +168,7 @@ that page; it does not prove the page is right — the UI says so in its help te
 
 Static files only, no build step: `index.html`, `app.js` (ES modules allowed), `styles.css`,
 `config.js` (`window.MC_CONFIG = {googleClientId, apiBase: "/api"}`), favicon. Google Identity Services
-script from `https://accounts.google.com/gsi/client`. All UI text English. Footer: "MarketClue · Built by
+script from `https://accounts.google.com/gsi/client`. All UI text English. Footer: "ClaimTrail · Built by
 Yuexizi Zhang". Brand: paper `#F4F2EA`, card `#FBFAF5`, ink `#242522`, muted `#5B5E55`, rust `#B13C1C`,
 amber `#E3A43B`, sage `#7C8466`, night `#1C2028`, rule `#D9D4C7`; Arial/Helvetica for UI, Cambria/Georgia
 italic for quotes. Must work at 1280 px and 390 px wide. Hash routes:

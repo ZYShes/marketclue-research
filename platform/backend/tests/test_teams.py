@@ -97,7 +97,7 @@ def test_pending_invites_are_capped(team, monkeypatch):
 
 
 def test_invite_email_is_sent_through_ses_when_configured(team, monkeypatch):
-    monkeypatch.setenv("SES_FROM", "MarketClue <invites@example.com>")
+    monkeypatch.setenv("SES_FROM", "ClaimTrail <invites@example.com>")
     settings.get_settings.cache_clear()
     ses = boto3.client("sesv2", region_name="us-west-2")
     rejected = body(request("/api/team/invites", "POST", {"email": "first@example.com"}, team["owner"]))
